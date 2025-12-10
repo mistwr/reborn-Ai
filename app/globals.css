@@ -1,0 +1,369 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Professional dark theme with better contrast and mobile support */
+:root {
+  --background: oklch(0.06 0.01 260);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.1 0.01 260);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.1 0.01 260);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.65 0.22 220);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.15 0.01 260);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.2 0.01 260);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.6 0.18 280);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.6 0.25 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.22 0.01 260);
+  --input: oklch(0.14 0.01 260);
+  --ring: oklch(0.65 0.22 220);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.05 0.01 260);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.65 0.22 220);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.14 0.01 260);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.18 0.01 260);
+  --sidebar-ring: oklch(0.65 0.22 220);
+}
+
+@theme inline {
+  --font-sans: var(--font-sans, "Inter", system-ui, sans-serif);
+  --font-mono: var(--font-mono, "Geist Mono", "Fira Code", monospace);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /* Removed overflow: hidden to allow scrolling */
+  html,
+  body {
+    @apply h-full w-full bg-background text-foreground antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Better scrollbar for all devices */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.3 0.01 260);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.4 0.01 260);
+  }
+
+  /* Touch-friendly scrolling on mobile */
+  @media (max-width: 768px) {
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+
+    * {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 4px oklch(0.65 0.22 220 / 0.3);
+    }
+    50% {
+      box-shadow: 0 0 16px oklch(0.65 0.22 220 / 0.5);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.25s ease-out forwards;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.25s ease-out forwards;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.1), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Typing cursor */
+  @keyframes blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    51%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .typing-cursor::after {
+    content: "▋";
+    animation: blink 1s infinite;
+    color: oklch(0.65 0.22 220);
+  }
+
+  /* Improved prose styling with better mobile readability */
+  .prose {
+    @apply text-foreground leading-relaxed;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    /* Force text wrapping in messages */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  .prose p {
+    @apply mb-3 last:mb-0;
+  }
+
+  .prose code {
+    @apply bg-secondary px-1.5 py-0.5 rounded text-sm font-mono text-primary;
+    word-break: break-word;
+  }
+
+  .prose pre {
+    @apply bg-secondary/80 p-3 sm:p-4 rounded-lg overflow-x-auto my-3 border border-border;
+    font-size: clamp(0.75rem, 2vw, 0.875rem);
+  }
+
+  .prose pre code {
+    @apply bg-transparent p-0 text-foreground;
+  }
+
+  .prose ul,
+  .prose ol {
+    @apply my-3 ml-4 space-y-1.5;
+  }
+
+  .prose li {
+    @apply relative pl-1;
+  }
+
+  .prose ul li::marker {
+    @apply text-primary;
+  }
+
+  .prose h1,
+  .prose h2,
+  .prose h3 {
+    @apply font-semibold mt-4 mb-2 text-foreground;
+  }
+
+  .prose h1 {
+    @apply text-xl sm:text-2xl;
+  }
+  .prose h2 {
+    @apply text-lg sm:text-xl;
+  }
+  .prose h3 {
+    @apply text-base sm:text-lg;
+  }
+
+  .prose a {
+    @apply text-primary underline underline-offset-2 hover:text-primary/80 transition-colors;
+  }
+
+  .prose blockquote {
+    @apply border-l-3 border-primary/50 pl-3 italic my-3 text-muted-foreground bg-secondary/30 py-2 rounded-r-lg text-sm;
+  }
+
+  .prose strong {
+    @apply font-semibold text-foreground;
+  }
+
+  /* Better mobile touch targets */
+  @media (hover: none) and (pointer: coarse) {
+    button,
+    a,
+    [role="button"] {
+      -webkit-tap-highlight-color: transparent;
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    input,
+    textarea,
+    select {
+      font-size: 16px !important; /* Prevents iOS zoom */
+    }
+  }
+
+  /* Safe area support for notched devices */
+  @supports (padding: max(0px)) {
+    .pb-safe {
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+    .pt-safe {
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+    .pl-safe {
+      padding-left: max(0.75rem, env(safe-area-inset-left));
+    }
+    .pr-safe {
+      padding-right: max(0.75rem, env(safe-area-inset-right));
+    }
+  }
+
+  /* Glass effect */
+  .glass {
+    background: oklch(0.08 0.01 260 / 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, oklch(0.65 0.22 220), oklch(0.7 0.18 280));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Focus states */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Responsive container utilities */
+  .responsive-padding {
+    @apply px-3 sm:px-4 md:px-6;
+  }
+
+  .responsive-gap {
+    @apply gap-2 sm:gap-3 md:gap-4;
+  }
+
+  /* Card hover effects */
+  .card-interactive {
+    @apply transition-all duration-200 hover:bg-muted/50 hover:border-primary/30 active:scale-[0.98];
+  }
+
+  /* Added animated orb for Live mode */
+  @keyframes orb-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+  }
+
+  @keyframes orb-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 20px oklch(0.65 0.22 220 / 0.6), 0 0 40px oklch(0.65 0.22 220 / 0.4), 0 0 60px
+        oklch(0.65 0.22 220 / 0.2);
+    }
+    50% {
+      box-shadow: 0 0 30px oklch(0.65 0.22 220 / 0.8), 0 0 60px oklch(0.65 0.22 220 / 0.6), 0 0 90px
+        oklch(0.65 0.22 220 / 0.4);
+    }
+  }
+
+  .orb-speaking {
+    animation: orb-pulse 1.5s ease-in-out infinite, orb-glow 2s ease-in-out infinite;
+  }
+
+  /* Force text wrapping in chat bubbles */
+  .chat-message {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+    overflow: hidden;
+  }
+}
