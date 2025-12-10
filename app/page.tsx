@@ -415,6 +415,11 @@ export default function RebornAI() {
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
 
+  // SMS state management
+  const [smsMessage, setSmsMessage] = useState("")
+  const [smsCountryCode, setSmsCountryCode] = useState("+351")
+  const [smsNumbers, setSmsNumbers] = useState("")
+
   const handleUpgradePro = () => {
     // Placeholder for actual upgrade logic (e.g., redirect to payment, show modal)
     alert("Redirecionando para a página de upgrade Pro!")
@@ -641,8 +646,28 @@ export default function RebornAI() {
 
   // Load data from localStorage
   useEffect(() => {
-    loadChatHistories()
-    createNewChat() // Initialize with a new chat
+    console.log("[v0] Loading cached SMS data")
+
+    // Load cached SMS message template
+    const cachedMessage = localStorage.getItem("sms_message_template")
+    if (cachedMessage) {
+      console.log("[v0] Restoring cached message:", cachedMessage)
+      setSmsMessage(cachedMessage)
+    }
+
+    // Load cached country code
+    const cachedCountryCode = localStorage.getItem("sms_country_code")
+    if (cachedCountryCode) {
+      console.log("[v0] Restoring cached country code:", cachedCountryCode)
+      setSmsCountryCode(cachedCountryCode)
+    }
+
+    // Load cached numbers
+    const cachedNumbers = localStorage.getItem("sms_numbers")
+    if (cachedNumbers) {
+      console.log("[v0] Restoring cached numbers")
+      setSmsNumbers(cachedNumbers)
+    }
   }, [])
 
   // Scroll to bottom
@@ -1189,25 +1214,27 @@ export default function RebornAI() {
   // SMS Functionality
   // localStorage for caching and improved personalization
   useEffect(() => {
+    console.log("[v0] Loading cached SMS data")
+
     // Load cached SMS message template
     const cachedMessage = localStorage.getItem("sms_message_template")
     if (cachedMessage) {
-      const messageElement = document.getElementById("smsMessage") as HTMLTextAreaElement
-      if (messageElement) messageElement.value = cachedMessage
+      console.log("[v0] Restoring cached message:", cachedMessage)
+      setSmsMessage(cachedMessage)
     }
 
     // Load cached country code
     const cachedCountryCode = localStorage.getItem("sms_country_code")
     if (cachedCountryCode) {
-      const countryElement = document.getElementById("smsCountryCode") as HTMLSelectElement
-      if (countryElement) countryElement.value = cachedCountryCode
+      console.log("[v0] Restoring cached country code:", cachedCountryCode)
+      setSmsCountryCode(cachedCountryCode)
     }
 
     // Load cached numbers
     const cachedNumbers = localStorage.getItem("sms_numbers")
     if (cachedNumbers) {
-      const numbersElement = document.getElementById("smsNumbers") as HTMLTextAreaElement
-      if (numbersElement) numbersElement.value = cachedNumbers
+      console.log("[v0] Restoring cached numbers")
+      setSmsNumbers(cachedNumbers)
     }
   }, [])
 
@@ -1397,7 +1424,7 @@ export default function RebornAI() {
     `
 
     let isRunning = false
-    let currentIndex = 0
+    const currentIndex = 0
 
     const startAutoSend = async () => {
       if (isRunning) return
@@ -1408,7 +1435,7 @@ export default function RebornAI() {
         `🚀 Enviar ${validContacts.length} SMS personalizadas automaticamente?\n\n` +
           `✅ Cada mensagem está personalizada com o nome do contacto\n` +
           `✅ Todas as SMS serão abertas automaticamente\n` +
-          `✅ Intervalo de 800ms entre envios\n\n` +
+          `✅ Intervalo de 1 segundo entre envios\n\n` +
           `📱 IMPORTANTE: Confirme cada SMS na aplicação do telemóvel.\n\n` +
           `Continuar?`,
       )
@@ -1423,76 +1450,69 @@ export default function RebornAI() {
       const progressText = progressDiv.querySelector(".progress-text") as HTMLElement
       const currentContactText = progressDiv.querySelector(".current-contact") as HTMLElement
 
-      sendAllButton.innerHTML = `
-        <div class="flex items-center justify-center gap-2">
-          <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span>Enviando automaticamente... ${currentIndex}/${smsQueue.length}</span>
-        </div>
-      `
-
-      for (let i = currentIndex; i < smsQueue.length; i++) {
+      for (let i = 0; i < smsQueue.length; i++) {
         const item = smsQueue[i]
 
-        console.log("[v0] Sending SMS", i + 1, "to", item.name, ":", item.message)
+        console.log(`[v0] Auto-sending SMS ${i + 1}/${smsQueue.length} to ${item.name}: ${item.message}`)
 
         // Update progress UI
         const progress = ((i + 1) / smsQueue.length) * 100
         progressBar.style.width = `${progress}%`
         progressText.textContent = `${i + 1}/${smsQueue.length}`
-        currentContactText.textContent = `📤 Enviando: ${item.name} (${item.phone})`
+        currentContactText.textContent = `📤 Enviando automaticamente: ${item.name} (${item.phone})`
 
-        // Update status badge
+        // Update status badge to show sending state
         const badge = item.element.querySelector(".status-badge") as HTMLElement
         if (badge) {
           badge.className = "status-badge text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-500 animate-pulse"
-          badge.textContent = "Enviando..."
+          badge.textContent = "📤 Enviando..."
         }
 
         // Scroll to current contact
         item.element.scrollIntoView({ behavior: "smooth", block: "center" })
 
-        // Open SMS with personalized message
+        // Create SMS URL with personalized message
         const encodedMessage = encodeURIComponent(item.message)
         const smsUrl = `sms:${item.phone}?body=${encodedMessage}`
 
         console.log("[v0] Opening SMS URL:", smsUrl)
+
+        // Open SMS app with the personalized message (works on mobile devices)
         window.open(smsUrl, "_blank")
 
-        // Mark as sent
+        // Mark as sent and update UI
         if (badge) {
           badge.className = "status-badge text-xs px-2 py-1 rounded bg-green-500/20 text-green-500"
           badge.textContent = "✓ Enviado"
         }
         item.sent = true
-        currentIndex = i + 1
 
-        // Update button text
+        // Update send all button with progress
         sendAllButton.innerHTML = `
           <div class="flex items-center justify-center gap-2">
             <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Enviando... ${i + 1}/${smsQueue.length}</span>
+            <span>Enviando automaticamente... ${i + 1}/${smsQueue.length}</span>
           </div>
         `
 
+        // Wait 1 second before sending next SMS
         if (i < smsQueue.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 800))
+          await new Promise((resolve) => setTimeout(resolve, 1000))
         }
       }
 
-      console.log("[v0] All SMS sent successfully")
+      console.log("[v0] All SMS sent successfully!")
 
+      // Show completion message
       isRunning = false
-      currentContactText.textContent = `✅ Todas as ${validContacts.length} SMS foram enviadas com sucesso!`
+      currentContactText.textContent = `✅ Todas as ${validContacts.length} SMS foram enviadas automaticamente!`
 
       sendAllButton.disabled = false
       sendAllButton.className =
-        "w-full p-4 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold"
+        "w-full p-4 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold shadow-lg"
       sendAllButton.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1501,6 +1521,11 @@ export default function RebornAI() {
           <span>✓ Concluído! ${validContacts.length} SMS enviadas</span>
         </div>
       `
+
+      // Auto-hide progress after 3 seconds
+      setTimeout(() => {
+        progressDiv.classList.add("hidden")
+      }, 3000)
     }
 
     sendAllButton.onclick = startAutoSend
@@ -1634,6 +1659,8 @@ export default function RebornAI() {
             contacts.push({ name, phone })
           }
         }
+
+        console.log("[v0] Total contacts extracted:", contacts.length)
       }
 
       console.log("[v0] Total contacts extracted:", contacts.length)
@@ -2670,10 +2697,14 @@ export default function RebornAI() {
                           <Label>Mensagem (use {"{nome}"} para personalizar)</Label>
                           <Textarea
                             id="smsMessage"
+                            value={smsMessage}
                             placeholder="Olá {nome}, esta é uma mensagem personalizada!"
                             className="min-h-[100px]"
                             onChange={(e) => {
-                              localStorage.setItem("sms_message_template", e.target.value)
+                              const value = e.target.value
+                              setSmsMessage(value)
+                              localStorage.setItem("sms_message_template", value)
+                              console.log("[v0] Saved message to cache:", value)
                             }}
                           />
                           <p className="text-xs text-muted-foreground mt-1">
@@ -2685,10 +2716,13 @@ export default function RebornAI() {
                           <Label>Prefixo do País (opcional)</Label>
                           <select
                             id="smsCountryCode"
+                            value={smsCountryCode}
                             className="w-full p-2 rounded-md border bg-background text-sm"
-                            defaultValue="+351"
                             onChange={(e) => {
-                              localStorage.setItem("sms_country_code", e.target.value)
+                              const value = e.target.value
+                              setSmsCountryCode(value)
+                              localStorage.setItem("sms_country_code", value)
+                              console.log("[v0] Saved country code to cache:", value)
                             }}
                           >
                             <option value="+351">Portugal (+351)</option>
@@ -2705,10 +2739,14 @@ export default function RebornAI() {
                           <Label>Números Manuais (um por linha: Nome, Número)</Label>
                           <Textarea
                             id="smsNumbers"
+                            value={smsNumbers}
                             placeholder="João Silva, 912345678&#10;Maria Santos, 923456789"
                             className="min-h-[120px] font-mono text-sm"
                             onChange={(e) => {
-                              localStorage.setItem("sms_numbers", e.target.value)
+                              const value = e.target.value
+                              setSmsNumbers(value)
+                              localStorage.setItem("sms_numbers", value)
+                              console.log("[v0] Saved numbers to cache")
                             }}
                           />
                         </div>
@@ -2832,6 +2870,21 @@ export default function RebornAI() {
                       <div id="smsLinksContainer" className="space-y-3">
                         <p className="text-sm text-muted-foreground">Os contactos aparecerão aqui após preparação</p>
                       </div>
+                    </Card>
+
+                    <Card className="p-4 sm:p-6 bg-muted/30">
+                      <h4 className="font-medium mb-2">Como funciona</h4>
+                      <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                        <li>
+                          ✅ Carregue Excel com <strong>Nome</strong> e <strong>Número</strong>
+                        </li>
+                        <li>
+                          ✅ Use <strong>{"{nome}"}</strong> na mensagem para personalização
+                        </li>
+                        <li>✅ Clique no botão verde "Enviar Todas"</li>
+                        <li>📱 Todas as SMS abrem automaticamente personalizadas</li>
+                        <li>✓ Confirme cada uma na aplicação SMS do telemóvel</li>
+                      </ol>
                     </Card>
                   </div>
                 </ScrollArea>
@@ -3163,7 +3216,7 @@ export default function RebornAI() {
                         </div>
 
                         <div>
-                          <Label>Prefixo do Pais</Label>
+                          <Label>Prefixo do País</Label>
                           <select
                             id="waCountryCode"
                             className="w-full p-2 rounded-md border bg-background text-sm"
