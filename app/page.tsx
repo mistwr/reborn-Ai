@@ -1196,10 +1196,20 @@ export default function RebornAI() {
 
       if (result.valid && !seenPhones.has(result.formatted)) {
         seenPhones.add(result.formatted)
-        // Handle personalization: replace {nome} with contact name or default to empty if no name
-        const personalizedMessage = contact.name
-          ? messageTemplate.replace(/{nome}/gi, contact.name)
-          : messageTemplate.replace(/{nome}/gi, "") // Replace {nome} with empty string if no name
+
+        // Se houver {nome} no template, substitui. Senão, adiciona nome no início
+        let personalizedMessage = messageTemplate
+
+        if (contact.name && contact.name.trim() !== "") {
+          if (messageTemplate.includes("{nome}") || messageTemplate.includes("{NOME}")) {
+            // Substituir {nome} pelo nome do contacto
+            personalizedMessage = messageTemplate.replace(/{nome}/gi, contact.name.trim())
+          } else {
+            // Adicionar nome automaticamente no início: "Nome, mensagem"
+            personalizedMessage = `${contact.name.trim()}, ${messageTemplate}`
+          }
+        }
+
         validContacts.push({
           name: contact.name,
           phone: result.formatted,
@@ -1287,6 +1297,69 @@ export default function RebornAI() {
       <p class="current-contact text-xs text-muted-foreground mt-2">Preparando...</p>
     `
     controlsDiv.appendChild(progressDiv)
+
+    const sendAllAtOnceButton = document.createElement("button")
+    sendAllAtOnceButton.className =
+      "w-full p-4 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all mb-3"
+
+    sendAllAtOnceButton.innerHTML = `
+      <div class="flex items-center justify-center gap-2">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span>ENVIAR TODAS DE UMA VEZ (${validContacts.length} SMS)</span>
+      </div>
+    `
+
+    sendAllAtOnceButton.onclick = () => {
+      const confirmed = confirm(
+        `Abrir ${validContacts.length} SMS de uma só vez?\n\n` +
+          `Todas as mensagens serão abertas no seu app de SMS com o nome da pessoa no início.\n\n` +
+          `NOTA: O seu navegador pode bloquear popups. Se isso acontecer, permita popups para este site.`,
+      )
+
+      if (!confirmed) return
+
+      // Marcar todos como enviados e abrir todos os links
+      let openedCount = 0
+
+      smsQueue.forEach((item, index) => {
+        // Criar link e clicar
+        const link = document.createElement("a")
+        link.href = `sms:${item.phone}?body=${encodeURIComponent(item.message)}`
+        link.target = "_blank"
+        link.style.display = "none"
+        document.body.appendChild(link)
+
+        // Usar setTimeout para evitar bloqueio de popups
+        setTimeout(() => {
+          link.click()
+          document.body.removeChild(link)
+          openedCount++
+
+          // Atualizar badge do contacto
+          const badge = item.element.querySelector(".status-badge") as HTMLElement
+          if (badge) {
+            badge.className = "status-badge text-xs px-2 py-1 rounded bg-green-500/20 text-green-500"
+            badge.textContent = "Aberto"
+          }
+
+          // Quando todos forem abertos
+          if (openedCount === smsQueue.length) {
+            sendAllAtOnceButton.innerHTML = `
+              <div class="flex items-center justify-center gap-2">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>TODAS ABERTAS! (${validContacts.length} SMS)</span>
+              </div>
+            `
+          }
+        }, index * 100) // 100ms entre cada abertura para evitar bloqueio
+      })
+    }
+
+    controlsDiv.appendChild(sendAllAtOnceButton)
 
     const sendAllButton = document.createElement("button")
     sendAllButton.className =
