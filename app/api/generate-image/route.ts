@@ -1,32 +1,24 @@
-export async function POST(request: Request) {
+export const maxDuration = 60
+
+export async function POST(req: Request) {
   try {
-    const { prompt } = await request.json()
+    const { prompt } = await req.json()
 
-    // Using Hugging Face for image generation
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ inputs: prompt }),
-      },
-    )
-
-    if (!response.ok) {
-      throw new Error("Image generation failed")
+    if (!prompt) {
+      return Response.json({ error: "Prompt não fornecido" }, { status: 400 })
     }
 
-    const blob = await response.blob()
-    const arrayBuffer = await blob.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString("base64")
-    const imageUrl = `data:image/png;base64,${base64}`
+    const seed = Math.floor(Math.random() * 1000000)
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`
 
-    return Response.json({ imageUrl })
-  } catch (error) {
+    return Response.json({
+      url: imageUrl,
+      imageUrl: imageUrl,
+      directUrl: imageUrl,
+      success: true,
+    })
+  } catch (error: any) {
     console.error("Image generation error:", error)
-    return Response.json({ error: "Failed to generate image" }, { status: 500 })
+    return Response.json({ error: error?.message || "Falha ao gerar imagem" }, { status: 500 })
   }
 }

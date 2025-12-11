@@ -1,49 +1,74 @@
-import { generateText } from "ai"
+import { streamText } from "ai"
 
-export async function POST(request: Request) {
+export const maxDuration = 60
+
+export async function POST(req: Request) {
   try {
-    const { prompt, style } = await request.json()
+    const { prompt, template, category, palette, features, businessName, businessPhone, businessEmail } =
+      await req.json()
 
-    const systemPrompt = `You are an expert web developer. Generate a complete, modern, responsive HTML website based on the user's request.
-    
-Style preference: ${style || "modern"}
+    if (!prompt && !template) {
+      return Response.json({ error: "Prompt ou template é obrigatório" }, { status: 400 })
+    }
 
-Requirements:
-- Generate ONLY valid HTML with embedded CSS and JavaScript
-- Use modern CSS (flexbox, grid, animations)
-- Make it fully responsive
-- Include beautiful gradients and shadows
-- Use Google Fonts
-- Add smooth animations and hover effects
-- Include meta tags for SEO
-- Make it visually stunning and professional
-- Do NOT include any markdown, explanations, or code blocks - ONLY pure HTML
+    const featuresText = features?.length ? `Inclui as seguintes secções: ${features.join(", ")}` : ""
 
-Return ONLY the HTML code starting with <!DOCTYPE html> and ending with </html>`
+    const contactInfo =
+      businessName || businessPhone || businessEmail
+        ? `Informações de contacto:
+         - Nome: ${businessName || "Empresa"}
+         - Telefone: ${businessPhone || "+351 XXX XXX XXX"}
+         - Email: ${businessEmail || "info@empresa.com"}`
+        : ""
 
-    const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-20250514",
-      system: systemPrompt,
-      prompt: prompt,
-      maxTokens: 8000,
+    const colorInfo = palette
+      ? `Usa este esquema de cores:
+         - Cor primária: ${palette.primary}
+         - Cor escura: ${palette.colors[0]}
+         - Cor clara: ${palette.colors[2]}
+         Nome da paleta: ${palette.name}`
+      : ""
+
+    const result = streamText({
+      model: "google/gemini-2.0-flash-001" as any,
+      system: `Você é um expert web developer especializado em criar websites profissionais e modernos.
+
+REQUISITOS OBRIGATÓRIOS:
+1. HTML completo em um único arquivo começando com <!DOCTYPE html>
+2. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
+3. Adicione ícones Font Awesome: <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+4. JavaScript vanilla para interatividade
+5. Design profissional, moderno e RESPONSIVO (mobile-first)
+6. Conteúdo realista e relevante (NUNCA use lorem ipsum)
+7. Meta tags completas para SEO
+8. Animações sutis com CSS transitions
+9. Navegação funcional com smooth scroll
+10. Footer profissional com links e redes sociais
+
+${category ? `CATEGORIA DO NEGÓCIO: ${category}` : ""}
+${template ? `TEMPLATE: ${template}` : ""}
+${colorInfo}
+${featuresText}
+${contactInfo}
+
+SECÇÕES ESPECIAIS:
+- Se incluir "chatbot": Adicione um botão flutuante de chat no canto inferior direito com widget de chat simples
+- Se incluir "newsletter": Adicione formulário de subscrição de email funcional
+- Se incluir "testimonials": Adicione slider/carrossel de testemunhos
+- Se incluir "gallery": Adicione galeria de imagens com lightbox
+- Se incluir "pricing": Adicione tabela de preços com destaque no plano recomendado
+
+IMPORTANTE: 
+- Use imagens de placeholder de https://picsum.photos ou https://placehold.co
+- Retorne APENAS o código HTML puro
+- Não inclua explicações ou markdown
+- O código deve estar pronto para produção`,
+      prompt: `Crie um website completo e profissional para: ${prompt || `Um negócio de ${category || template}`}`,
     })
 
-    // Clean the response
-    let html = text.trim()
-    if (html.startsWith("```html")) {
-      html = html.slice(7)
-    }
-    if (html.startsWith("```")) {
-      html = html.slice(3)
-    }
-    if (html.endsWith("```")) {
-      html = html.slice(0, -3)
-    }
-    html = html.trim()
-
-    return Response.json({ html })
-  } catch (error) {
-    console.error("Generate website error:", error)
-    return Response.json({ error: "Failed to generate website" }, { status: 500 })
+    return result.toTextStreamResponse()
+  } catch (error: any) {
+    console.error("[v0] Website error:", error)
+    return Response.json({ error: "Erro ao gerar website" }, { status: 500 })
   }
 }

@@ -1,52 +1,67 @@
-import { NextResponse } from "next/server"
+export const maxDuration = 60
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { html, projectName } = await request.json()
+    const { html, projectName } = await req.json()
 
-    if (!html || !projectName) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    if (!html) {
+      return Response.json({ error: "HTML é obrigatório" }, { status: 400 })
     }
 
-    const vercelToken = process.env.VERCEL_TOKEN
+    const VERCEL_TOKEN = process.env.VERCEL_TOKEN
 
-    if (!vercelToken) {
-      return NextResponse.json({ error: "Vercel token not configured" }, { status: 500 })
+    if (!VERCEL_TOKEN) {
+      return Response.json(
+        {
+          error: "Configure VERCEL_TOKEN para fazer deploy",
+          instructions:
+            "Vá em vercel.com/account/tokens e crie um token. Adicione como VERCEL_TOKEN nas variáveis de ambiente.",
+        },
+        { status: 400 },
+      )
     }
 
-    // Create deployment
+    const name = projectName || `reborn-site-${Date.now()}`
+
+    // Criar projeto no Vercel
     const deployResponse = await fetch("https://api.vercel.com/v13/deployments", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${vercelToken}`,
+        Authorization: `Bearer ${VERCEL_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+        name: name,
         files: [
           {
             file: "index.html",
-            data: html,
+            data: Buffer.from(html).toString("base64"),
+            encoding: "base64",
           },
         ],
         projectSettings: {
           framework: null,
         },
+        target: "production",
       }),
     })
 
-    const deployData = await deployResponse.json()
-
     if (!deployResponse.ok) {
-      return NextResponse.json({ error: deployData.error?.message || "Deployment failed" }, { status: 500 })
+      const errorData = await deployResponse.json()
+      console.error("[v0] Vercel deploy error:", errorData)
+      return Response.json({ error: errorData.error?.message || "Erro no deploy" }, { status: 500 })
     }
 
-    return NextResponse.json({
+    const deployData = await deployResponse.json()
+
+    return Response.json({
+      success: true,
       url: `https://${deployData.url}`,
-      deploymentId: deployData.id,
+      projectUrl: `https://vercel.com/${deployData.ownerId}/${deployData.name}`,
+      id: deployData.id,
     })
-  } catch (error) {
-    console.error("Deploy error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    console.error("[v0] Deploy error:", error)
+    return Response.json({ error: error?.message || "Erro ao fazer deploy" }, { status: 500 })
   }
 }
