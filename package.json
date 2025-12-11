@@ -9,8 +9,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "@ai-sdk/provider-utils": "2.2.8",
-    "@ai-sdk/react": "1.2.12",
     "@auth/core": "latest",
     "@google/generative-ai": "0.24.1",
     "@hookform/resolvers": "^3.10.0",
