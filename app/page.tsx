@@ -7,7 +7,7 @@ import { useSession, signOut } from "next-auth/react"
 
 import type React from "react"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -78,6 +78,9 @@ import {
   MessageCircle,
   Check,
   Edit3,
+  History,
+  Music,
+  LogOut,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
@@ -259,6 +262,14 @@ type ChatHistory = {
   timestamp: number
 }
 
+type SmsHistory = {
+  id: string
+  message: string
+  contacts: number
+  timestamp: number
+  names: string[]
+}
+
 interface Contact {
   name: string
   phone: string
@@ -281,6 +292,17 @@ interface LiveModeState {
 }
 
 export default function RebornAI() {
+  // </CHANGE> Suppress ResizeObserver warning that doesn't affect functionality
+  useEffect(() => {
+    const resizeObserverErrorHandler = (e: ErrorEvent) => {
+      if (e.message === "ResizeObserver loop completed with undelivered notifications.") {
+        e.stopImmediatePropagation()
+      }
+    }
+    window.addEventListener("error", resizeObserverErrorHandler)
+    return () => window.removeEventListener("error", resizeObserverErrorHandler)
+  }, [])
+
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -299,6 +321,12 @@ export default function RebornAI() {
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>("") // Changed from null to string for consistency
 
+  const [smsHistories, setSmsHistories] = useState<SmsHistory[]>([])
+  const [showSmsHistory, setShowSmsHistory] = useState(false)
+  const [showChatHistory, setShowChatHistory] = useState(false)
+
+  const [showMusicPlayer, setShowMusicPlayer] = useState(false)
+
   // Image generation state
   const [imagePrompt, setImagePrompt] = useState("")
   const [generatedImage, setGeneratedImage] = useState<string | null>(null)
@@ -311,7 +339,6 @@ export default function RebornAI() {
   const [editMode, setEditMode] = useState(false)
   const [editableHtml, setEditableHtml] = useState("")
   const [uploadedImages, setUploadedImages] = useState<{ id: string; dataUrl: string; name: string }[]>([])
-  // </CHANGE>
   const [isGeneratingWebsite, setIsGeneratingWebsite] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState("startup")
   const [selectedTemplate, setSelectedTemplate] = useState("modern")
@@ -375,220 +402,41 @@ export default function RebornAI() {
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
 
-  const startLiveMode = async () => {
-    try {
-      // Request camera and microphone
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      })
-
-      mediaStreamRef.current = stream
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-
-      setLiveMode({
-        isActive: true,
-        isMicOn: true,
-        isCameraOn: true,
-        isProcessing: false,
-        transcript: "",
-        response: "",
-      })
-
-      // Start speech recognition
-      startLiveRecognition()
-
-      // Start periodic frame analysis
-      startFrameAnalysis()
-    } catch (error) {
-      console.error("Error starting live mode:", error)
-      alert("Erro ao aceder à câmara/microfone. Verifique as permissões.")
+  useEffect(() => {
+    const saved = localStorage.getItem("rebornai-sms-history")
+    if (saved) {
+      setSmsHistories(JSON.parse(saved))
     }
+  }, [])
+
+  const saveSmsToHistory = (message: string, contacts: Contact[]) => {
+    const newHistory: SmsHistory = {
+      id: Date.now().toString(),
+      message,
+      contacts: contacts.length,
+      timestamp: Date.now(),
+      names: contacts.map((c) => c.name).slice(0, 5), // Save first 5 names
+    }
+    const updated = [newHistory, ...smsHistories].slice(0, 50) // Keep last 50
+    setSmsHistories(updated)
+    localStorage.setItem("rebornai-sms-history", JSON.JSON.stringify(updated))
   }
 
-  const stopLiveMode = () => {
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
-
-    // Stop recognition
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null // Clear ref
-    }
-
-    // Stop frame analysis
-    if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current)
-      liveIntervalRef.current = null
-    }
-
-    setLiveMode(null) // Set to null to indicate mode is off
-    setLiveHistory([])
-    setLiveModeTranscript("") // Clear transcript
+  const deleteSmsHistory = (id: string) => {
+    const updated = smsHistories.filter((h) => h.id !== id)
+    setSmsHistories(updated)
+    localStorage.setItem("rebornai-sms-history", JSON.JSON.stringify(updated))
   }
 
-  const startLiveRecognition = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("O seu navegador não suporta reconhecimento de voz.")
-      return
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = "pt-PT"
-
-    recognition.onresult = async (event: any) => {
-      const lastResult = event.results[event.results.length - 1]
-      const transcript = lastResult[0].transcript
-
-      setLiveModeTranscript(transcript) // Update transcript state
-
-      // If final result, send to AI
-      if (lastResult.isFinal && transcript.trim()) {
-        await processLiveInput(transcript)
-      }
-    }
-
-    recognition.onerror = (event: any) => {
-      console.error("Recognition error:", event.error)
-      setLiveMode((prev) => (prev ? { ...prev, transcript: "" } : null)) // Clear transcript on error
-      if (event.error === "no-speech") {
-        alert("Nenhuma fala detetada. Tente novamente.")
-      } else if (event.error === "audio-capture") {
-        alert("Erro na captura de áudio. Verifique o microfone.")
-      }
-    }
-
-    recognition.onend = () => {
-      // Restart if still in live mode and mic is on
-      if (liveMode?.isActive && liveMode.isMicOn) {
-        recognition.start()
-      }
-    }
-
-    recognition.start()
-    recognitionRef.current = recognition
+  const clearAllSmsHistory = () => {
+    setSmsHistories([])
+    localStorage.removeItem("rebornai-sms-history")
   }
 
-  const startFrameAnalysis = () => {
-    // Analyze frame every 5 seconds
-    liveIntervalRef.current = setInterval(async () => {
-      if (!liveMode?.isCameraOn || !videoRef.current || !canvasRef.current) return
-
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const ctx = canvas.getContext("2d")
-
-      if (!ctx) return
-
-      canvas.width = 320
-      canvas.height = 240
-      ctx.drawImage(video, 0, 0, 320, 240)
-
-      // Get frame as base64 (low quality for speed)
-      const frameData = canvas.toDataURL("image/jpeg", 0.3)
-
-      // Only analyze if not currently processing
-      if (!liveMode.isProcessing) {
-        // Store frame for context but don't send automatically
-        // Frame will be included when user speaks
-      }
-    }, 5000)
-  }
-
-  const processLiveInput = async (transcript: string) => {
-    if (!transcript.trim() || liveMode?.isProcessing) return
-
-    setLiveMode((prev) => (prev ? { ...prev, isProcessing: true, transcript: "" } : null)) // Clear transcript during processing
-
-    try {
-      // Get current frame if camera is on
-      const frameDescription = ""
-      if (liveMode?.isCameraOn && videoRef.current && canvasRef.current) {
-        const canvas = canvasRef.current
-        const video = videoRef.current
-        const ctx = canvas.getContext("2d")
-
-        if (ctx) {
-          canvas.width = 320
-          canvas.height = 240
-          ctx.drawImage(video, 0, 0, 320, 240)
-        }
-      }
-
-      const response = await fetch("/api/live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioTranscript: transcript,
-          frameDescription,
-          conversationHistory: liveHistory,
-          mode: liveMode?.isCameraOn ? "both" : "voice",
-        }),
-      })
-
-      if (!response.ok) throw new Error("Erro na resposta")
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullResponse = ""
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          fullResponse += decoder.decode(value)
-          setLiveMode((prev) => (prev ? { ...prev, response: fullResponse } : null))
-        }
-      }
-
-      // Update history
-      setLiveHistory((prev) => [
-        ...prev,
-        { role: "user", content: transcript },
-        { role: "assistant", content: fullResponse },
-      ])
-
-      // Speak response
-      speakText(fullResponse)
-    } catch (error) {
-      console.error("Live processing error:", error)
-      setLiveMode((prev) => (prev ? { ...prev, response: "Desculpa, ocorreu um erro no processamento." } : null))
-    } finally {
-      setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
-    }
-  }
-
-  const toggleLiveMic = () => {
-    if (!liveMode) return
-
-    if (liveMode.isMicOn) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-    } else {
-      startLiveRecognition()
-    }
-    setLiveMode((prev) => (prev ? { ...prev, isMicOn: !prev.isMicOn } : null))
-  }
-
-  const toggleLiveCamera = () => {
-    if (!liveMode || !mediaStreamRef.current) return
-
-    const videoTrack = mediaStreamRef.current.getVideoTracks()[0]
-    if (videoTrack) {
-      videoTrack.enabled = !liveMode.isCameraOn
-      setLiveMode((prev) => (prev ? { ...prev, isCameraOn: !prev.isCameraOn } : null))
-    }
+  const clearAllChatHistory = () => {
+    setChatHistories([])
+    localStorage.removeItem("rebornai-chats")
+    createNewChat()
   }
 
   // Load data from localStorage
@@ -614,7 +462,7 @@ export default function RebornAI() {
   }
 
   const saveChatHistories = (histories: ChatHistory[]) => {
-    localStorage.setItem("rebornai-chats", JSON.stringify(histories))
+    localStorage.setItem("rebornai-chats", JSON.JSON.stringify(histories))
     setChatHistories(histories)
   }
 
@@ -920,7 +768,6 @@ export default function RebornAI() {
     // Reset input
     e.target.value = ""
   }
-  // </CHANGE>
 
   const insertImageIntoHtml = (imageDataUrl: string) => {
     if (!editMode || !editableHtml) return
@@ -935,7 +782,6 @@ export default function RebornAI() {
       alert("Nenhuma imagem placeholder encontrada no HTML. Adicione manualmente no editor.")
     }
   }
-  // </CHANGE>
 
   const generateWebsite = async () => {
     if (!websitePrompt.trim() && !businessName.trim()) return // Basic validation
@@ -992,7 +838,6 @@ export default function RebornAI() {
       setIsGeneratingWebsite(false)
     }
   }
-  // </CHANGE>
 
   const generatePresentation = async () => {
     if (!presentationPrompt.trim()) return // Basic validation
@@ -1151,6 +996,8 @@ export default function RebornAI() {
     countryCode: string,
     batchSize: number,
   ) => {
+    saveSmsToHistory(messageTemplate, contacts)
+
     linksContainer.innerHTML = ""
     statsContainer.innerHTML = '<p class="text-sm text-muted-foreground">A processar...</p>'
     invalidContainer.innerHTML = ""
@@ -1643,30 +1490,298 @@ export default function RebornAI() {
     }
   }
 
+  // Live Mode Functions (Newly added)
+  const startLiveMode = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("O seu navegador não suporta acesso à câmara e microfone.")
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      mediaStreamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+
+      const recognition = initializeRecognition()
+      if (!recognition) {
+        // Fallback if speech recognition is not supported
+        setLiveMode({
+          isActive: true,
+          isMicOn: true,
+          isCameraOn: true,
+          isProcessing: false,
+          transcript: "",
+          response:
+            "Modo Live iniciado. O seu navegador não suporta reconhecimento de voz. Por favor, escreva a sua mensagem.",
+        })
+        return
+      }
+      recognitionRef.current = recognition
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        setLiveModeTranscript(transcript)
+        setLiveMode((prev) => (prev ? { ...prev, transcript: transcript } : null))
+      }
+
+      recognition.onerror = (e: any) => {
+        console.error("Live mode recognition error:", e)
+        setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
+        // Optional: stop live mode on error
+        // stopLiveMode()
+      }
+
+      recognition.onend = () => {
+        // Restart listening if mic is still on
+        if (liveMode?.isMicOn) {
+          recognitionRef.current?.start()
+        } else {
+          setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
+        }
+      }
+
+      setLiveMode({
+        isActive: true,
+        isMicOn: true,
+        isCameraOn: true,
+        isProcessing: false, // Start processing when ready to listen
+        transcript: "",
+        response: "",
+      })
+      recognition.start() // Start listening immediately
+    } catch (error) {
+      console.error("Error starting live mode:", error)
+      alert("Não foi possível aceder à câmara ou microfone. Verifique as permissões.")
+      setLiveMode(null)
+    }
+  }
+
+  const toggleLiveMic = () => {
+    setLiveMode((prev) => {
+      if (!prev) return null
+      const newMicState = !prev.isMicOn
+      if (mediaStreamRef.current) {
+        const audioTracks = mediaStreamRef.current.getAudioTracks()
+        audioTracks.forEach((track) => (track.enabled = newMicState))
+      }
+      if (newMicState && recognitionRef.current) {
+        // Restart recognition if mic is turned back on
+        recognitionRef.current.start()
+      } else if (!newMicState && recognitionRef.current) {
+        // Stop recognition if mic is turned off
+        recognitionRef.current.stop()
+      }
+      return { ...prev, isMicOn: newMicState, isProcessing: newMicState }
+    })
+  }
+
+  const toggleLiveCamera = () => {
+    setLiveMode((prev) => {
+      if (!prev) return null
+      const newCameraState = !prev.isCameraOn
+      if (mediaStreamRef.current) {
+        const videoTracks = mediaStreamRef.current.getVideoTracks()
+        videoTracks.forEach((track) => (track.enabled = newCameraState))
+      }
+      return { ...prev, isCameraOn: newCameraState }
+    })
+  }
+
+  const stopLiveMode = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current)
+      liveIntervalRef.current = null
+    }
+    setLiveMode(null)
+    setLiveModeTranscript("")
+  }
+
+  // Start processing when live mode is active and mic is on
+  useEffect(() => {
+    if (liveMode?.isActive && liveMode.isMicOn && !liveMode.isProcessing) {
+      setLiveMode((prev) => (prev ? { ...prev, isProcessing: true } : null))
+      // Simulate sending to AI and getting response
+      // In a real app, you'd send liveModeTranscript to an API
+      liveIntervalRef.current = setInterval(async () => {
+        if (liveMode?.transcript) {
+          try {
+            const response = await fetch("/api/live-chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: liveMode.transcript }),
+            })
+            const data = await response.json()
+            setLiveMode((prev) => (prev ? { ...prev, response: data.reply, isProcessing: false } : null))
+            setLiveModeTranscript("") // Clear transcript after processing
+            // Stop recognition temporarily while AI responds to avoid duplicate inputs
+            if (recognitionRef.current && liveMode.isMicOn) {
+              recognitionRef.current.stop()
+            }
+          } catch (error) {
+            console.error("Error sending live message:", error)
+            setLiveMode((prev) =>
+              prev ? { ...prev, response: "Error processing your request.", isProcessing: false } : null,
+            )
+          }
+        } else {
+          // If no transcript, keep processing flag false unless mic is on
+          setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
+        }
+      }, 1500) // Process every 1.5 seconds or when new transcript is available
+    } else if (liveMode?.isActive && (!liveMode.isMicOn || !liveMode.transcript)) {
+      // Stop processing if mic is off or no transcript
+      setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current)
+        liveIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current)
+      }
+    }
+  }, [liveMode?.isActive, liveMode?.isMicOn, liveMode?.transcript, liveMode?.response]) // Rerun when relevant states change
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-sidebar-border shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-semibold text-lg">Reborn AI</span>
+        <div className="flex flex-col h-full">
+          <div className="p-4 border-b">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-bold">Reborn AI</h1>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="lg:hidden">
-              <X className="h-5 w-5" />
+            <Button onClick={createNewChat} className="w-full" size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Conversa
             </Button>
           </div>
 
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-2">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-sm"
+                onClick={() => setShowChatHistory(!showChatHistory)}
+              >
+                <History className="h-4 w-4 mr-2" />
+                Historico de Chat
+              </Button>
+
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-sm"
+                onClick={() => setShowSmsHistory(!showSmsHistory)}
+              >
+                <MessageCircleIcon className="h-4 w-4 mr-2" />
+                Historico de SMS
+              </Button>
+
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-sm"
+                onClick={() => setShowMusicPlayer(!showMusicPlayer)}
+              >
+                <Music className="h-4 w-4 mr-2" />
+                Player de Musica
+              </Button>
+
+              {showChatHistory && (
+                <div className="mt-2 space-y-2 pl-2 border-l">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{chatHistories.length} conversas</span>
+                    {chatHistories.length > 0 && (
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={clearAllChatHistory}>
+                        Limpar Tudo
+                      </Button>
+                    )}
+                  </div>
+                  {chatHistories.map((chat) => (
+                    <div key={chat.id} className="flex items-center gap-1">
+                      <Button
+                        variant={currentChatId === chat.id ? "secondary" : "ghost"}
+                        className="flex-1 justify-start text-xs h-8 px-2"
+                        onClick={() => loadChat(chat)}
+                      >
+                        <span className="truncate">{chat.title}</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteChat(chat.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showSmsHistory && (
+                <div className="mt-2 space-y-2 pl-2 border-l">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{smsHistories.length} envios</span>
+                    {smsHistories.length > 0 && (
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={clearAllSmsHistory}>
+                        Limpar Tudo
+                      </Button>
+                    )}
+                  </div>
+                  {smsHistories.map((sms) => (
+                    <div key={sms.id} className="space-y-1">
+                      <div className="flex items-start gap-1">
+                        <div className="flex-1 bg-muted/50 rounded p-2">
+                          <p className="text-xs truncate">{sms.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {sms.contacts} contactos • {new Date(sms.timestamp).toLocaleDateString()}
+                          </p>
+                          {sms.names.length > 0 && (
+                            <p className="text-xs text-muted-foreground truncate">{sms.names.join(", ")}</p>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => deleteSmsHistory(sms.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showMusicPlayer && (
+                <div className="mt-2 p-2 bg-muted/30 rounded border">
+                  <audio
+                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Em%20um%20mundo%20acelerado%2C%20onde%20tudo%20%C3%A9%20conex%20%281%29-grzbOEqHGivnGcHpOmGX2QXzwqJmGp.mp3"
+                    controls
+                    loop
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground text-center mt-1">Player de Musica</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
           {session?.user ? (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2 p-4 border-t">
               <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
                 <Avatar className="h-8 w-8">
                   <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center">
@@ -1691,150 +1806,24 @@ export default function RebornAI() {
                   )}
                 </div>
               </div>
-              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => signOut()}>
-                Sair
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs gap-2 bg-transparent"
+                onClick={() => signOut()}
+              >
+                <LogOut className="h-3 w-3" />
+                Terminar Sessao
               </Button>
             </div>
           ) : (
-            <Button className="w-full mt-3" onClick={() => setShowAuthModal(true)}>
-              <User className="h-4 w-4 mr-2" />
-              Entrar / Registar
-            </Button>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-          <nav className="space-y-1">
-            {/* CHANGED: Removed TabsList from sidebar as it was outside Tabs component */}
-            <div className="flex flex-col items-start gap-1">
-              <Button
-                variant={activeTab === "chat" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("chat")}
-              >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Chat
-              </Button>
-              <Button
-                variant={activeTab === "live" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("live")}
-              >
-                <Video className="h-4 w-4 mr-2" />
-                Modo Live
-              </Button>
-              <Button
-                variant={activeTab === "images" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("images")}
-              >
-                <ImagePlus className="h-4 w-4 mr-2" />
-                Imagens
-              </Button>
-              <Button
-                variant={activeTab === "webcraft" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("webcraft")}
-              >
-                <Globe className="h-4 w-4 mr-2" />
-                WebCraft
-              </Button>
-              <Button
-                variant={activeTab === "presentations" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("presentations")}
-              >
-                <Presentation className="h-4 w-4 mr-2" />
-                Slides
-              </Button>
-              <Button
-                variant={activeTab === "ebooks" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("ebooks")}
-              >
-                <BookOpen className="h-4 w-4 mr-2" />
-                Ebooks
-              </Button>
-              <Button
-                variant={activeTab === "sms" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("sms")}
-              >
-                <MessageCircleIcon className="h-4 w-4 mr-2" />
-                SMS
-              </Button>
-              <Button
-                variant={activeTab === "email" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("email")}
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Email
-              </Button>
-              <Button
-                variant={activeTab === "whatsapp" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("whatsapp")}
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                WhatsApp
-              </Button>
-              <Button
-                variant={activeTab === "clipper" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("clipper")}
-              >
-                <Scissors className="h-4 w-4 mr-2" />
-                Clipper
-              </Button>
-              <Button
-                variant={activeTab === "marketing" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("marketing")}
-              >
-                <Megaphone className="h-4 w-4 mr-2" />
-                Marketing
+            <div className="p-4 border-t shrink-0">
+              <Button className="w-full gap-2" onClick={() => setShowAuthModal(true)}>
+                <User className="h-4 w-4" />
+                Entrar / Registar
               </Button>
             </div>
-          </nav>
-
-          {/* Chat History */}
-          <div className="mt-8 pt-4 border-t border-sidebar-border">
-            <h4 className="px-3 text-sm font-semibold text-muted-foreground mb-2">Histórico</h4>
-            <nav className="space-y-1">
-              {chatHistories.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                    currentChatId === chat.id ? "bg-muted" : "hover:bg-muted/50"
-                  }`}
-                  onClick={() => loadChat(chat)}
-                >
-                  <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 text-sm truncate">{chat.title}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteChat(chat.id)
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </nav>
-          </div>
-        </div>
-
-        {/* New Chat Button */}
-        <div className="p-3 border-t border-sidebar-border shrink-0">
-          <Button onClick={createNewChat} className="w-full gap-2 bg-transparent" variant="outline">
-            <Plus className="h-4 w-4" />
-            Nova Conversa
-          </Button>
+          )}
         </div>
       </div>
 
@@ -2096,7 +2085,7 @@ export default function RebornAI() {
                         </Button>
                       </div>
                       {/* Animated Orb when speaking */}
-                      {liveMode.isProcessing && ( // Changed from isListening to isProcessing for better visual cue
+                      {liveMode.isProcessing && (
                         <div className="absolute inset-0 flex items-center justify-center z-0">
                           <div className="w-32 h-32 rounded-full bg-primary/30 backdrop-blur-sm animate-ping"></div>
                           <div
@@ -2381,17 +2370,13 @@ export default function RebornAI() {
                         </Button>
                       </>
                     )}
-                    {/* </CHANGE> */}
                   </div>
                 </Card>
 
                 {/* Preview Panel */}
                 <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="p-3 border-b border-border flex items-center justify-between">
-                    <span className="font-medium text-sm">
-                      {editMode ? "Editor HTML" : "Preview"}
-                      {/* </CHANGE> */}
-                    </span>
+                    <span className="font-medium text-sm">{editMode ? "Editor HTML" : "Preview"}</span>
                     {generatedWebsite && (
                       <div className="flex gap-2">
                         <Button
@@ -2420,7 +2405,6 @@ export default function RebornAI() {
                         <p>O preview aparecerá aqui</p>
                       </div>
                     )}
-                    {/* </CHANGE> */}
                   </div>
                 </Card>
               </div>
@@ -3755,18 +3739,6 @@ export default function RebornAI() {
       >
         <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
       </a>
-
-      <div className="fixed bottom-3 left-3 z-50 bg-black/70 backdrop-blur-sm rounded-md p-1 shadow-md">
-        <audio
-          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Em%20um%20mundo%20acelerado%2C%20onde%20tudo%20%C3%A9%20conex%20%281%29-grzbOEqHGivnGcHpOmGX2QXzwqJmGp.mp3"
-          controls
-          loop
-          className="h-6 w-32 sm:h-7 sm:w-40"
-          style={{
-            filter: "invert(1) hue-rotate(180deg)",
-          }}
-        />
-      </div>
 
       {/* Overlay when sidebar is open on mobile */}
       {sidebarOpen && (
