@@ -1390,10 +1390,17 @@ export default function RebornAI() {
   const parseExcelFile = (buffer: ArrayBuffer): Contact[] => {
     const contacts: Contact[] = []
     try {
+      // Verify XLSX is loaded
+      if (!XLSX || !XLSX.read || !XLSX.utils) {
+        throw new Error("Biblioteca Excel não carregada corretamente")
+      }
+
       const workbook = XLSX.read(buffer, { type: "array" })
 
       for (const sheetName of workbook.SheetNames) {
         const sheet = workbook.Sheets[sheetName]
+        if (!sheet) continue
+
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
 
         // Percorrer todas as linhas
@@ -1427,6 +1434,7 @@ export default function RebornAI() {
       }
     } catch (error) {
       console.error("Erro ao processar Excel:", error)
+      throw error // Re-throw to be caught by caller
     }
     return contacts
   }
