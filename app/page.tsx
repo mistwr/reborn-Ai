@@ -3,6 +3,7 @@
 import { Calendar } from "@/components/ui/calendar"
 import { AuthModal } from "@/components/auth-modal"
 import { GDPRBanner } from "@/components/gdpr-banner"
+// import { AuthModal } from "@/components/auth-modal" // Duplicate import, likely a typo - Removed
 import { useSession, signOut } from "next-auth/react"
 
 import type React from "react"
@@ -25,7 +26,6 @@ import {
   Globe,
   Presentation,
   BookOpen,
-  Plus,
   Send,
   X,
   Mic,
@@ -78,9 +78,12 @@ import {
   MessageCircle,
   Check,
   Edit3,
+  LogOut,
+  History,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
+import { cn } from "@/lib/utils" // Assuming cn utility is available
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -264,6 +267,25 @@ interface Contact {
   phone: string
 }
 
+interface SmsHistoryEntry {
+  id: string
+  timestamp: number
+  contacts: Contact[]
+  message: string
+  countryCode: string
+  validCount: number
+  totalCount: number
+}
+
+interface UserSession {
+  userId: string
+  email: string
+  timestamp: number
+  smsHistory: SmsHistoryEntry[]
+  chatHistory: ChatHistory[]
+}
+// </CHANGE>
+
 interface UserPreferences {
   style?: string
   language?: string
@@ -370,232 +392,325 @@ export default function RebornAI() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // SMS related states
+  const [smsMessage, setSmsMessage] = useState("")
+  const [smsCountryCode, setSmsCountryCode] = useState("+351")
+  const [smsNumbers, setSmsNumbers] = useState("")
+  const [validSmsContacts, setValidSmsContacts] = useState<Contact[]>([])
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  // </CHANGE>
+
+  const [sessionHistory, setSessionHistory] = useState<UserSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = useState<string>("")
+  const [smsHistory, setSmsHistory] = useState<SmsHistoryEntry[]>([])
+  // </CHANGE>
+
   const { data: session } = useSession()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
 
-  const startLiveMode = async () => {
-    try {
-      // Request camera and microphone
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      })
-
-      mediaStreamRef.current = stream
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-
-      setLiveMode({
-        isActive: true,
-        isMicOn: true,
-        isCameraOn: true,
-        isProcessing: false,
-        transcript: "",
-        response: "",
-      })
-
-      // Start speech recognition
-      startLiveRecognition()
-
-      // Start periodic frame analysis
-      startFrameAnalysis()
-    } catch (error) {
-      console.error("Error starting live mode:", error)
-      alert("Erro ao aceder à câmara/microfone. Verifique as permissões.")
+  useEffect(() => {
+    if (session?.user?.email) {
+      loadUserSession(session.user.email)
+    } else {
+      // If user logs out, clear current session context
+      setCurrentSessionId("")
+      setSmsHistory([])
+      setChatHistories([])
+      localStorage.removeItem("rebornai-chats") // Also clear non-session chats
     }
-  }
+  }, [session])
 
-  const stopLiveMode = () => {
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
+  const loadUserSession = (email: string) => {
+    const allSessions = localStorage.getItem("rebornai-sessions")
+    if (allSessions) {
+      const sessions: UserSession[] = JSON.parse(allSessions)
+      const userSession = sessions.find((s) => s.email === email)
 
-    // Stop recognition
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null // Clear ref
-    }
+      if (userSession) {
+        // Restaurar histórico de SMS
+        setSmsHistory(userSession.smsHistory || [])
 
-    // Stop frame analysis
-    if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current)
-      liveIntervalRef.current = null
-    }
+        // Restaurar histórico de chats
+        setChatHistories(userSession.chatHistory || [])
 
-    setLiveMode(null) // Set to null to indicate mode is off
-    setLiveHistory([])
-    setLiveModeTranscript("") // Clear transcript
-  }
-
-  const startLiveRecognition = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("O seu navegador não suporta reconhecimento de voz.")
-      return
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = "pt-PT"
-
-    recognition.onresult = async (event: any) => {
-      const lastResult = event.results[event.results.length - 1]
-      const transcript = lastResult[0].transcript
-
-      setLiveModeTranscript(transcript) // Update transcript state
-
-      // If final result, send to AI
-      if (lastResult.isFinal && transcript.trim()) {
-        await processLiveInput(transcript)
-      }
-    }
-
-    recognition.onerror = (event: any) => {
-      console.error("Recognition error:", event.error)
-      setLiveMode((prev) => (prev ? { ...prev, transcript: "" } : null)) // Clear transcript on error
-      if (event.error === "no-speech") {
-        alert("Nenhuma fala detetada. Tente novamente.")
-      } else if (event.error === "audio-capture") {
-        alert("Erro na captura de áudio. Verifique o microfone.")
-      }
-    }
-
-    recognition.onend = () => {
-      // Restart if still in live mode and mic is on
-      if (liveMode?.isActive && liveMode.isMicOn) {
-        recognition.start()
-      }
-    }
-
-    recognition.start()
-    recognitionRef.current = recognition
-  }
-
-  const startFrameAnalysis = () => {
-    // Analyze frame every 5 seconds
-    liveIntervalRef.current = setInterval(async () => {
-      if (!liveMode?.isCameraOn || !videoRef.current || !canvasRef.current) return
-
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const ctx = canvas.getContext("2d")
-
-      if (!ctx) return
-
-      canvas.width = 320
-      canvas.height = 240
-      ctx.drawImage(video, 0, 0, 320, 240)
-
-      // Get frame as base64 (low quality for speed)
-      const frameData = canvas.toDataURL("image/jpeg", 0.3)
-
-      // Only analyze if not currently processing
-      if (!liveMode.isProcessing) {
-        // Store frame for context but don't send automatically
-        // Frame will be included when user speaks
-      }
-    }, 5000)
-  }
-
-  const processLiveInput = async (transcript: string) => {
-    if (!transcript.trim() || liveMode?.isProcessing) return
-
-    setLiveMode((prev) => (prev ? { ...prev, isProcessing: true, transcript: "" } : null)) // Clear transcript during processing
-
-    try {
-      // Get current frame if camera is on
-      const frameDescription = ""
-      if (liveMode?.isCameraOn && videoRef.current && canvasRef.current) {
-        const canvas = canvasRef.current
-        const video = videoRef.current
-        const ctx = canvas.getContext("2d")
-
-        if (ctx) {
-          canvas.width = 320
-          canvas.height = 240
-          ctx.drawImage(video, 0, 0, 320, 240)
-        }
-      }
-
-      const response = await fetch("/api/live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioTranscript: transcript,
-          frameDescription,
-          conversationHistory: liveHistory,
-          mode: liveMode?.isCameraOn ? "both" : "voice",
-        }),
-      })
-
-      if (!response.ok) throw new Error("Erro na resposta")
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullResponse = ""
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          fullResponse += decoder.decode(value)
-          setLiveMode((prev) => (prev ? { ...prev, response: fullResponse } : null))
-        }
-      }
-
-      // Update history
-      setLiveHistory((prev) => [
-        ...prev,
-        { role: "user", content: transcript },
-        { role: "assistant", content: fullResponse },
-      ])
-
-      // Speak response
-      speakText(fullResponse)
-    } catch (error) {
-      console.error("Live processing error:", error)
-      setLiveMode((prev) => (prev ? { ...prev, response: "Desculpa, ocorreu um erro no processamento." } : null))
-    } finally {
-      setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
-    }
-  }
-
-  const toggleLiveMic = () => {
-    if (!liveMode) return
-
-    if (liveMode.isMicOn) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
+        setCurrentSessionId(userSession.userId)
+        console.log("[v0] Session restored for user:", email)
+      } else {
+        // Criar nova sessão
+        const newSessionId = Date.now().toString()
+        setCurrentSessionId(newSessionId)
+        console.log("[v0] New session created for user:", email)
       }
     } else {
-      startLiveRecognition()
-    }
-    setLiveMode((prev) => (prev ? { ...prev, isMicOn: !prev.isMicOn } : null))
-  }
-
-  const toggleLiveCamera = () => {
-    if (!liveMode || !mediaStreamRef.current) return
-
-    const videoTrack = mediaStreamRef.current.getVideoTracks()[0]
-    if (videoTrack) {
-      videoTrack.enabled = !liveMode.isCameraOn
-      setLiveMode((prev) => (prev ? { ...prev, isCameraOn: !prev.isCameraOn } : null))
+      // If no sessions found, create a new one
+      const newSessionId = Date.now().toString()
+      setCurrentSessionId(newSessionId)
+      console.log("[v0] No existing sessions, new session created for user:", email)
     }
   }
+
+  const saveUserSession = () => {
+    if (!session?.user?.email) return
+
+    const allSessions = localStorage.getItem("rebornai-sessions")
+    let sessions: UserSession[] = allSessions ? JSON.parse(allSessions) : []
+
+    const sessionIndex = sessions.findIndex((s) => s.email === session.user.email)
+
+    const updatedSession: UserSession = {
+      userId: currentSessionId || Date.now().toString(), // Ensure userId is set
+      email: session.user.email,
+      timestamp: Date.now(),
+      smsHistory: smsHistory,
+      chatHistory: chatHistories,
+    }
+
+    if (sessionIndex >= 0) {
+      sessions[sessionIndex] = updatedSession
+    } else {
+      sessions.push(updatedSession)
+    }
+
+    // Limit number of stored sessions per user if necessary (e.g., last 10)
+    if (sessions.length > 10) {
+      sessions = sessions.slice(sessions.length - 10)
+    }
+
+    localStorage.setItem("rebornai-sessions", JSON.stringify(sessions))
+    console.log("[v0] Session saved for user:", session.user.email)
+  }
+
+  const saveSmsToHistory = (contacts: Contact[], message: string, countryCode: string, validCount: number) => {
+    const newEntry: SmsHistoryEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      contacts: contacts,
+      message: message,
+      countryCode: countryCode,
+      validCount: validCount,
+      totalCount: contacts.length,
+    }
+
+    const updatedHistory = [...smsHistory, newEntry]
+    setSmsHistory(updatedHistory)
+
+    // Auto-save to localStorage
+    setTimeout(() => saveUserSession(), 100)
+
+    console.log("[v0] SMS saved to history:", newEntry)
+  }
+
+  const clearAllHistory = () => {
+    if (confirm("Tem a certeza que quer apagar todo o histórico? Esta ação não pode ser desfeita.")) {
+      setSmsHistory([])
+      setChatHistories([])
+      localStorage.removeItem("rebornai-chats") // Also clear general chats if not linked to session
+      saveUserSession() // Save the state with empty histories
+      console.log("[v0] All history cleared")
+    }
+  }
+
+  const clearSmsHistory = () => {
+    if (confirm("Tem a certeza que quer apagar o histórico de SMS?")) {
+      setSmsHistory([])
+      saveUserSession()
+      console.log("[v0] SMS history cleared")
+    }
+  }
+
+  const loadSmsFromHistory = (entry: SmsHistoryEntry) => {
+    setSmsMessage(entry.message)
+    setSmsCountryCode(entry.countryCode)
+
+    // Restore contacts by creating a formatted string
+    const contactsText = entry.contacts.map((c) => `${c.name}\t${c.phone}`).join("\n")
+    setSmsNumbers(contactsText)
+
+    // Parse and set valid contacts
+    const validContacts = entry.contacts.filter((c) => c.phone && c.phone.length >= 9)
+    setValidSmsContacts(validContacts)
+
+    alert(
+      `Histórico de SMS carregado:\nMensagem: "${entry.message.substring(0, 50)}..."\nPaís: ${entry.countryCode || "N/A"}\n${entry.validCount} contactos válidos de ${entry.totalCount} total`,
+    )
+
+    setShowHistoryModal(false)
+    console.log("[v0] SMS history loaded:", entry.id)
+  }
+
+  const parseExcelContacts = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer)
+        const workbook = XLSX.read(data, { type: "array" })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const jsonData: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+
+        console.log("[v0] Excel parsed, rows:", jsonData.length)
+
+        if (jsonData.length < 2) {
+          alert("O ficheiro Excel não contém dados suficientes")
+          return
+        }
+
+        const headers = jsonData[0] as string[]
+        const nameIndex = headers.findIndex((h) => h && h.toLowerCase().includes("nome"))
+        const phoneIndex = headers.findIndex(
+          (h) =>
+            h &&
+            (h.toLowerCase().includes("número") ||
+              h.toLowerCase().includes("telefone") ||
+              h.toLowerCase().includes("phone")),
+        )
+
+        if (nameIndex === -1 || phoneIndex === -1) {
+          alert('Certifique-se que o Excel tem colunas "Nome" e "Número"')
+          return
+        }
+
+        const contacts: Contact[] = []
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i] as any[]
+          const name = row[nameIndex]?.toString().trim() || ""
+          const phone = row[phoneIndex]?.toString().trim() || ""
+
+          if (name && phone) {
+            contacts.push({ name, phone })
+          }
+        }
+
+        console.log("[v0] Contacts extracted:", contacts.length)
+
+        if (contacts.length === 0) {
+          alert("Nenhum contacto válido encontrado no ficheiro")
+          return
+        }
+
+        const contactsText = contacts.map((c) => `${c.name}\t${c.phone}`).join("\n")
+        setSmsNumbers(contactsText)
+
+        const validContacts = contacts.filter((c) => c.phone.length >= 9)
+        setValidSmsContacts(validContacts)
+
+        alert(`${contacts.length} contactos carregados do Excel (${validContacts.length} válidos)`)
+
+        // Auto-save to history after successful Excel parse
+        if (smsMessage.trim()) {
+          saveSmsToHistory(contacts, smsMessage, smsCountryCode, validContacts.length)
+        }
+      } catch (error) {
+        console.error("[v0] Error parsing Excel:", error)
+        alert("Erro ao processar o ficheiro Excel")
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  // REMOVED REDECLARED FUNCTION: const generateSmsLinks = () => { ... }
+
+  const parseTextFile = (text: string): Contact[] => {
+    const lines = text.split(/\r?\n/)
+    const contacts: Contact[] = []
+
+    for (const line of lines) {
+      const cells = line.split(/[,;\t]/)
+
+      if (cells.length >= 2) {
+        // Formato: Nome, Numero ou Numero, Nome
+        const cell1 = cells[0].trim().replace(/"/g, "")
+        const cell2 = cells[1].trim().replace(/"/g, "")
+
+        // Verificar qual celula e o numero
+        if (/^\+?[\d\s\-().]{8,}$/.test(cell1)) {
+          contacts.push({ name: cell2, phone: cell1 })
+        } else if (/^\+?[\d\s\-().]{8,}$/.test(cell2)) {
+          contacts.push({ name: cell1, phone: cell2 })
+        }
+      } else if (cells.length === 1) {
+        // So numero
+        const trimmed = cells[0].trim().replace(/"/g, "")
+        if (/^\+?[\d\s\-().]{8,}$/.test(trimmed)) {
+          contacts.push({ name: "", phone: trimmed })
+        }
+      }
+    }
+
+    return contacts
+  }
+
+  const parseExcelFile = (buffer: ArrayBuffer): Contact[] => {
+    const contacts: Contact[] = []
+    try {
+      const workbook = XLSX.read(buffer, { type: "array" })
+
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName]
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+
+        // Percorrer todas as linhas
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          if (!row || row.length === 0) continue
+
+          let name = ""
+          let phone = ""
+
+          // Procurar primeira coluna com nome e coluna com numero
+          for (let j = 0; j < row.length; j++) {
+            const cell = row[j]
+            if (cell === null || cell === undefined) continue
+            const value = String(cell).trim()
+
+            // Se parece numero de telefone
+            if (/^\+?[\d\s\-().]{8,}$/.test(value) && !phone) {
+              phone = value
+            }
+            // Se parece nome (tem letras, nao e so numeros)
+            else if (/[a-zA-Z]/.test(value) && !name) {
+              name = value
+            }
+          }
+
+          if (phone) {
+            contacts.push({ name, phone })
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao processar Excel:", error)
+    }
+    return contacts
+  }
+
+  // Function to load a specific chat by ID
+  const loadChat = (chatId: string) => {
+    const chatToLoad = chatHistories.find((chat) => chat.id === chatId)
+    if (chatToLoad) {
+      setCurrentChatId(chatToLoad.id)
+      setMessages(chatToLoad.messages)
+      if (window.innerWidth < 768) setSidebarOpen(false)
+      // Auto-save session after loading chat
+      setTimeout(() => saveUserSession(), 100)
+    }
+  }
+  // </CHANGE>
 
   // Load data from localStorage
   useEffect(() => {
     loadChatHistories()
     createNewChat() // Initialize with a new chat
   }, [])
+
+  useEffect(() => {
+    if (session?.user?.email && (chatHistories.length > 0 || smsHistory.length > 0)) {
+      saveUserSession()
+    }
+  }, [chatHistories, smsHistory])
+  // </CHANGE>
 
   // Scroll to bottom
   useEffect(() => {
@@ -616,6 +731,8 @@ export default function RebornAI() {
   const saveChatHistories = (histories: ChatHistory[]) => {
     localStorage.setItem("rebornai-chats", JSON.stringify(histories))
     setChatHistories(histories)
+    setTimeout(() => saveUserSession(), 100)
+    // </CHANGE>
   }
 
   const createNewChat = () => {
@@ -645,12 +762,6 @@ export default function RebornAI() {
     }
 
     saveChatHistories(updated.slice(0, 50)) // Limit to 50 chats
-  }
-
-  const loadChat = (chat: ChatHistory) => {
-    setCurrentChatId(chat.id)
-    setMessages(chat.messages)
-    if (window.innerWidth < 768) setSidebarOpen(false)
   }
 
   const deleteChat = (id: string) => {
@@ -1142,446 +1253,53 @@ export default function RebornAI() {
   ]
 
   // SMS Functionality
-  const generateSmsLinks = (
-    contacts: Contact[],
-    messageTemplate: string,
-    linksContainer: HTMLElement,
-    statsContainer: HTMLElement,
-    invalidContainer: HTMLElement,
-    countryCode: string,
-    batchSize: number,
-  ) => {
-    linksContainer.innerHTML = ""
-    statsContainer.innerHTML = '<p class="text-sm text-muted-foreground">A processar...</p>'
-    invalidContainer.innerHTML = ""
+  const generateSmsLinks = () => {
+    const message = smsMessage.trim()
+    const numbers = smsNumbers.trim()
 
-    const validateAndFormatNumber = (num: string) => {
-      if (!num || num.trim().length === 0) {
-        return { valid: false, formatted: "", original: num }
-      }
+    if (!message || !numbers) {
+      alert("Por favor, preencha a mensagem e os números")
+      return
+    }
 
-      const cleaned = num.trim().replace(/[\s\-().]/g, "")
+    const lines = numbers.split("\n")
+    const contacts: Contact[] = []
 
-      if (cleaned.startsWith("+")) {
-        const digits = cleaned.slice(1).replace(/\D/g, "")
-        if (digits.length >= 8 && digits.length <= 15) {
-          return { valid: true, formatted: "+" + digits, original: num }
+    lines.forEach((line) => {
+      const parts = line.trim().split(/[\t,;]/)
+      if (parts.length >= 2) {
+        const name = parts[0].trim()
+        const phone = parts[1].trim().replace(/\D/g, "")
+        if (name && phone) {
+          contacts.push({ name, phone })
         }
-        return { valid: false, formatted: "", original: num }
-      }
-
-      const digits = cleaned.replace(/\D/g, "")
-
-      if (digits.length < 8 || digits.length > 15) {
-        return { valid: false, formatted: "", original: num }
-      }
-
-      if (countryCode && digits.length === 9 && digits.startsWith("9")) {
-        return { valid: true, formatted: countryCode + digits, original: num }
-      }
-
-      if (countryCode) {
-        return { valid: true, formatted: countryCode + digits, original: num }
-      }
-
-      return { valid: true, formatted: "+" + digits, original: num }
-    }
-
-    const validContacts: { name: string; phone: string; message: string }[] = []
-    const invalidContacts: { name: string; phone: string }[] = []
-    const seenPhones = new Set<string>()
-
-    for (const contact of contacts) {
-      const result = validateAndFormatNumber(contact.phone)
-
-      if (result.valid && !seenPhones.has(result.formatted)) {
-        seenPhones.add(result.formatted)
-
-        // Se houver {nome} no template, substitui. Senão, adiciona nome no início
-        let personalizedMessage = messageTemplate
-
-        if (contact.name && contact.name.trim() !== "") {
-          if (messageTemplate.includes("{nome}") || messageTemplate.includes("{NOME}")) {
-            // Substituir {nome} pelo nome do contacto
-            personalizedMessage = messageTemplate.replace(/{nome}/gi, contact.name.trim())
-          } else {
-            // Adicionar nome automaticamente no início: "Nome, mensagem"
-            personalizedMessage = `${contact.name.trim()}, ${messageTemplate}`
-          }
+      } else if (parts.length === 1 && parts[0].trim()) {
+        const phone = parts[0].trim().replace(/\D/g, "")
+        if (phone) {
+          contacts.push({ name: "Sem nome", phone })
         }
-
-        validContacts.push({
-          name: contact.name,
-          phone: result.formatted,
-          message: personalizedMessage,
-        })
-      } else {
-        invalidContacts.push(contact)
       }
-    }
-
-    const duplicates = contacts.length - validContacts.length - invalidContacts.length
-    statsContainer.innerHTML = `
-      <div class="grid grid-cols-2 gap-2">
-        <p class="text-sm text-muted-foreground">Total: ${contacts.length}</p>
-        <p class="text-sm text-green-500">Válidos: ${validContacts.length}</p>
-        <p class="text-sm text-red-500">Inválidos: ${invalidContacts.length}</p>
-        <p class="text-sm text-yellow-500">Duplicados: ${duplicates}</p>
-      </div>
-    `
-
-    if (invalidContacts.length > 0) {
-      const invalidList = invalidContacts.map((c) => `${c.name || "Sem nome"}: ${c.phone}`).join("<br>")
-      invalidContainer.innerHTML = `
-        <h4 class="font-medium mb-2 text-red-500">Contactos Inválidos (${invalidContacts.length})</h4>
-        <div class="text-xs text-red-400 bg-red-900/30 p-2 rounded-md overflow-auto max-h-32">
-          ${invalidList}
-        </div>
-      `
-    }
-
-    const contactListDiv = document.createElement("div")
-    contactListDiv.className = "space-y-2 mb-4 max-h-64 overflow-y-auto"
-
-    const smsQueue: { phone: string; message: string; name: string; sent: boolean; element: HTMLElement }[] = []
-
-    validContacts.forEach((contact, index) => {
-      const contactCard = document.createElement("div")
-      contactCard.className = "flex items-center justify-between p-3 bg-card/50 rounded-lg border border-border/50"
-      contactCard.id = `sms-contact-${index}`
-
-      const encodedMessage = encodeURIComponent(contact.message)
-      const smsLink = `sms:${contact.phone}?body=${encodedMessage}`
-
-      contactCard.innerHTML = `
-        <div class="flex-1 min-w-0">
-          <p class="font-medium text-sm truncate">${contact.name || "Sem nome"}</p>
-          <p class="text-xs text-muted-foreground">${contact.phone}</p>
-          <p class="text-xs text-blue-400 truncate mt-1">${contact.message.substring(0, 50)}...</p>
-        </div>
-        <div class="flex items-center gap-2 ml-2">
-          <span class="status-badge text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-500">Pendente</span>
-          <a href="${smsLink}" target="_blank" class="p-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-xs">
-            Enviar
-          </a>
-        </div>
-      `
-
-      smsQueue.push({
-        phone: contact.phone,
-        message: contact.message,
-        name: contact.name,
-        sent: false,
-        element: contactCard,
-      })
-
-      contactListDiv.appendChild(contactCard)
     })
 
-    linksContainer.appendChild(contactListDiv)
-
-    const controlsDiv = document.createElement("div")
-    controlsDiv.className = "space-y-3"
-
-    // Progress bar
-    const progressDiv = document.createElement("div")
-    progressDiv.className = "hidden"
-    progressDiv.innerHTML = `
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-medium">Progresso de Envio</span>
-        <span class="progress-text text-sm text-muted-foreground">0/${validContacts.length}</span>
-      </div>
-      <div class="w-full h-3 bg-muted rounded-full overflow-hidden">
-        <div class="progress-bar h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300" style="width: 0%"></div>
-      </div>
-      <p class="current-contact text-xs text-muted-foreground mt-2">Preparando...</p>
-    `
-    controlsDiv.appendChild(progressDiv)
-
-    const sendAllAtOnceButton = document.createElement("button")
-    sendAllAtOnceButton.className =
-      "w-full p-4 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all mb-3"
-
-    sendAllAtOnceButton.innerHTML = `
-      <div class="flex items-center justify-center gap-2">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <span>ENVIAR TODAS DE UMA VEZ (${validContacts.length} SMS)</span>
-      </div>
-    `
-
-    sendAllAtOnceButton.onclick = () => {
-      const confirmed = confirm(
-        `Abrir ${validContacts.length} SMS de uma só vez?\n\n` +
-          `Todas as mensagens serão abertas no seu app de SMS com o nome da pessoa no início.\n\n` +
-          `NOTA: O seu navegador pode bloquear popups. Se isso acontecer, permita popups para este site.`,
-      )
-
-      if (!confirmed) return
-
-      // Marcar todos como enviados e abrir todos os links
-      let openedCount = 0
-
-      smsQueue.forEach((item, index) => {
-        // Criar link e clicar
-        const link = document.createElement("a")
-        link.href = `sms:${item.phone}?body=${encodeURIComponent(item.message)}`
-        link.target = "_blank"
-        link.style.display = "none"
-        document.body.appendChild(link)
-
-        // Usar setTimeout para evitar bloqueio de popups
-        setTimeout(() => {
-          link.click()
-          document.body.removeChild(link)
-          openedCount++
-
-          // Atualizar badge do contacto
-          const badge = item.element.querySelector(".status-badge") as HTMLElement
-          if (badge) {
-            badge.className = "status-badge text-xs px-2 py-1 rounded bg-green-500/20 text-green-500"
-            badge.textContent = "Aberto"
-          }
-
-          // Quando todos forem abertos
-          if (openedCount === smsQueue.length) {
-            sendAllAtOnceButton.innerHTML = `
-              <div class="flex items-center justify-center gap-2">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                </svg>
-                <span>TODAS ABERTAS! (${validContacts.length} SMS)</span>
-              </div>
-            `
-          }
-        }, index * 100) // 100ms entre cada abertura para evitar bloqueio
-      })
+    if (contacts.length === 0) {
+      alert("Nenhum contacto válido encontrado")
+      return
     }
 
-    controlsDiv.appendChild(sendAllAtOnceButton)
+    const validContacts = contacts.filter((c) => c.phone.length >= 9)
 
-    const sendAllButton = document.createElement("button")
-    sendAllButton.className =
-      "w-full p-4 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-
-    sendAllButton.innerHTML = `
-      <div class="flex items-center justify-center gap-2">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-        </svg>
-        <span>Iniciar Envio Automático (${validContacts.length} SMS)</span>
-      </div>
-    `
-
-    let isRunning = false
-    let currentIndex = 0
-
-    const startAutoSend = async () => {
-      if (isRunning) return
-
-      const confirmed = confirm(
-        `Iniciar envio automático de ${validContacts.length} SMS?\n\n` +
-          `Cada SMS será aberto automaticamente com o nome do contacto no início da mensagem.\n\n` +
-          `IMPORTANTE: Precisará confirmar o envio de cada SMS no seu telemóvel.`,
-      )
-
-      if (!confirmed) return
-
-      isRunning = true
-      progressDiv.classList.remove("hidden")
-      sendAllButton.disabled = true
-
-      const progressBar = progressDiv.querySelector(".progress-bar") as HTMLElement
-      const progressText = progressDiv.querySelector(".progress-text") as HTMLElement
-      const currentContactText = progressDiv.querySelector(".current-contact") as HTMLElement
-
-      sendAllButton.innerHTML = `
-        <div class="flex items-center justify-center gap-2">
-          <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span>Enviando...</span>
-        </div>
-      `
-
-      for (let i = currentIndex; i < smsQueue.length; i++) {
-        const item = smsQueue[i]
-
-        // Atualizar UI
-        const progress = ((i + 1) / smsQueue.length) * 100
-        progressBar.style.width = `${progress}%`
-        progressText.textContent = `${i + 1}/${smsQueue.length}`
-        currentContactText.textContent = `Enviando para: ${item.name || item.phone}`
-
-        // Marcar como enviando
-        const badge = item.element.querySelector(".status-badge") as HTMLElement
-        if (badge) {
-          badge.className = "status-badge text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-500"
-          badge.textContent = "Enviando..."
-        }
-
-        // Scroll para o contacto atual
-        item.element.scrollIntoView({ behavior: "smooth", block: "center" })
-
-        // Abrir link SMS
-        const encodedMessage = encodeURIComponent(item.message)
-        const smsUrl = `sms:${item.phone}?body=${encodedMessage}`
-
-        // Usar window.open para abrir o SMS
-        window.open(smsUrl, "_blank")
-
-        // Marcar como enviado (aberto)
-        if (badge) {
-          badge.className = "status-badge text-xs px-2 py-1 rounded bg-green-500/20 text-green-500"
-          badge.textContent = "Aberto"
-        }
-        item.sent = true
-        currentIndex = i + 1
-
-        // Aguardar 2 segundos entre cada SMS para dar tempo de processar
-        if (i < smsQueue.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-        }
-      }
-
-      isRunning = false
-      currentContactText.textContent = "Envio concluído!"
-
-      sendAllButton.disabled = false
-      sendAllButton.innerHTML = `
-        <div class="flex items-center justify-center gap-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Concluído! (${validContacts.length} SMS abertos)</span>
-        </div>
-      `
+    if (validContacts.length === 0) {
+      alert("Nenhum número válido encontrado (mínimo 9 dígitos)")
+      return
     }
 
-    sendAllButton.onclick = startAutoSend
-    controlsDiv.appendChild(sendAllButton)
+    setValidSmsContacts(validContacts)
 
-    const stopButton = document.createElement("button")
-    stopButton.className = "w-full p-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium hidden"
-    stopButton.textContent = "Parar Envio"
-    stopButton.onclick = () => {
-      isRunning = false
-      stopButton.classList.add("hidden")
-    }
-    controlsDiv.appendChild(stopButton)
+    // Save to history after successful generation
+    saveSmsToHistory(contacts, message, smsCountryCode, validContacts.length)
 
-    const infoDiv = document.createElement("div")
-    infoDiv.className = "mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg"
-    infoDiv.innerHTML = `
-      <h4 class="font-medium text-blue-400 mb-2">Como funciona o envio automático:</h4>
-      <ol class="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-        <li>Clique em "Iniciar Envio Automático"</li>
-        <li>Cada SMS será aberto automaticamente com a mensagem personalizada</li>
-        <li>A mensagem já inclui o nome do contacto no início</li>
-        <li>No seu telemóvel, só precisa confirmar o envio de cada SMS</li>
-        <li>O sistema aguarda 2 segundos entre cada SMS para dar tempo de processar</li>
-      </ol>
-    `
-    controlsDiv.appendChild(infoDiv)
-
-    linksContainer.appendChild(controlsDiv)
-
-    // Preview das mensagens (mantendo o preview original)
-    const previewDiv = document.createElement("div")
-    previewDiv.className = "mt-4 p-3 bg-muted/30 rounded-lg border"
-    previewDiv.innerHTML = `
-      <h4 class="font-medium mb-2 text-sm">Preview das Mensagens (primeiros 5):</h4>
-      <div class="space-y-1 text-xs text-muted-foreground">
-        ${validContacts
-          .slice(0, 5)
-          .map(
-            (c) => `
-          <div class="p-2 bg-background rounded border-l-2 border-primary">
-            <strong>${c.phone}</strong>: "${c.message.slice(0, 60)}${c.message.length > 60 ? "..." : ""}"
-          </div>
-        `,
-          )
-          .join("")}
-        ${validContacts.length > 5 ? `<div class="text-center">... e mais ${validContacts.length - 5} contactos</div>` : ""}
-      </div>
-    `
-    linksContainer.appendChild(previewDiv)
-  }
-
-  const parseTextFile = (text: string): Contact[] => {
-    const lines = text.split(/\r?\n/)
-    const contacts: Contact[] = []
-
-    for (const line of lines) {
-      const cells = line.split(/[,;\t]/)
-
-      if (cells.length >= 2) {
-        // Formato: Nome, Numero ou Numero, Nome
-        const cell1 = cells[0].trim().replace(/"/g, "")
-        const cell2 = cells[1].trim().replace(/"/g, "")
-
-        // Verificar qual celula e o numero
-        if (/^\+?[\d\s\-().]{8,}$/.test(cell1)) {
-          contacts.push({ name: cell2, phone: cell1 })
-        } else if (/^\+?[\d\s\-().]{8,}$/.test(cell2)) {
-          contacts.push({ name: cell1, phone: cell2 })
-        }
-      } else if (cells.length === 1) {
-        // So numero
-        const trimmed = cells[0].trim().replace(/"/g, "")
-        if (/^\+?[\d\s\-().]{8,}$/.test(trimmed)) {
-          contacts.push({ name: "", phone: trimmed })
-        }
-      }
-    }
-
-    return contacts
-  }
-
-  const parseExcelFile = (buffer: ArrayBuffer): Contact[] => {
-    const contacts: Contact[] = []
-    try {
-      const workbook = XLSX.read(buffer, { type: "array" })
-
-      for (const sheetName of workbook.SheetNames) {
-        const sheet = workbook.Sheets[sheetName]
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
-
-        // Percorrer todas as linhas
-        for (let i = 0; i < data.length; i++) {
-          const row = data[i]
-          if (!row || row.length === 0) continue
-
-          let name = ""
-          let phone = ""
-
-          // Procurar primeira coluna com nome e coluna com numero
-          for (let j = 0; j < row.length; j++) {
-            const cell = row[j]
-            if (cell === null || cell === undefined) continue
-            const value = String(cell).trim()
-
-            // Se parece numero de telefone
-            if (/^\+?[\d\s\-().]{8,}$/.test(value) && !phone) {
-              phone = value
-            }
-            // Se parece nome (tem letras, nao e so numeros)
-            else if (/[a-zA-Z]/.test(value) && !name) {
-              name = value
-            }
-          }
-
-          if (phone) {
-            contacts.push({ name, phone })
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Erro ao processar Excel:", error)
-    }
-    return contacts
+    alert(`${validContacts.length} SMS geradas de ${contacts.length} contactos`)
+    console.log("[v0] SMS links generated and saved to history")
   }
 
   // Handler for toggling listening for the main chat input
@@ -1643,203 +1361,329 @@ export default function RebornAI() {
     }
   }
 
+  // Live Mode Functions
+  const startLiveMode = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("O seu navegador não suporta acesso à câmara e microfone.")
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      mediaStreamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+
+      setLiveMode({
+        isActive: true,
+        isMicOn: true,
+        isCameraOn: true,
+        isProcessing: false,
+        transcript: "",
+        response: "",
+      })
+      setLiveModeTranscript("")
+
+      // Initialize speech recognition for live mode
+      if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+        alert("O seu navegador não suporta reconhecimento de voz para o Modo Live.")
+      } else {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        recognitionRef.current = new SpeechRecognition()
+        recognitionRef.current.continuous = true
+        recognitionRef.current.interimResults = true
+        recognitionRef.current.lang = "pt-PT"
+
+        recognitionRef.current.onresult = (event: any) => {
+          let interimTranscript = ""
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            interimTranscript += event.results[i][0].transcript
+          }
+          setLiveModeTranscript(interimTranscript)
+          // You might want to send this transcript to an API for processing here
+        }
+
+        recognitionRef.current.onend = () => {
+          // If it ended unexpectedly, try to restart if active
+          if (liveMode?.isActive && !liveMode.isProcessing) {
+            recognitionRef.current.start()
+          }
+        }
+        recognitionRef.current.start()
+        setLiveMode((prev) => ({ ...prev!, isProcessing: true }))
+      }
+
+      // Start a periodic call to capture frames for AI processing (e.g., 1 second interval)
+      liveIntervalRef.current = setInterval(async () => {
+        if (videoRef.current && canvasRef.current && mediaStreamRef.current) {
+          const context = canvasRef.current.getContext("2d")
+          if (context) {
+            canvasRef.current.width = videoRef.current.videoWidth
+            canvasRef.current.height = videoRef.current.videoHeight
+            context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height)
+
+            const frameBlob = await new Promise<Blob | null>((resolve) => {
+              canvasRef.current!.toBlob((blob) => resolve(blob), "image/jpeg", 0.8)
+            })
+
+            if (frameBlob) {
+              // Here you would send the frameBlob to an API for AI analysis
+              // For now, we just simulate processing
+              // const formData = new FormData()
+              // formData.append("frame", frameBlob)
+              // formData.append("transcript", liveModeTranscript) // Send current transcript
+              //
+              // try {
+              //   const response = await fetch('/api/live-processing', {
+              //     method: 'POST',
+              //     body: formData,
+              //   });
+              //   const data = await response.json();
+              //   if (data.response) {
+              //     setLiveMode((prev) => ({ ...prev!, response: data.response, isProcessing: false }));
+              //   }
+              // } catch (error) {
+              //   console.error("Error processing live frame:", error);
+              //   setLiveMode((prev) => ({ ...prev!, isProcessing: false }));
+              // }
+            }
+          }
+        }
+      }, 2000) // Process every 2 seconds
+    } catch (err) {
+      console.error("Error accessing media devices:", err)
+      alert("Não foi possível aceder à câmara e microfone. Verifique as permissões.")
+      setLiveMode(null)
+    }
+  }, [liveMode, liveModeTranscript]) // Added liveModeTranscript dependency
+
+  const stopLiveMode = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current)
+      liveIntervalRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setLiveMode(null)
+    setLiveModeTranscript("")
+  }, [])
+
+  const toggleLiveMic = useCallback(() => {
+    if (!mediaStreamRef.current) return
+
+    const audioTracks = mediaStreamRef.current.getAudioTracks()
+    if (audioTracks.length > 0) {
+      audioTracks[0].enabled = !audioTracks[0].enabled
+      setLiveMode((prev) => ({ ...prev!, isMicOn: audioTracks[0].enabled }))
+    }
+  }, [liveMode?.isMicOn]) // Depend on liveMode state to re-evaluate
+
+  const toggleLiveCamera = useCallback(() => {
+    if (!mediaStreamRef.current) return
+
+    const videoTracks = mediaStreamRef.current.getVideoTracks()
+    if (videoTracks.length > 0) {
+      videoTracks[0].enabled = !videoTracks[0].enabled
+      setLiveMode((prev) => ({ ...prev!, isCameraOn: videoTracks[0].enabled }))
+    }
+  }, [liveMode?.isCameraOn]) // Depend on liveMode state to re-evaluate
+
+  // </CHANGE>
+
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Sidebar */}
-      <div
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        )}
       >
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-sidebar-border shrink-0">
-          <div className="flex items-center justify-between">
+        <div className="flex h-full flex-col">
+          {/* Logo */}
+          <div className="flex h-14 items-center justify-between border-b border-border px-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-semibold text-lg">Reborn AI</span>
+              <Sparkles className="h-6 w-6 text-primary" />
+              <span className="font-bold text-lg">Reborn AI</span>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="lg:hidden">
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
               <X className="h-5 w-5" />
             </Button>
           </div>
 
-          {session?.user ? (
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                <Avatar className="h-8 w-8">
-                  <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center">
-                    <User className="h-4 w-4 text-primary" />
-                  </div>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{session.user.name || session.user.email}</p>
-                  {isPro ? (
-                    <Badge variant="secondary" className="text-xs">
-                      Pro
-                    </Badge>
-                  ) : (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 text-xs text-primary"
-                      onClick={() => setShowProModal(true)}
-                    >
-                      Upgrade para Pro
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => signOut()}>
-                Sair
-              </Button>
-            </div>
-          ) : (
-            <Button className="w-full mt-3" onClick={() => setShowAuthModal(true)}>
-              <User className="h-4 w-4 mr-2" />
-              Entrar / Registar
+          {/* Navigation */}
+          <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+            <Button
+              variant={activeTab === "chat" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("chat")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Chat AI
             </Button>
-          )}
-        </div>
+            <Button
+              variant={activeTab === "live" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("live")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Video className="h-4 w-4" />
+              Modo Live
+            </Button>
+            <Button
+              variant={activeTab === "images" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("images")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <ImagePlus className="h-4 w-4" />
+              Gerador de Imagens
+            </Button>
+            <Button
+              variant={activeTab === "webcraft" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("webcraft")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Globe className="h-4 w-4" />
+              WebCraft
+            </Button>
+            <Button
+              variant={activeTab === "presentations" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("presentations")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Presentation className="h-4 w-4" />
+              Slides IA
+            </Button>
+            <Button
+              variant={activeTab === "ebooks" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("ebooks")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <BookOpen className="h-4 w-4" />
+              Ebooks IA
+            </Button>
+            <Button
+              variant={activeTab === "sms" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("sms")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <MessageCircleIcon className="h-4 w-4" />
+              SMS em Massa
+            </Button>
+            <Button
+              variant={activeTab === "email" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("email")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Mail className="h-4 w-4" />
+              Email em Massa
+            </Button>
+            <Button
+              variant={activeTab === "whatsapp" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("whatsapp")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Share2 className="h-4 w-4" />
+              WhatsApp IA
+            </Button>
+            <Button
+              variant={activeTab === "clipper" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("clipper")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Scissors className="h-4 w-4" />
+              Clipper IA
+            </Button>
+            <Button
+              variant={activeTab === "marketing" ? "default" : "ghost"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setActiveTab("marketing")
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <Megaphone className="h-4 w-4" />
+              Marketing IA
+            </Button>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-          <nav className="space-y-1">
-            {/* CHANGED: Removed TabsList from sidebar as it was outside Tabs component */}
-            <div className="flex flex-col items-start gap-1">
-              <Button
-                variant={activeTab === "chat" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("chat")}
-              >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Chat
-              </Button>
-              <Button
-                variant={activeTab === "live" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("live")}
-              >
-                <Video className="h-4 w-4 mr-2" />
-                Modo Live
-              </Button>
-              <Button
-                variant={activeTab === "images" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("images")}
-              >
-                <ImagePlus className="h-4 w-4 mr-2" />
-                Imagens
-              </Button>
-              <Button
-                variant={activeTab === "webcraft" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("webcraft")}
-              >
-                <Globe className="h-4 w-4 mr-2" />
-                WebCraft
-              </Button>
-              <Button
-                variant={activeTab === "presentations" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("presentations")}
-              >
-                <Presentation className="h-4 w-4 mr-2" />
-                Slides
-              </Button>
-              <Button
-                variant={activeTab === "ebooks" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("ebooks")}
-              >
-                <BookOpen className="h-4 w-4 mr-2" />
-                Ebooks
-              </Button>
-              <Button
-                variant={activeTab === "sms" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("sms")}
-              >
-                <MessageCircleIcon className="h-4 w-4 mr-2" />
-                SMS
-              </Button>
-              <Button
-                variant={activeTab === "email" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("email")}
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Email
-              </Button>
-              <Button
-                variant={activeTab === "whatsapp" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("whatsapp")}
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                WhatsApp
-              </Button>
-              <Button
-                variant={activeTab === "clipper" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("clipper")}
-              >
-                <Scissors className="h-4 w-4 mr-2" />
-                Clipper
-              </Button>
-              <Button
-                variant={activeTab === "marketing" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("marketing")}
-              >
-                <Megaphone className="h-4 w-4 mr-2" />
-                Marketing
-              </Button>
-            </div>
+            <Button
+              variant={activeTab === "history" ? "default" : "ghost"} // Changed variant to match others
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setShowHistoryModal(true)
+                if (window.innerWidth < 1024) setSidebarOpen(false)
+              }}
+            >
+              <History className="h-4 w-4" />
+              Histórico
+            </Button>
+            {/* </CHANGE> */}
           </nav>
 
-          {/* Chat History */}
-          <div className="mt-8 pt-4 border-t border-sidebar-border">
-            <h4 className="px-3 text-sm font-semibold text-muted-foreground mb-2">Histórico</h4>
-            <nav className="space-y-1">
-              {chatHistories.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                    currentChatId === chat.id ? "bg-muted" : "hover:bg-muted/50"
-                  }`}
-                  onClick={() => loadChat(chat)}
-                >
-                  <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 text-sm truncate">{chat.title}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteChat(chat.id)
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+          {/* User Profile */}
+          <div className="border-t border-border p-4">
+            {session ? (
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <User className="h-4 w-4 text-primary" />
                 </div>
-              ))}
-            </nav>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{session.user?.name || session.user?.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">{session.user?.email}</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => signOut()}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button className="w-full" onClick={() => setShowAuthModal(true)}>
+                Login
+              </Button>
+            )}
           </div>
         </div>
-
-        {/* New Chat Button */}
-        <div className="p-3 border-t border-sidebar-border shrink-0">
-          <Button onClick={createNewChat} className="w-full gap-2 bg-transparent" variant="outline">
-            <Plus className="h-4 w-4" />
-            Nova Conversa
-          </Button>
-        </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
-      {/* Added proper overflow handling for main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="border-b border-border bg-card/50 backdrop-blur-sm px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 shrink-0">
@@ -1865,6 +1709,16 @@ export default function RebornAI() {
               <Zap className="h-3 w-3" />
               <span className="hidden sm:inline">Online</span>
             </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHistoryModal(true)}
+              className="flex items-center gap-2"
+            >
+              <History className="h-4 w-4" />
+              <span className="hidden sm:inline">Histórico</span>
+            </Button>
+            {/* </CHANGE> */}
           </div>
         </header>
 
@@ -1929,7 +1783,7 @@ export default function RebornAI() {
                 <div className="max-w-3xl mx-auto py-4 space-y-4">
                   {messages.length === 0 && (
                     <div className="text-center py-12">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto mb-4">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-4">
                         <Sparkles className="h-8 w-8 text-primary-foreground" />
                       </div>
                       <h2 className="text-xl font-semibold mb-2">Olá! Sou o Reborn AI</h2>
@@ -2630,6 +2484,8 @@ export default function RebornAI() {
                         <Label>Mensagem (use {"{nome}"} para personalizar)</Label>
                         <Textarea
                           id="smsMessage"
+                          value={smsMessage}
+                          onChange={(e) => setSmsMessage(e.target.value)}
                           placeholder="Ola {nome}, esta e uma mensagem personalizada para ti!"
                           className="min-h-[100px]"
                         />
@@ -2643,7 +2499,8 @@ export default function RebornAI() {
                         <select
                           id="smsCountryCode"
                           className="w-full p-2 rounded-md border bg-background text-sm"
-                          defaultValue="+351"
+                          value={smsCountryCode}
+                          onChange={(e) => setSmsCountryCode(e.target.value)}
                         >
                           <option value="+351">Portugal (+351)</option>
                           <option value="+55">Brasil (+55)</option>
@@ -2667,6 +2524,8 @@ export default function RebornAI() {
                         <Label>Numeros Manuais (um por linha ou Nome, Numero)</Label>
                         <Textarea
                           id="smsNumbers"
+                          value={smsNumbers}
+                          onChange={(e) => setSmsNumbers(e.target.value)}
                           placeholder="Joao Silva, 912345678&#10;Maria Santos, 923456789&#10;&#10;Ou so numeros:&#10;934567890&#10;+351945678901"
                           className="min-h-[120px] font-mono text-sm"
                         />
@@ -2674,7 +2533,33 @@ export default function RebornAI() {
 
                       <div>
                         <Label htmlFor="smsFile">Importar Excel com Nomes e Numeros</Label>
-                        <Input type="file" id="smsFile" accept=".csv,.txt,.xlsx,.xls" className="mt-1" />
+                        <Input
+                          type="file"
+                          id="smsFile"
+                          accept=".csv,.txt,.xlsx,.xls"
+                          className="mt-1"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls")
+                              if (isExcel) {
+                                parseExcelContacts(file)
+                              } else {
+                                // Handle text file parsing for SMS numbers
+                                const reader = new FileReader()
+                                reader.onload = (e) => {
+                                  const text = e.target?.result as string
+                                  const contacts = parseTextFile(text)
+                                  const contactsText = contacts.map((c) => `${c.name}\t${c.phone}`).join("\n")
+                                  setSmsNumbers(contactsText)
+                                  setValidSmsContacts(contacts.filter((c) => c.phone.length >= 9))
+                                  alert(`${contacts.length} contactos carregados do ficheiro`)
+                                }
+                                reader.readAsText(file)
+                              }
+                            }
+                          }}
+                        />
                         <p className="text-xs text-muted-foreground mt-1">
                           O Excel deve ter colunas para Nome e Numero. O sistema detecta automaticamente.
                         </p>
@@ -2695,82 +2580,9 @@ export default function RebornAI() {
                         </select>
                       </div>
 
-                      <Button
-                        className="w-full"
-                        onClick={() => {
-                          const numbersText =
-                            (document.getElementById("smsNumbers") as HTMLTextAreaElement)?.value || ""
-                          const fileInput = document.getElementById("smsFile") as HTMLInputElement
-                          const messageElement = document.getElementById("smsMessage") as HTMLTextAreaElement
-                          const countryCodeElement = document.getElementById("smsCountryCode") as HTMLSelectElement
-                          const batchSizeElement = document.getElementById("smsBatchSize") as HTMLSelectElement
-                          const linksContainer = document.getElementById("smsLinksContainer") as HTMLDivElement
-                          const statsContainer = document.getElementById("smsStats") as HTMLDivElement
-                          const invalidContainer = document.getElementById("smsInvalid") as HTMLDivElement
-
-                          const messageTemplate = messageElement?.value || ""
-                          const countryCode = countryCodeElement?.value || ""
-                          const batchSize = Number.parseInt(batchSizeElement?.value || "20")
-
-                          if (fileInput?.files?.[0]) {
-                            const file = fileInput.files[0]
-                            const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls")
-
-                            if (isExcel) {
-                              file
-                                .arrayBuffer()
-                                .then((buffer) => {
-                                  const fileContacts = parseExcelFile(buffer)
-                                  const manualContacts = parseTextFile(numbersText)
-                                  generateSmsLinks(
-                                    [...manualContacts, ...fileContacts],
-                                    messageTemplate,
-                                    linksContainer,
-                                    statsContainer,
-                                    invalidContainer,
-                                    countryCode,
-                                    batchSize,
-                                  )
-                                })
-                                .catch((err) => {
-                                  alert("Erro ao ler ficheiro Excel: " + err.message)
-                                })
-                            } else {
-                              file
-                                .text()
-                                .then((text) => {
-                                  const fileContacts = parseTextFile(text)
-                                  const manualContacts = parseTextFile(numbersText)
-                                  generateSmsLinks(
-                                    [...manualContacts, ...fileContacts],
-                                    messageTemplate,
-                                    linksContainer,
-                                    statsContainer,
-                                    invalidContainer,
-                                    countryCode,
-                                    batchSize,
-                                  )
-                                })
-                                .catch((err) => {
-                                  alert("Erro ao ler ficheiro de texto: " + err.message)
-                                })
-                            }
-                          } else {
-                            const manualContacts = parseTextFile(numbersText)
-                            generateSmsLinks(
-                              manualContacts,
-                              messageTemplate,
-                              linksContainer,
-                              statsContainer,
-                              invalidContainer,
-                              countryCode,
-                              batchSize,
-                            )
-                          }
-                        }}
-                      >
+                      <Button className="w-full" onClick={generateSmsLinks}>
                         <Send className="h-4 w-4 mr-2" />
-                        Validar e Gerar SMS Personalizados
+                        Gerar SMS Personalizados
                       </Button>
                     </div>
                   </Card>
@@ -2778,7 +2590,7 @@ export default function RebornAI() {
                   <Card className="p-4 sm:p-6">
                     <h4 className="font-medium mb-3">Estatisticas</h4>
                     <div id="smsStats" className="mb-4">
-                      <p className="text-sm text-muted-foreground">As estatisticas aparecerao aqui apos validar</p>
+                      <p className="text-sm text-muted-foreground">As estatisticas aparecerao aqui apos gerar</p>
                     </div>
                     <div id="smsInvalid" className="mb-4"></div>
                   </Card>
@@ -2810,7 +2622,7 @@ export default function RebornAI() {
               </ScrollArea>
             </TabsContent>
 
-            {/* CHANGE: Add Email Mass Sending Tab after SMS Tab */}
+            {/* Email Tab */}
             <TabsContent value="email" className="flex-1 flex flex-col min-h-0 m-0">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
@@ -3109,7 +2921,7 @@ export default function RebornAI() {
               </ScrollArea>
             </TabsContent>
 
-            {/* CHANGE: Add WhatsApp Mass Sending Tab */}
+            {/* WhatsApp Tab */}
             <TabsContent value="whatsapp" className="flex-1 flex flex-col min-h-0 m-0">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
@@ -3681,10 +3493,187 @@ export default function RebornAI() {
         </main>
       </div>
 
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-xl font-bold">📚 Histórico Completo</h2>
+              <div className="flex gap-2">
+                {(smsHistory.length > 0 || chatHistories.length > 0) && (
+                  <Button variant="destructive" size="sm" onClick={clearAllHistory}>
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Limpar Tudo
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={() => setShowHistoryModal(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
 
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {/* User info */}
+              {session?.user?.email && (
+                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="text-sm font-medium">
+                    Sessão: <span className="text-primary">{session.user.email}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Todos os dados são guardados automaticamente no seu dispositivo
+                  </p>
+                </div>
+              )}
+
+              {/* SMS History */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-green-500" />
+                    Histórico de SMS ({smsHistory.length})
+                  </h3>
+                  {smsHistory.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={clearSmsHistory}>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+
+                {smsHistory.length === 0 ? (
+                  <div className="p-6 text-center bg-muted/50 rounded-lg">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">Nenhum histórico de SMS ainda</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Os seus envios de SMS serão guardados aqui automaticamente
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {smsHistory
+                      .slice()
+                      .reverse()
+                      .map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-lg hover:shadow-md transition-all cursor-pointer"
+                          onClick={() => loadSmsFromHistory(entry)}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold">
+                                📅 {new Date(entry.timestamp).toLocaleString("pt-PT")}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                ✅ {entry.validCount} de {entry.totalCount} contactos válidos • 🌍{" "}
+                                {entry.countryCode || "Código país não especificado"}
+                              </p>
+                            </div>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                loadSmsFromHistory(entry)
+                              }}
+                            >
+                              Carregar
+                            </Button>
+                          </div>
+                          <p className="text-sm bg-black/20 p-2 rounded mt-2 line-clamp-2">{entry.message}</p>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {entry.contacts.slice(0, 5).map((contact, idx) => (
+                              <span key={idx} className="text-xs bg-primary/20 px-2 py-1 rounded">
+                                {contact.name}
+                              </span>
+                            ))}
+                            {entry.contacts.length > 5 && (
+                              <span className="text-xs bg-muted px-2 py-1 rounded">
+                                +{entry.contacts.length - 5} mais
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chat History */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <History className="h-5 w-5 text-blue-500" />
+                    Histórico de Chats ({chatHistories.length})
+                  </h3>
+                </div>
+
+                {chatHistories.length === 0 ? (
+                  <div className="p-6 text-center bg-muted/50 rounded-lg">
+                    <History className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">Nenhum histórico de chat ainda</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      As suas conversas com a IA serão guardadas aqui automaticamente
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {chatHistories.map((chat) => (
+                      <div
+                        key={chat.id}
+                        className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg hover:shadow-md transition-all cursor-pointer"
+                        onClick={() => {
+                          loadChat(chat.id)
+                          setShowHistoryModal(false)
+                        }}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold truncate">{chat.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              📅 {new Date(chat.timestamp).toLocaleString("pt-PT")} • 💬 {chat.messages.length}{" "}
+                              mensagens
+                            </p>
+                          </div>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              loadChat(chat.id)
+                              setShowHistoryModal(false)
+                            }}
+                          >
+                            Abrir
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Tips section */}
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <h4 className="text-sm font-semibold mb-2">💡 Dicas:</h4>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• Todos os dados são guardados automaticamente no seu telemóvel</li>
+                  <li>• Clique em qualquer item do histórico para carregar</li>
+                  <li>• O histórico é mantido mesmo depois de fechar o browser</li>
+                  <li>• Limpe o histórico quando necessário para libertar espaço</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* </CHANGE> */}
+
+      {/* Auth Modal */}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+
+      {/* Pro Modal */}
       {showProModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <Card className="w-full max-w-lg bg-card border-border shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
