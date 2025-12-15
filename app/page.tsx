@@ -78,8 +78,6 @@ import {
   MessageCircle,
   Check,
   Edit3,
-  LogOut,
-  History,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
@@ -313,6 +311,7 @@ export default function RebornAI() {
   const [editMode, setEditMode] = useState(false)
   const [editableHtml, setEditableHtml] = useState("")
   const [uploadedImages, setUploadedImages] = useState<{ id: string; dataUrl: string; name: string }[]>([])
+  // </CHANGE>
   const [isGeneratingWebsite, setIsGeneratingWebsite] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState("startup")
   const [selectedTemplate, setSelectedTemplate] = useState("modern")
@@ -375,61 +374,6 @@ export default function RebornAI() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
-
-  const [smsHistory, setSmsHistory] = useState<
-    {
-      id: string
-      date: string
-      message: string
-      totalContacts: number
-      successCount: number
-      failCount: number
-      contacts: { name: string; phone: string; status: "sent" | "failed" }[]
-    }[]
-  >([])
-
-  // Load SMS history from localStorage
-  useEffect(() => {
-    const savedHistory = localStorage.getItem("rebornai-sms-history")
-    if (savedHistory) {
-      setSmsHistory(JSON.parse(savedHistory))
-    }
-  }, [])
-
-  const saveSmsToHistory = (
-    message: string,
-    contacts: { name: string; phone: string; status: "sent" | "failed" }[],
-  ) => {
-    const successCount = contacts.filter((c) => c.status === "sent").length
-    const failCount = contacts.filter((c) => c.status === "failed").length
-
-    const newEntry = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleString("pt-PT"),
-      message,
-      totalContacts: contacts.length,
-      successCount,
-      failCount,
-      contacts,
-    }
-
-    const updatedHistory = [newEntry, ...smsHistory]
-    setSmsHistory(updatedHistory)
-    localStorage.setItem("rebornai-sms-history", JSON.stringify(updatedHistory))
-  }
-
-  const deleteSmsHistory = (id: string) => {
-    const updatedHistory = smsHistory.filter((h) => h.id !== id)
-    setSmsHistory(updatedHistory)
-    localStorage.setItem("rebornai-sms-history", JSON.stringify(updatedHistory))
-  }
-
-  const clearAllSmsHistory = () => {
-    if (confirm("Tem certeza que deseja apagar todo o histórico de SMS?")) {
-      setSmsHistory([])
-      localStorage.removeItem("rebornai-sms-history")
-    }
-  }
 
   const startLiveMode = async () => {
     try {
@@ -670,7 +614,7 @@ export default function RebornAI() {
   }
 
   const saveChatHistories = (histories: ChatHistory[]) => {
-    localStorage.setItem("rebornai-chats", JSON.JSON.stringify(histories))
+    localStorage.setItem("rebornai-chats", JSON.stringify(histories))
     setChatHistories(histories)
   }
 
@@ -976,6 +920,7 @@ export default function RebornAI() {
     // Reset input
     e.target.value = ""
   }
+  // </CHANGE>
 
   const insertImageIntoHtml = (imageDataUrl: string) => {
     if (!editMode || !editableHtml) return
@@ -990,6 +935,7 @@ export default function RebornAI() {
       alert("Nenhuma imagem placeholder encontrada no HTML. Adicione manualmente no editor.")
     }
   }
+  // </CHANGE>
 
   const generateWebsite = async () => {
     if (!websitePrompt.trim() && !businessName.trim()) return // Basic validation
@@ -1046,6 +992,7 @@ export default function RebornAI() {
       setIsGeneratingWebsite(false)
     }
   }
+  // </CHANGE>
 
   const generatePresentation = async () => {
     if (!presentationPrompt.trim()) return // Basic validation
@@ -1252,25 +1199,24 @@ export default function RebornAI() {
 
         // Se houver {nome} no template, substitui. Senão, adiciona nome no início
         let personalizedMessage = messageTemplate
-        if (contact.name) {
-          if (messageTemplate.includes("{nome}")) {
-            personalizedMessage = messageTemplate.replace(/{nome}/g, contact.name)
+
+        if (contact.name && contact.name.trim() !== "") {
+          if (messageTemplate.includes("{nome}") || messageTemplate.includes("{NOME}")) {
+            // Substituir {nome} pelo nome do contacto
+            personalizedMessage = messageTemplate.replace(/{nome}/gi, contact.name.trim())
           } else {
-            // Adicionar nome no início automaticamente
-            personalizedMessage = `${contact.name}, ${messageTemplate}`
+            // Adicionar nome automaticamente no início: "Nome, mensagem"
+            personalizedMessage = `${contact.name.trim()}, ${messageTemplate}`
           }
         }
 
         validContacts.push({
-          name: contact.name || "Sem nome",
+          name: contact.name,
           phone: result.formatted,
           message: personalizedMessage,
         })
       } else {
-        invalidContacts.push({
-          name: contact.name || "Sem nome",
-          phone: result.original,
-        })
+        invalidContacts.push(contact)
       }
     }
 
@@ -1332,6 +1278,8 @@ export default function RebornAI() {
       contactListDiv.appendChild(contactCard)
     })
 
+    linksContainer.appendChild(contactListDiv)
+
     const controlsDiv = document.createElement("div")
     controlsDiv.className = "space-y-3"
 
@@ -1372,8 +1320,7 @@ export default function RebornAI() {
 
       if (!confirmed) return
 
-      // Track sent contacts for history
-      const historyContacts: { name: string; phone: string; status: "sent" | "failed" }[] = []
+      // Marcar todos como enviados e abrir todos os links
       let openedCount = 0
 
       smsQueue.forEach((item, index) => {
@@ -1386,45 +1333,29 @@ export default function RebornAI() {
 
         // Usar setTimeout para evitar bloqueio de popups
         setTimeout(() => {
-          try {
-            link.click()
-            document.body.removeChild(link)
-            openedCount++
+          link.click()
+          document.body.removeChild(link)
+          openedCount++
 
-            // Mark as sent
-            historyContacts.push({ name: item.name, phone: item.phone, status: "sent" })
-
-            // Atualizar badge do contacto
-            const badge = item.element.querySelector(".status-badge") as HTMLElement
-            if (badge) {
-              badge.className = "status-badge text-xs px-2 py-1 rounded bg-green-500/20 text-green-500"
-              badge.textContent = "Enviado"
-            }
-
-            // Quando todos forem abertos
-            if (openedCount === smsQueue.length) {
-              sendAllAtOnceButton.innerHTML = `
-                <div class="flex items-center justify-center gap-2">
-                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>TODAS ENVIADAS! (${validContacts.length} SMS)</span>
-                </div>
-              `
-
-              // Save to history
-              saveSmsToHistory(messageTemplate, historyContacts)
-            }
-          } catch (error) {
-            historyContacts.push({ name: item.name, phone: item.phone, status: "failed" })
-
-            const badge = item.element.querySelector(".status-badge") as HTMLElement
-            if (badge) {
-              badge.className = "status-badge text-xs px-2 py-1 rounded bg-red-500/20 text-red-500"
-              badge.textContent = "Falhou"
-            }
+          // Atualizar badge do contacto
+          const badge = item.element.querySelector(".status-badge") as HTMLElement
+          if (badge) {
+            badge.className = "status-badge text-xs px-2 py-1 rounded bg-green-500/20 text-green-500"
+            badge.textContent = "Aberto"
           }
-        }, index * 150) // 150ms entre cada para evitar bloqueio
+
+          // Quando todos forem abertos
+          if (openedCount === smsQueue.length) {
+            sendAllAtOnceButton.innerHTML = `
+              <div class="flex items-center justify-center gap-2">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>TODAS ABERTAS! (${validContacts.length} SMS)</span>
+              </div>
+            `
+          }
+        }, index * 100) // 100ms entre cada abertura para evitar bloqueio
       })
     }
 
@@ -1445,8 +1376,6 @@ export default function RebornAI() {
 
     let isRunning = false
     let currentIndex = 0
-    let currentContactTextRef: HTMLElement | null = null
-    let historyContactsRef: { name: string; phone: string; status: "sent" | "failed" }[] = []
 
     const startAutoSend = async () => {
       if (isRunning) return
@@ -1466,7 +1395,6 @@ export default function RebornAI() {
       const progressBar = progressDiv.querySelector(".progress-bar") as HTMLElement
       const progressText = progressDiv.querySelector(".progress-text") as HTMLElement
       const currentContactText = progressDiv.querySelector(".current-contact") as HTMLElement
-      currentContactTextRef = currentContactText
 
       sendAllButton.innerHTML = `
         <div class="flex items-center justify-center gap-2">
@@ -1478,13 +1406,7 @@ export default function RebornAI() {
         </div>
       `
 
-      // Track sent contacts for history
-      const historyContacts: { name: string; phone: string; status: "sent" | "failed" }[] = []
-      historyContactsRef = historyContacts
-
       for (let i = currentIndex; i < smsQueue.length; i++) {
-        if (!isRunning) break // Allow stopping
-
         const item = smsQueue[i]
 
         // Atualizar UI
@@ -1517,7 +1439,6 @@ export default function RebornAI() {
         }
         item.sent = true
         currentIndex = i + 1
-        historyContacts.push({ name: item.name, phone: item.phone, status: "sent" })
 
         // Aguardar 2 segundos entre cada SMS para dar tempo de processar
         if (i < smsQueue.length - 1) {
@@ -1525,24 +1446,18 @@ export default function RebornAI() {
         }
       }
 
-      if (isRunning) {
-        // Only update UI if not stopped manually
-        isRunning = false
-        currentContactText.textContent = "Envio concluído!"
+      isRunning = false
+      currentContactText.textContent = "Envio concluído!"
 
-        sendAllButton.disabled = false
-        sendAllButton.innerHTML = `
-          <div class="flex items-center justify-center gap-2">
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-            <span>Concluído! (${validContacts.length} SMS abertos)</span>
-          </div>
-        `
-
-        // Save to history
-        saveSmsToHistory(messageTemplate, historyContacts)
-      }
+      sendAllButton.disabled = false
+      sendAllButton.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Concluído! (${validContacts.length} SMS abertos)</span>
+        </div>
+      `
     }
 
     sendAllButton.onclick = startAutoSend
@@ -1554,27 +1469,6 @@ export default function RebornAI() {
     stopButton.onclick = () => {
       isRunning = false
       stopButton.classList.add("hidden")
-      sendAllButton.disabled = false
-      if (currentContactTextRef) {
-        currentContactTextRef.textContent = "Envio interrompido."
-      }
-      sendAllButton.innerHTML = `
-        <div class="flex items-center justify-center gap-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Iniciar Envio Automático (${validContacts.length} SMS)</span>
-        </div>
-      `
-      // Save history with failed status for remaining contacts
-      const remainingContacts = smsQueue.slice(currentIndex).map((item) => ({
-        name: item.name,
-        phone: item.phone,
-        status: "failed" as const,
-      }))
-      if (remainingContacts.length > 0) {
-        saveSmsToHistory(messageTemplate, [...historyContactsRef, ...remainingContacts])
-      }
     }
     controlsDiv.appendChild(stopButton)
 
@@ -1750,7 +1644,7 @@ export default function RebornAI() {
   }
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <div
         className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
@@ -1948,7 +1842,7 @@ export default function RebornAI() {
       {/* Added proper overflow handling for main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b bg-card/50 backdrop-blur-sm">
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
               <Menu className="h-5 w-5" />
@@ -1960,7 +1854,7 @@ export default function RebornAI() {
               <h1 className="font-bold text-lg gradient-text hidden sm:block">Reborn AI</h1>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {enableSearch && (
               <Badge variant="outline" className="gap-1 hidden sm:flex bg-primary/10 border-primary/30">
                 <Search className="h-3 w-3" />
@@ -1971,13 +1865,6 @@ export default function RebornAI() {
               <Zap className="h-3 w-3" />
               <span className="hidden sm:inline">Online</span>
             </Badge>
-
-            {session && (
-              <Button variant="ghost" size="sm" onClick={() => signOut()}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Terminar Sessão
-              </Button>
-            )}
           </div>
         </header>
 
@@ -2494,13 +2381,17 @@ export default function RebornAI() {
                         </Button>
                       </>
                     )}
+                    {/* </CHANGE> */}
                   </div>
                 </Card>
 
                 {/* Preview Panel */}
                 <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="p-3 border-b border-border flex items-center justify-between">
-                    <span className="font-medium text-sm">{editMode ? "Editor HTML" : "Preview"}</span>
+                    <span className="font-medium text-sm">
+                      {editMode ? "Editor HTML" : "Preview"}
+                      {/* </CHANGE> */}
+                    </span>
                     {generatedWebsite && (
                       <div className="flex gap-2">
                         <Button
@@ -2529,6 +2420,7 @@ export default function RebornAI() {
                         <p>O preview aparecerá aqui</p>
                       </div>
                     )}
+                    {/* </CHANGE> */}
                   </div>
                 </Card>
               </div>
@@ -3879,67 +3771,6 @@ export default function RebornAI() {
       {/* Overlay when sidebar is open on mobile */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* SMS History Section (moved to its own tab for better organization) */}
-      {activeTab === "sms" && (
-        <div className="space-y-6">
-          {/* Existing SMS form is handled within the SMS tab */}
-
-          {/* SMS output containers */}
-          <div id="smsStats"></div>
-          <div id="smsInvalid"></div>
-          <div id="smsLinksContainer"></div>
-
-          {/* Added SMS History Section within the SMS tab */}
-          <Card>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Histórico de SMS Enviadas
-                </h3>
-                {smsHistory.length > 0 && (
-                  <Button variant="destructive" size="sm" onClick={clearAllSmsHistory}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Limpar Tudo
-                  </Button>
-                )}
-              </div>
-
-              {smsHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <MessageCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Nenhuma SMS enviada ainda</p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {smsHistory.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="p-4 bg-card/30 rounded-lg border border-border/50 hover:border-border transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{entry.date}</p>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{entry.message}</p>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => deleteSmsHistory(entry.id)} className="ml-2">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="text-muted-foreground">Total: {entry.totalContacts}</span>
-                        <span className="text-green-500">✓ Enviadas: {entry.successCount}</span>
-                        {entry.failCount > 0 && <span className="text-red-500">✗ Falharam: {entry.failCount}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
       )}
     </div>
   )
