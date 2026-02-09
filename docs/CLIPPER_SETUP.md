@@ -6,7 +6,7 @@ O Clipper AI é um módulo estilo Opus Clip que permite transformar vídeos long
 
 ## Arquitetura
 
-```
+\`\`\`
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   Frontend      │     │   Vercel API    │     │  Cloudflare     │
 │   (Next.js)     │────▶│   Routes        │────▶│  Worker         │
@@ -18,7 +18,7 @@ O Clipper AI é um módulo estilo Opus Clip que permite transformar vídeos long
                         │   AssemblyAI    │
                         │   (Transcrição) │
                         └─────────────────┘
-```
+\`\`\`
 
 ## Configuração
 
@@ -27,31 +27,31 @@ O Clipper AI é um módulo estilo Opus Clip que permite transformar vídeos long
 1. Criar conta em https://www.assemblyai.com
 2. Obter API key (free tier: 100h/mês)
 3. Adicionar ao Vercel:
-   ```
+   \`\`\`
    ASSEMBLYAI_API_KEY=sua_api_key_aqui
-   ```
+   \`\`\`
 
 ### 2. Cloudflare Worker (Processamento de Vídeo)
 
 #### Passo 1: Instalar Wrangler
-```bash
+\`\`\`bash
 npm install -g wrangler
 wrangler login
-```
+\`\`\`
 
 #### Passo 2: Criar Projeto
-```bash
+\`\`\`bash
 wrangler init clipper-worker
 cd clipper-worker
-```
+\`\`\`
 
 #### Passo 3: Instalar Dependências
-```bash
+\`\`\`bash
 npm install @ffmpeg/ffmpeg @ffmpeg/util
-```
+\`\`\`
 
 #### Passo 4: Configurar wrangler.toml
-```toml
+\`\`\`toml
 name = "clipper-worker"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
@@ -63,22 +63,22 @@ ALLOWED_ORIGIN = "https://your-app.vercel.app"
 [[r2_buckets]]
 binding = "CLIPS_BUCKET"
 bucket_name = "reborn-clips"
-```
+\`\`\`
 
 #### Passo 5: Criar Bucket R2
-```bash
+\`\`\`bash
 wrangler r2 bucket create reborn-clips
-```
+\`\`\`
 
 #### Passo 6: Deploy
-```bash
+\`\`\`bash
 wrangler deploy
-```
+\`\`\`
 
 #### Passo 7: Adicionar URL ao Vercel
-```
+\`\`\`
 CLOUDFLARE_CLIPPER_WORKER_URL=https://clipper-worker.your-account.workers.dev
-```
+\`\`\`
 
 ## Modo Demo
 
@@ -130,7 +130,7 @@ Para vídeos maiores ou mais processamento:
 
 ## Estrutura de Ficheiros
 
-```
+\`\`\`
 app/
 ├── clipper/
 │   └── page.tsx          # UI do Clipper
@@ -146,7 +146,7 @@ cloudflare-worker/
 └── clipper-worker.ts     # Worker FFmpeg
 docs/
 └── CLIPPER_SETUP.md      # Este ficheiro
-```
+\`\`\`
 
 ## Troubleshooting
 
