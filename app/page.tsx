@@ -16,6 +16,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { WebCraftProTab } from "@/components/pro/webcraft-pro-tab"
+import { ImageGeneratorProTab } from "@/components/pro/image-generator-pro-tab"
+import { CliperAITab } from "@/components/pro/clipper-ai-tab"
+import { GlobalExportTab } from "@/components/pro/global-export-tab"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
@@ -50,6 +54,7 @@ import {
   MessageCircleIcon,
   Scissors,
   Megaphone,
+  Crown,
   Instagram,
   Twitter,
   Facebook,
@@ -1919,6 +1924,10 @@ export default function RebornAI() {
                     <Megaphone className="h-4 w-4 mr-2" />
                     Marketing
                   </TabsTrigger>
+                  <TabsTrigger value="pro" className="px-3 rounded-lg">
+                    <Crown className="h-4 w-4 mr-2" />
+                    Pro
+                  </TabsTrigger>
                 </TabsList>
               </ScrollArea>
             </div>
@@ -3674,6 +3683,38 @@ export default function RebornAI() {
                       ))}
                     </div>
                   </Card>
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* Pro Tab - Integrates all Pro features */}
+            <TabsContent value="pro" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              <ScrollArea className="flex-1">
+                <div className="max-w-6xl mx-auto py-4 px-4">
+                  <Tabs defaultValue="webcraft" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4 mb-6">
+                      <TabsTrigger value="webcraft">WebCraft</TabsTrigger>
+                      <TabsTrigger value="images">Images</TabsTrigger>
+                      <TabsTrigger value="clipper">Clipper</TabsTrigger>
+                      <TabsTrigger value="export">Export</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="webcraft" className="space-y-4">
+                      <WebCraftProTab />
+                    </TabsContent>
+
+                    <TabsContent value="images" className="space-y-4">
+                      <ImageGeneratorProTab />
+                    </TabsContent>
+
+                    <TabsContent value="clipper" className="space-y-4">
+                      <CliperAITab />
+                    </TabsContent>
+
+                    <TabsContent value="export" className="space-y-4">
+                      <GlobalExportTab />
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </ScrollArea>
             </TabsContent>
