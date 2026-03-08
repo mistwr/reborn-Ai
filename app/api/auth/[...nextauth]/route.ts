@@ -2,16 +2,6 @@ import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 
-const getBaseUrl = () => {
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`
-  }
-  return "http://localhost:3000"
-}
-
 export const authOptions = {
   providers: [
     GoogleProvider({
@@ -48,8 +38,6 @@ export const authOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET || "reborn-ai-secret-key-change-in-production",
-  trustHost: true,
-  url: getBaseUrl(),
 }
 
 const handler = NextAuth(authOptions)
