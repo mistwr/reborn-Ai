@@ -49,6 +49,7 @@ export const authOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET || "reborn-ai-secret-key-change-in-production",
   trustHost: true,
+  url: getBaseUrl(),
 }
 
 const handler = NextAuth(authOptions)
