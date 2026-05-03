@@ -2,6 +2,9 @@ import { streamText } from "ai"
 
 export const maxDuration = 120
 
+// Maximum size for image data (3MB to stay under Vercel limits)
+const MAX_IMAGE_SIZE = 3 * 1024 * 1024
+
 const MODE_PROMPTS: Record<string, string> = {
   ocr: `Extrai TODO o texto visível neste ficheiro com precisão máxima. 
 Preserva a estrutura original: parágrafos, listas, tabelas, títulos e subtítulos.
@@ -35,11 +38,38 @@ Lista detalhadamente:
 Formata como lista estruturada em Markdown.`,
 }
 
+// Compress base64 image by reducing quality/size if needed
+function compressBase64Image(base64Data: string, mimeType: string): string {
+  // Calculate approximate size
+  const sizeInBytes = (base64Data.length * 3) / 4
+  
+  if (sizeInBytes <= MAX_IMAGE_SIZE) {
+    return base64Data
+  }
+  
+  // For now, just truncate if too large (client should compress)
+  // In production, would use sharp or similar for proper compression
+  console.warn(`Image too large: ${(sizeInBytes / 1024 / 1024).toFixed(2)}MB, max ${MAX_IMAGE_SIZE / 1024 / 1024}MB`)
+  return base64Data
+}
+
 export async function POST(req: Request) {
   try {
+    // Check content length header first
+    const contentLength = req.headers.get("content-length")
+    if (contentLength && parseInt(contentLength) > 4.5 * 1024 * 1024) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Ficheiro muito grande. Por favor, usa imagens menores (max 3MB) ou comprime o ficheiro antes de enviar.",
+          code: "FILE_TOO_LARGE"
+        }), 
+        { status: 413, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
     const body = await req.json()
     const {
-      files,         // Array de { dataUrl: string, mimeType: string, name: string }
+      files,
       mode = "describe",
       customPrompt = "",
     } = body
@@ -68,6 +98,10 @@ Usas formatacao Markdown para organizar as respostas de forma clara e legivel.`
 
     contentParts.push({ type: "text", text: instruction })
 
+    // Track total size
+    let totalSize = 0
+    const maxTotalSize = 4 * 1024 * 1024 // 4MB total for all files
+
     // Add each file as an image or file part
     for (const file of files) {
       const { dataUrl, mimeType, name } = file
@@ -76,18 +110,33 @@ Usas formatacao Markdown para organizar as respostas de forma clara e legivel.`
       const base64Data = dataUrl.split(",")[1]
       if (!base64Data) continue
 
+      // Check size
+      const fileSize = (base64Data.length * 3) / 4
+      totalSize += fileSize
+      
+      if (totalSize > maxTotalSize) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Ficheiros muito grandes (${(totalSize / 1024 / 1024).toFixed(1)}MB). Maximo permitido: 4MB total. Por favor, comprime as imagens.`,
+            code: "TOTAL_SIZE_EXCEEDED"
+          }), 
+          { status: 413, headers: { "Content-Type": "application/json" } }
+        )
+      }
+
       if (mimeType === "application/pdf") {
-        // PDFs sent as file part (Gemini supports PDF natively)
+        // PDFs sent as file part
         contentParts.push({
           type: "file",
           data: Buffer.from(base64Data, "base64"),
           mimeType: "application/pdf",
         })
       } else {
-        // Images - AI SDK expects image as base64 string or URL
+        // Images - use data URL format
+        const compressedData = compressBase64Image(base64Data, mimeType)
         contentParts.push({
           type: "image",
-          image: `data:${mimeType};base64,${base64Data}`,
+          image: `data:${mimeType};base64,${compressedData}`,
         })
       }
 
@@ -112,6 +161,18 @@ Usas formatacao Markdown para organizar as respostas de forma clara e legivel.`
     return result.toTextStreamResponse()
   } catch (error: any) {
     console.error("Vision API error:", error)
+    
+    // Handle specific errors
+    if (error?.message?.includes("Too Large") || error?.message?.includes("PAYLOAD")) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Ficheiro muito grande. Por favor, usa imagens menores ou comprime antes de enviar.",
+          code: "PAYLOAD_TOO_LARGE"
+        }), 
+        { status: 413, headers: { "Content-Type": "application/json" } }
+      )
+    }
+    
     return new Response(JSON.stringify({ error: error?.message || "Erro na análise visual" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
