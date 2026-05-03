@@ -80,15 +80,14 @@ Usas formatacao Markdown para organizar as respostas de forma clara e legivel.`
         // PDFs sent as file part (Gemini supports PDF natively)
         contentParts.push({
           type: "file",
-          data: base64Data,
+          data: Buffer.from(base64Data, "base64"),
           mimeType: "application/pdf",
         })
       } else {
-        // Images
+        // Images - AI SDK expects image as base64 string or URL
         contentParts.push({
           type: "image",
-          image: base64Data,
-          mimeType,
+          image: `data:${mimeType};base64,${base64Data}`,
         })
       }
 
