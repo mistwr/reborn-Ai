@@ -423,7 +423,53 @@ export function VisionTab() {
 
       {/* ── Right Panel: Result ── */}
       <div className="flex-1 flex flex-col min-h-0 bg-background">
-        {!result && !isAnalysing ? (
+        {/* Preview of uploaded files when no result yet */}
+        {files.length > 0 && !result && !isAnalysing && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">
+                  Preview — {files.length} ficheiro{files.length > 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {files.map((file) => (
+                  <div key={file.id} className="relative group rounded-xl overflow-hidden border border-border bg-muted/20">
+                    {file.preview ? (
+                      <img
+                        src={file.preview}
+                        alt={file.name}
+                        className="w-full h-48 sm:h-64 object-contain bg-black/5"
+                      />
+                    ) : (
+                      <div className="w-full h-48 sm:h-64 flex flex-col items-center justify-center bg-muted/30">
+                        <FileText className="h-12 w-12 text-muted-foreground mb-2" />
+                        <span className="text-sm text-muted-foreground">PDF</span>
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+                      <p className="text-xs text-white truncate font-medium">{file.name}</p>
+                      <p className="text-xs text-white/70">{formatBytes(file.size)}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 h-7 w-7 bg-black/40 hover:bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeFile(file.id)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+        
+        {files.length === 0 && !result && !isAnalysing && (
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
@@ -447,7 +493,9 @@ export function VisionTab() {
               ))}
             </div>
           </div>
-        ) : (
+        )}
+        
+        {(result || isAnalysing) && (
           /* Result area */
           <div className="flex-1 flex flex-col min-h-0">
             {/* Result header */}
