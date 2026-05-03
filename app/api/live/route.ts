@@ -1,7 +1,6 @@
 /**
  * API do Modo Live - Reborn AI
- * Streaming bidirectional em tempo real
- * Suporta áudio, vídeo e texto simultaneamente
+ * Streaming de texto em tempo real com AI SDK v5
  */
 
 import { streamText } from "ai"
@@ -13,66 +12,52 @@ export async function POST(req: Request) {
     const body = await req.json()
     const {
       message,
-      audioTranscript,
-      frameDescription,
       conversationHistory = [],
-      mode = "voice", // voice, video, or both
+      mode = "voice",
     } = body
 
-    // Construir contexto baseado no modo
-    const contextParts: string[] = []
+    // Build messages array in ModelMessage format
+    const modelMessages: { role: "user" | "assistant"; content: string }[] = []
 
-    if (audioTranscript) {
-      contextParts.push(`[ÁUDIO DO UTILIZADOR]: ${audioTranscript}`)
+    // Add conversation history
+    for (const msg of conversationHistory) {
+      if (msg.role === "user" || msg.role === "assistant") {
+        modelMessages.push({ role: msg.role, content: msg.content || "" })
+      }
     }
 
-    if (frameDescription) {
-      contextParts.push(`[VISÃO EM TEMPO REAL]: ${frameDescription}`)
-    }
-
+    // Add current message
     if (message) {
-      contextParts.push(`[MENSAGEM]: ${message}`)
+      modelMessages.push({ role: "user", content: message })
     }
 
-    const fullContext = contextParts.join("\n")
-
-    // Formatar histórico
-    const formattedHistory = conversationHistory.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content,
-    }))
-
-    // Adicionar mensagem atual
-    formattedHistory.push({
-      role: "user",
-      content: fullContext || "Olá",
-    })
+    if (modelMessages.length === 0) {
+      modelMessages.push({ role: "user", content: "Olá" })
+    }
 
     const result = streamText({
       model: "google/gemini-2.0-flash-001" as any,
-      system: `Você é o Reborn AI em MODO LIVE - uma IA conversacional em tempo real.
+      system: `És o Reborn AI em MODO LIVE - uma IA conversacional em tempo real.
 
 COMPORTAMENTO NO MODO LIVE:
 - Respostas CURTAS e DIRETAS (máximo 2-3 frases)
 - Tom conversacional natural, como uma chamada de voz
-- Reage imediatamente ao que vê/ouve
+- Reage imediatamente ao que o utilizador diz
 - Mantém contexto da conversa
-- Pode interromper educadamente se necessário
+- Sem formatação markdown
 
 CAPACIDADES ATIVAS:
 ${mode === "voice" || mode === "both" ? "- Escuta e responde em tempo real (áudio)" : ""}
 ${mode === "video" || mode === "both" ? "- Vê e analisa o que está na câmara" : ""}
-- Conversa natural e fluida
+- Conversa natural e fluida em português de Portugal
 
 REGRAS:
-- Nunca use formatação markdown no modo live
-- Seja conciso - isto é uma conversa, não um artigo
-- Responda como se estivesse a falar, não a escrever
-- Use pontuação natural para pausas de fala
-
-Responda de forma natural e conversacional.`,
-      messages: formattedHistory,
-      maxTokens: 150, // Limitar para respostas curtas
+- Nunca uses formatação markdown no modo live
+- Sê conciso - isto é uma conversa, não um artigo
+- Responde como se estivesses a falar
+- Usa pontuação natural para pausas de fala`,
+      messages: modelMessages,
+      maxOutputTokens: 200,
     })
 
     return result.toTextStreamResponse()

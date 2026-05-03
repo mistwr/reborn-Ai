@@ -81,6 +81,8 @@ import {
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
+import { LiveChat } from "@/components/live-chat"
+import { VisionTab } from "@/components/vision-tab"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -358,14 +360,6 @@ export default function RebornAI() {
 
   // Live Mode state
   const [liveMode, setLiveMode] = useState<LiveModeState | null>(null) // Initialize as null
-  const [liveHistory, setLiveHistory] = useState<Array<{ role: string; content: string }>>([])
-  const [liveModeTranscript, setLiveModeTranscript] = useState("") // Add state for live mode transcript
-
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
-  const recognitionRef = useRef<any>(null)
-  const liveIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -375,220 +369,29 @@ export default function RebornAI() {
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
 
-  const startLiveMode = async () => {
-    try {
-      // Request camera and microphone
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      })
-
-      mediaStreamRef.current = stream
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-
-      setLiveMode({
-        isActive: true,
-        isMicOn: true,
-        isCameraOn: true,
-        isProcessing: false,
-        transcript: "",
-        response: "",
-      })
-
-      // Start speech recognition
-      startLiveRecognition()
-
-      // Start periodic frame analysis
-      startFrameAnalysis()
-    } catch (error) {
-      console.error("Error starting live mode:", error)
-      alert("Erro ao aceder à câmara/microfone. Verifique as permissões.")
-    }
+  const startLiveMode = () => {
+    setLiveMode({
+      isActive: true,
+      isMicOn: true,
+      isCameraOn: true,
+      isProcessing: false,
+      transcript: "",
+      response: "",
+    })
   }
 
   const stopLiveMode = () => {
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
-
-    // Stop recognition
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null // Clear ref
-    }
-
-    // Stop frame analysis
-    if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current)
-      liveIntervalRef.current = null
-    }
-
-    setLiveMode(null) // Set to null to indicate mode is off
-    setLiveHistory([])
-    setLiveModeTranscript("") // Clear transcript
-  }
-
-  const startLiveRecognition = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("O seu navegador não suporta reconhecimento de voz.")
-      return
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = "pt-PT"
-
-    recognition.onresult = async (event: any) => {
-      const lastResult = event.results[event.results.length - 1]
-      const transcript = lastResult[0].transcript
-
-      setLiveModeTranscript(transcript) // Update transcript state
-
-      // If final result, send to AI
-      if (lastResult.isFinal && transcript.trim()) {
-        await processLiveInput(transcript)
-      }
-    }
-
-    recognition.onerror = (event: any) => {
-      console.error("Recognition error:", event.error)
-      setLiveMode((prev) => (prev ? { ...prev, transcript: "" } : null)) // Clear transcript on error
-      if (event.error === "no-speech") {
-        alert("Nenhuma fala detetada. Tente novamente.")
-      } else if (event.error === "audio-capture") {
-        alert("Erro na captura de áudio. Verifique o microfone.")
-      }
-    }
-
-    recognition.onend = () => {
-      // Restart if still in live mode and mic is on
-      if (liveMode?.isActive && liveMode.isMicOn) {
-        recognition.start()
-      }
-    }
-
-    recognition.start()
-    recognitionRef.current = recognition
-  }
-
-  const startFrameAnalysis = () => {
-    // Analyze frame every 5 seconds
-    liveIntervalRef.current = setInterval(async () => {
-      if (!liveMode?.isCameraOn || !videoRef.current || !canvasRef.current) return
-
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const ctx = canvas.getContext("2d")
-
-      if (!ctx) return
-
-      canvas.width = 320
-      canvas.height = 240
-      ctx.drawImage(video, 0, 0, 320, 240)
-
-      // Get frame as base64 (low quality for speed)
-      const frameData = canvas.toDataURL("image/jpeg", 0.3)
-
-      // Only analyze if not currently processing
-      if (!liveMode.isProcessing) {
-        // Store frame for context but don't send automatically
-        // Frame will be included when user speaks
-      }
-    }, 5000)
-  }
-
-  const processLiveInput = async (transcript: string) => {
-    if (!transcript.trim() || liveMode?.isProcessing) return
-
-    setLiveMode((prev) => (prev ? { ...prev, isProcessing: true, transcript: "" } : null)) // Clear transcript during processing
-
-    try {
-      // Get current frame if camera is on
-      const frameDescription = ""
-      if (liveMode?.isCameraOn && videoRef.current && canvasRef.current) {
-        const canvas = canvasRef.current
-        const video = videoRef.current
-        const ctx = canvas.getContext("2d")
-
-        if (ctx) {
-          canvas.width = 320
-          canvas.height = 240
-          ctx.drawImage(video, 0, 0, 320, 240)
-        }
-      }
-
-      const response = await fetch("/api/live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioTranscript: transcript,
-          frameDescription,
-          conversationHistory: liveHistory,
-          mode: liveMode?.isCameraOn ? "both" : "voice",
-        }),
-      })
-
-      if (!response.ok) throw new Error("Erro na resposta")
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullResponse = ""
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          fullResponse += decoder.decode(value)
-          setLiveMode((prev) => (prev ? { ...prev, response: fullResponse } : null))
-        }
-      }
-
-      // Update history
-      setLiveHistory((prev) => [
-        ...prev,
-        { role: "user", content: transcript },
-        { role: "assistant", content: fullResponse },
-      ])
-
-      // Speak response
-      speakText(fullResponse)
-    } catch (error) {
-      console.error("Live processing error:", error)
-      setLiveMode((prev) => (prev ? { ...prev, response: "Desculpa, ocorreu um erro no processamento." } : null))
-    } finally {
-      setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
-    }
+    setLiveMode(null)
   }
 
   const toggleLiveMic = () => {
     if (!liveMode) return
-
-    if (liveMode.isMicOn) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-    } else {
-      startLiveRecognition()
-    }
     setLiveMode((prev) => (prev ? { ...prev, isMicOn: !prev.isMicOn } : null))
   }
 
   const toggleLiveCamera = () => {
-    if (!liveMode || !mediaStreamRef.current) return
-
-    const videoTrack = mediaStreamRef.current.getVideoTracks()[0]
-    if (videoTrack) {
-      videoTrack.enabled = !liveMode.isCameraOn
-      setLiveMode((prev) => (prev ? { ...prev, isCameraOn: !prev.isCameraOn } : null))
-    }
+    if (!liveMode) return
+    setLiveMode((prev) => (prev ? { ...prev, isCameraOn: !prev.isCameraOn } : null))
   }
 
   // Load data from localStorage
@@ -1644,7 +1447,7 @@ export default function RebornAI() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex bg-background" style={{ height: "100dvh" }}>
       {/* Sidebar */}
       <div
         className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
@@ -1795,6 +1598,14 @@ export default function RebornAI() {
                 <Megaphone className="h-4 w-4 mr-2" />
                 Marketing
               </Button>
+              <Button
+                variant={activeTab === "vision" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("vision")}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Visao AI
+              </Button>
             </div>
           </nav>
 
@@ -1868,9 +1679,9 @@ export default function RebornAI() {
           </div>
         </header>
 
-        {/* Main content area with proper scroll */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+        {/* Main content area — live/vision tabs fill height, others scroll */}
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
             {/* Tabs List */}
             <div className="border-b border-border mb-4 pb-2">
               <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap">
@@ -1919,12 +1730,16 @@ export default function RebornAI() {
                     <Megaphone className="h-4 w-4 mr-2" />
                     Marketing
                   </TabsTrigger>
+                  <TabsTrigger value="vision" className="px-3 rounded-lg">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Visao AI
+                  </TabsTrigger>
                 </TabsList>
               </ScrollArea>
             </div>
 
             {/* Chat Tab */}
-            <TabsContent value="chat" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+            <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto py-4 space-y-4">
                   {messages.length === 0 && (
@@ -2056,89 +1871,36 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Live Mode Tab */}
-            <TabsContent value="live" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-              <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
-                {!liveMode ? (
+            <TabsContent value="live" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              {!liveMode ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
                   <div className="text-center space-y-4">
                     <Video className="h-16 w-16 mx-auto text-primary" />
                     <h2 className="text-2xl font-bold">Modo Live</h2>
                     <p className="text-muted-foreground max-w-md">
-                      Converse com o Reborn AI em tempo real usando câmara e microfone
+                      Converse com o Reborn AI em tempo real usando câmara e microfone. Fala, vê o slideshow e interaja naturalmente.
                     </p>
                     <Button onClick={startLiveMode} size="lg" className="gap-2">
                       <Video className="h-5 w-5" />
                       Iniciar Modo Live
                     </Button>
                   </div>
-                ) : (
-                  <div className="w-full max-w-4xl space-y-4">
-                    {/* Video Feed */}
-                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-                      <canvas ref={canvasRef} className="hidden" /> {/* Hidden canvas for frame capture */}
-                      {/* Live Controls */}
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                        <Button
-                          variant={liveMode.isMicOn ? "default" : "destructive"}
-                          size="icon"
-                          className="rounded-full h-12 w-12 shadow-lg"
-                          onClick={toggleLiveMic}
-                        >
-                          {liveMode.isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-                        </Button>
-                        <Button
-                          variant={liveMode.isCameraOn ? "default" : "destructive"}
-                          size="icon"
-                          className="rounded-full h-12 w-12 shadow-lg"
-                          onClick={toggleLiveCamera}
-                        >
-                          {liveMode.isCameraOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
-                        </Button>
-                      </div>
-                      {/* Animated Orb when speaking */}
-                      {liveMode.isProcessing && ( // Changed from isListening to isProcessing for better visual cue
-                        <div className="absolute inset-0 flex items-center justify-center z-0">
-                          <div className="w-32 h-32 rounded-full bg-primary/30 backdrop-blur-sm animate-ping"></div>
-                          <div
-                            className={`w-32 h-32 rounded-full bg-primary/30 backdrop-blur-sm flex items-center justify-center`}
-                          >
-                            <Mic className="h-16 w-16 text-primary" />
-                          </div>
-                        </div>
-                      )}
-                      {/* Transcript Overlay */}
-                      {liveModeTranscript && (
-                        <div className="absolute top-4 left-4 right-4 bg-black/70 rounded-lg p-3 z-10">
-                          <p className="text-white text-sm">{liveModeTranscript}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex justify-center gap-4">
-                      <Button onClick={stopLiveMode} size="lg" variant="outline" className="gap-2 bg-transparent">
-                        <X className="h-5 w-5" />
-                        Sair do Modo Live
-                      </Button>
-                    </div>
-
-                    {/* Live AI Response */}
-                    {liveMode.response && (
-                      <Card className="p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Brain className="h-5 w-5 text-primary" />
-                          <span className="font-medium">Resposta AI</span>
-                          {liveMode.isProcessing && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{liveMode.response}</p>
-                      </Card>
-                    )}
-                  </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <LiveChat
+                    onStop={stopLiveMode}
+                    isCameraOn={liveMode.isCameraOn}
+                    isMicOn={liveMode.isMicOn}
+                    onToggleCamera={toggleLiveCamera}
+                    onToggleMic={toggleLiveMic}
+                  />
+                </div>
+              )}
             </TabsContent>
 
             {/* Images Tab */}
-            <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="max-w-2xl mx-auto w-full space-y-4 p-4">
                 <Card className="p-4 sm:p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -2200,7 +1962,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* WebCraft Tab */}
-            <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
                 {/* Config Panel */}
                 <Card className="lg:w-96 shrink-0 p-4 overflow-auto">
@@ -2427,7 +2189,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Presentations Tab */}
-            <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
                 <Card className="lg:w-80 shrink-0 p-4">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -2524,7 +2286,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Ebooks Tab */}
-            <TabsContent value="ebooks" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="ebooks" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
                 <Card className="lg:w-80 shrink-0 p-4">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -2613,7 +2375,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* SMS Tab - Updated with contact name parsing */}
-            <TabsContent value="sms" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="sms" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
                   <Card className="p-4 sm:p-6">
@@ -2811,7 +2573,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* CHANGE: Add Email Mass Sending Tab after SMS Tab */}
-            <TabsContent value="email" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="email" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
                   <Card className="p-4 sm:p-6">
@@ -3110,7 +2872,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* CHANGE: Add WhatsApp Mass Sending Tab */}
-            <TabsContent value="whatsapp" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="whatsapp" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
                   <Card className="p-4 sm:p-6">
@@ -3415,7 +3177,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Clipper Tab - Adding clipper functionality */}
-            <TabsContent value="clipper" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="clipper" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="max-w-4xl mx-auto w-full space-y-4 p-4">
                 <Card className="p-4 sm:p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -3446,7 +3208,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Marketing Tab */}
-            <TabsContent value="marketing" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="marketing" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-4xl mx-auto w-full space-y-6 p-4 pb-20">
                   <div className="text-center mb-6">
@@ -3677,6 +3439,11 @@ export default function RebornAI() {
                 </div>
               </ScrollArea>
             </TabsContent>
+
+            {/* Vision AI Tab */}
+            <TabsContent value="vision" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <VisionTab />
+            </TabsContent>
           </Tabs>
         </main>
       </div>
@@ -3756,17 +3523,7 @@ export default function RebornAI() {
         <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
       </a>
 
-      <div className="fixed bottom-3 left-3 z-50 bg-black/70 backdrop-blur-sm rounded-md p-1 shadow-md">
-        <audio
-          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Em%20um%20mundo%20acelerado%2C%20onde%20tudo%20%C3%A9%20conex%20%281%29-grzbOEqHGivnGcHpOmGX2QXzwqJmGp.mp3"
-          controls
-          loop
-          className="h-6 w-32 sm:h-7 sm:w-40"
-          style={{
-            filter: "invert(1) hue-rotate(180deg)",
-          }}
-        />
-      </div>
+
 
       {/* Overlay when sidebar is open on mobile */}
       {sidebarOpen && (

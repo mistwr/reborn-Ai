@@ -76,12 +76,15 @@
     @apply border-border;
   }
 
-  /* Removed overflow: hidden to allow scrolling */
+  /* Full-height on all devices including iOS Safari */
   html,
   body {
-    @apply h-full w-full bg-background text-foreground antialiased;
+    @apply w-full bg-background text-foreground antialiased;
+    height: 100%;
+    min-height: -webkit-fill-available;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
   }
 
   /* Better scrollbar for all devices */
