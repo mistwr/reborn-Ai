@@ -359,14 +359,6 @@ export default function RebornAI() {
 
   // Live Mode state
   const [liveMode, setLiveMode] = useState<LiveModeState | null>(null) // Initialize as null
-  const [liveHistory, setLiveHistory] = useState<Array<{ role: string; content: string }>>([])
-  const [liveModeTranscript, setLiveModeTranscript] = useState("") // Add state for live mode transcript
-
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
-  const recognitionRef = useRef<any>(null)
-  const liveIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -376,220 +368,29 @@ export default function RebornAI() {
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
 
-  const startLiveMode = async () => {
-    try {
-      // Request camera and microphone
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      })
-
-      mediaStreamRef.current = stream
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-
-      setLiveMode({
-        isActive: true,
-        isMicOn: true,
-        isCameraOn: true,
-        isProcessing: false,
-        transcript: "",
-        response: "",
-      })
-
-      // Start speech recognition
-      startLiveRecognition()
-
-      // Start periodic frame analysis
-      startFrameAnalysis()
-    } catch (error) {
-      console.error("Error starting live mode:", error)
-      alert("Erro ao aceder à câmara/microfone. Verifique as permissões.")
-    }
+  const startLiveMode = () => {
+    setLiveMode({
+      isActive: true,
+      isMicOn: true,
+      isCameraOn: true,
+      isProcessing: false,
+      transcript: "",
+      response: "",
+    })
   }
 
   const stopLiveMode = () => {
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
-
-    // Stop recognition
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null // Clear ref
-    }
-
-    // Stop frame analysis
-    if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current)
-      liveIntervalRef.current = null
-    }
-
-    setLiveMode(null) // Set to null to indicate mode is off
-    setLiveHistory([])
-    setLiveModeTranscript("") // Clear transcript
-  }
-
-  const startLiveRecognition = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("O seu navegador não suporta reconhecimento de voz.")
-      return
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = "pt-PT"
-
-    recognition.onresult = async (event: any) => {
-      const lastResult = event.results[event.results.length - 1]
-      const transcript = lastResult[0].transcript
-
-      setLiveModeTranscript(transcript) // Update transcript state
-
-      // If final result, send to AI
-      if (lastResult.isFinal && transcript.trim()) {
-        await processLiveInput(transcript)
-      }
-    }
-
-    recognition.onerror = (event: any) => {
-      console.error("Recognition error:", event.error)
-      setLiveMode((prev) => (prev ? { ...prev, transcript: "" } : null)) // Clear transcript on error
-      if (event.error === "no-speech") {
-        alert("Nenhuma fala detetada. Tente novamente.")
-      } else if (event.error === "audio-capture") {
-        alert("Erro na captura de áudio. Verifique o microfone.")
-      }
-    }
-
-    recognition.onend = () => {
-      // Restart if still in live mode and mic is on
-      if (liveMode?.isActive && liveMode.isMicOn) {
-        recognition.start()
-      }
-    }
-
-    recognition.start()
-    recognitionRef.current = recognition
-  }
-
-  const startFrameAnalysis = () => {
-    // Analyze frame every 5 seconds
-    liveIntervalRef.current = setInterval(async () => {
-      if (!liveMode?.isCameraOn || !videoRef.current || !canvasRef.current) return
-
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const ctx = canvas.getContext("2d")
-
-      if (!ctx) return
-
-      canvas.width = 320
-      canvas.height = 240
-      ctx.drawImage(video, 0, 0, 320, 240)
-
-      // Get frame as base64 (low quality for speed)
-      const frameData = canvas.toDataURL("image/jpeg", 0.3)
-
-      // Only analyze if not currently processing
-      if (!liveMode.isProcessing) {
-        // Store frame for context but don't send automatically
-        // Frame will be included when user speaks
-      }
-    }, 5000)
-  }
-
-  const processLiveInput = async (transcript: string) => {
-    if (!transcript.trim() || liveMode?.isProcessing) return
-
-    setLiveMode((prev) => (prev ? { ...prev, isProcessing: true, transcript: "" } : null)) // Clear transcript during processing
-
-    try {
-      // Get current frame if camera is on
-      const frameDescription = ""
-      if (liveMode?.isCameraOn && videoRef.current && canvasRef.current) {
-        const canvas = canvasRef.current
-        const video = videoRef.current
-        const ctx = canvas.getContext("2d")
-
-        if (ctx) {
-          canvas.width = 320
-          canvas.height = 240
-          ctx.drawImage(video, 0, 0, 320, 240)
-        }
-      }
-
-      const response = await fetch("/api/live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioTranscript: transcript,
-          frameDescription,
-          conversationHistory: liveHistory,
-          mode: liveMode?.isCameraOn ? "both" : "voice",
-        }),
-      })
-
-      if (!response.ok) throw new Error("Erro na resposta")
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullResponse = ""
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          fullResponse += decoder.decode(value)
-          setLiveMode((prev) => (prev ? { ...prev, response: fullResponse } : null))
-        }
-      }
-
-      // Update history
-      setLiveHistory((prev) => [
-        ...prev,
-        { role: "user", content: transcript },
-        { role: "assistant", content: fullResponse },
-      ])
-
-      // Speak response
-      speakText(fullResponse)
-    } catch (error) {
-      console.error("Live processing error:", error)
-      setLiveMode((prev) => (prev ? { ...prev, response: "Desculpa, ocorreu um erro no processamento." } : null))
-    } finally {
-      setLiveMode((prev) => (prev ? { ...prev, isProcessing: false } : null))
-    }
+    setLiveMode(null)
   }
 
   const toggleLiveMic = () => {
     if (!liveMode) return
-
-    if (liveMode.isMicOn) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-    } else {
-      startLiveRecognition()
-    }
     setLiveMode((prev) => (prev ? { ...prev, isMicOn: !prev.isMicOn } : null))
   }
 
   const toggleLiveCamera = () => {
-    if (!liveMode || !mediaStreamRef.current) return
-
-    const videoTrack = mediaStreamRef.current.getVideoTracks()[0]
-    if (videoTrack) {
-      videoTrack.enabled = !liveMode.isCameraOn
-      setLiveMode((prev) => (prev ? { ...prev, isCameraOn: !prev.isCameraOn } : null))
-    }
+    if (!liveMode) return
+    setLiveMode((prev) => (prev ? { ...prev, isCameraOn: !prev.isCameraOn } : null))
   }
 
   // Load data from localStorage
@@ -1871,7 +1672,7 @@ export default function RebornAI() {
 
         {/* Main content area with proper scroll */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             {/* Tabs List */}
             <div className="border-b border-border mb-4 pb-2">
               <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap">
@@ -2057,7 +1858,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Live Mode Tab */}
-            <TabsContent value="live" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+            <TabsContent value="live" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col">
               {!liveMode ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
                   <div className="text-center space-y-4">
@@ -2073,15 +1874,13 @@ export default function RebornAI() {
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <LiveChat
                     onStop={stopLiveMode}
                     isCameraOn={liveMode.isCameraOn}
                     isMicOn={liveMode.isMicOn}
                     onToggleCamera={toggleLiveCamera}
                     onToggleMic={toggleLiveMic}
-                    videoRef={videoRef}
-                    canvasRef={canvasRef}
                   />
                 </div>
               )}

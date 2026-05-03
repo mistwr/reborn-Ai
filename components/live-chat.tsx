@@ -82,8 +82,6 @@ interface LiveChatProps {
   isMicOn: boolean
   onToggleCamera: () => void
   onToggleMic: () => void
-  videoRef: React.RefObject<HTMLVideoElement>
-  canvasRef: React.RefObject<HTMLCanvasElement>
 }
 
 export function LiveChat({
@@ -92,8 +90,6 @@ export function LiveChat({
   isMicOn,
   onToggleCamera,
   onToggleMic,
-  videoRef,
-  canvasRef,
 }: LiveChatProps) {
   const [slideIndex, setSlideIndex] = useState(0)
   const [slideVisible, setSlideVisible] = useState(true)
@@ -104,11 +100,53 @@ export function LiveChat({
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState("")
 
+  // Internal media refs — LiveChat owns its own camera/mic
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
   const recognitionRef = useRef<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  // Slideshow auto-advance
+  // ── Camera stream management ──────────────────────────────────────────────
+  useEffect(() => {
+    if (isCameraOn) {
+      if (!mediaStreamRef.current) {
+        // Acquire stream
+        navigator.mediaDevices
+          .getUserMedia({ video: { facingMode: "user" }, audio: isMicOn })
+          .then((stream) => {
+            mediaStreamRef.current = stream
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream
+            }
+          })
+          .catch(() => {
+            // Camera permission denied — notify parent to toggle off
+            onToggleCamera()
+          })
+      } else {
+        // Re-enable video tracks
+        mediaStreamRef.current.getVideoTracks().forEach((t) => (t.enabled = true))
+      }
+    } else {
+      // Disable video tracks (keep stream alive for mic)
+      mediaStreamRef.current?.getVideoTracks().forEach((t) => (t.enabled = false))
+    }
+  }, [isCameraOn]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup all media on unmount
+  useEffect(() => {
+    return () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
+      mediaStreamRef.current = null
+      window.speechSynthesis?.cancel()
+      stopVoiceRecognition()
+      abortRef.current?.abort()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Slideshow auto-advance ────────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       setSlideVisible(false)
@@ -120,12 +158,12 @@ export function LiveChat({
     return () => clearInterval(interval)
   }, [])
 
-  // Auto-scroll messages
+  // ── Auto-scroll messages ──────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streamingText])
 
-  // Speak AI response via TTS
+  // ── TTS ───────────────────────────────────────────────────────────────────
   const speakResponse = useCallback((text: string) => {
     if (!text || typeof window === "undefined" || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
@@ -136,7 +174,7 @@ export function LiveChat({
     window.speechSynthesis.speak(utterance)
   }, [])
 
-  // Send message to API and stream response
+  // ── Send message + stream response ───────────────────────────────────────
   const sendToAI = useCallback(
     async (userText: string) => {
       if (!userText.trim() || isStreaming) return
@@ -164,7 +202,7 @@ export function LiveChat({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: userText.trim(),
-            conversationHistory: history.slice(0, -1), // exclude the new user message
+            conversationHistory: history.slice(0, -1),
             mode: isCameraOn ? "both" : "voice",
           }),
           signal: abortRef.current.signal,
@@ -185,22 +223,22 @@ export function LiveChat({
           setStreamingText(fullText)
         }
 
-        const assistantMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: fullText,
-        }
-        setMessages((prev) => [...prev, assistantMessage])
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 1).toString(), role: "assistant", content: fullText },
+        ])
         setStreamingText("")
         speakResponse(fullText)
       } catch (err: any) {
         if (err?.name !== "AbortError") {
-          const errorMessage: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: "Desculpa, ocorreu um erro. Tenta novamente.",
-          }
-          setMessages((prev) => [...prev, errorMessage])
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: "Desculpa, ocorreu um erro. Tenta novamente.",
+            },
+          ])
           setStreamingText("")
         }
       } finally {
@@ -211,7 +249,17 @@ export function LiveChat({
     [isStreaming, messages, isCameraOn, speakResponse],
   )
 
-  // Voice recognition
+  // ── Voice recognition ─────────────────────────────────────────────────────
+  const stopVoiceRecognition = useCallback(() => {
+    if (recognitionRef.current) {
+      const r = recognitionRef.current
+      recognitionRef.current = null
+      try { r.stop() } catch {}
+    }
+    setIsListeningVoice(false)
+    setLiveModeTranscript("")
+  }, [])
+
   const startVoiceRecognition = useCallback(() => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) return
     if (recognitionRef.current) return
@@ -226,7 +274,6 @@ export function LiveChat({
       const lastResult = event.results[event.results.length - 1]
       const transcript = lastResult[0].transcript
       setLiveModeTranscript(transcript)
-
       if (lastResult.isFinal && transcript.trim()) {
         setLiveModeTranscript("")
         sendToAI(transcript)
@@ -239,11 +286,8 @@ export function LiveChat({
     }
 
     recognition.onend = () => {
-      // Restart if mic is still on
       if (recognitionRef.current) {
-        try {
-          recognition.start()
-        } catch {}
+        try { recognition.start() } catch {}
       } else {
         setIsListeningVoice(false)
       }
@@ -254,19 +298,7 @@ export function LiveChat({
     setIsListeningVoice(true)
   }, [sendToAI])
 
-  const stopVoiceRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      const r = recognitionRef.current
-      recognitionRef.current = null
-      try {
-        r.stop()
-      } catch {}
-    }
-    setIsListeningVoice(false)
-    setLiveModeTranscript("")
-  }, [])
-
-  // Start/stop voice based on mic state
+  // React to isMicOn prop changes
   useEffect(() => {
     if (isMicOn) {
       startVoiceRecognition()
@@ -274,15 +306,6 @@ export function LiveChat({
       stopVoiceRecognition()
     }
   }, [isMicOn]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      window.speechSynthesis?.cancel()
-      stopVoiceRecognition()
-      abortRef.current?.abort()
-    }
-  }, [stopVoiceRecognition])
 
   const handleTextSend = (e: React.FormEvent) => {
     e.preventDefault()
@@ -296,22 +319,29 @@ export function LiveChat({
   const hasMessages = messages.length > 0 || !!streamingText
 
   return (
-    <div className="relative w-full h-full flex flex-col overflow-hidden rounded-lg bg-background">
-      {/* ─── Background Slideshow ─── */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
+    <div className="relative w-full flex flex-col overflow-hidden rounded-lg bg-background" style={{ height: "100%" }}>
+
+      {/* ── Background Slideshow (always visible, dimmed when chat active) ── */}
+      <div
+        className="absolute inset-0 overflow-hidden pointer-events-none select-none transition-opacity duration-700"
+        style={{ opacity: hasMessages ? 0.35 : 1 }}
+        aria-hidden
+      >
         {/* Animated radial glow */}
         <div
           className="absolute inset-0 transition-opacity duration-700"
           style={{
             opacity: slideVisible ? 1 : 0,
-            background: `radial-gradient(ellipse at 30% 50%, oklch(0.22 0.12 ${currentSlide.hue} / 0.4) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, oklch(0.14 0.08 ${currentSlide.hue + 20} / 0.25) 0%, transparent 50%)`,
+            background: `radial-gradient(ellipse at 30% 50%, oklch(0.22 0.12 ${currentSlide.hue} / 0.5) 0%, transparent 60%),
+                         radial-gradient(ellipse at 70% 80%, oklch(0.14 0.08 ${currentSlide.hue + 20} / 0.3) 0%, transparent 50%)`,
           }}
         />
         {/* Subtle grid */}
         <div
-          className="absolute inset-0 opacity-[0.025]"
+          className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(oklch(0.65 0.22 220) 1px, transparent 1px), linear-gradient(90deg, oklch(0.65 0.22 220) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(oklch(0.65 0.22 220) 1px, transparent 1px),
+                               linear-gradient(90deg, oklch(0.65 0.22 220) 1px, transparent 1px)`,
             backgroundSize: "44px 44px",
           }}
         />
@@ -319,26 +349,27 @@ export function LiveChat({
         <div
           className="absolute top-1/4 left-1/4 w-56 sm:w-80 h-56 sm:h-80 rounded-full blur-3xl transition-all duration-1000"
           style={{
-            opacity: slideVisible ? 0.22 : 0,
+            opacity: slideVisible ? 0.28 : 0,
             background: `oklch(0.65 0.22 ${currentSlide.hue})`,
-            transform: `translate(-50%, -50%) scale(${isStreaming ? 1.3 : 1})`,
+            transform: `translate(-50%, -50%) scale(${isStreaming ? 1.35 : 1})`,
             transition: "transform 0.6s ease, opacity 1s ease",
           }}
         />
         {/* Secondary orb */}
         <div
-          className="absolute bottom-1/3 right-1/4 w-36 sm:w-56 h-36 sm:h-56 rounded-full blur-3xl transition-all duration-1000"
+          className="absolute bottom-1/3 right-1/4 w-36 sm:w-56 h-36 sm:h-56 rounded-full blur-3xl"
           style={{
-            opacity: slideVisible ? 0.15 : 0,
+            opacity: slideVisible ? 0.18 : 0,
             background: `oklch(0.6 0.18 ${currentSlide.hue + 30})`,
+            transition: "opacity 1s ease",
           }}
         />
       </div>
 
-      {/* ─── Slide Feature Card (no messages yet) ─── */}
+      {/* ── Slide Feature Card (shown behind chat when no messages) ─────── */}
       {!hasMessages && (
         <div
-          className={`absolute inset-0 flex flex-col items-center justify-center gap-4 sm:gap-6 px-4 transition-all duration-500 z-10 ${
+          className={`absolute inset-0 flex flex-col items-center justify-center gap-4 sm:gap-6 px-4 pb-36 sm:pb-40 z-10 transition-all duration-500 ${
             slideVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
           }`}
           aria-live="polite"
@@ -392,15 +423,16 @@ export function LiveChat({
         </div>
       )}
 
-      {/* ─── Camera pip ─── */}
+      {/* ── Camera PiP ──────────────────────────────────────────────────────── */}
       {isCameraOn && (
         <div className="absolute top-3 right-3 w-24 h-[72px] sm:w-36 sm:h-28 rounded-xl overflow-hidden border border-border/40 z-20 shadow-xl">
           <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
         </div>
       )}
+      {!isCameraOn && <video ref={videoRef} className="hidden" />}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* ─── Status badges ─── */}
+      {/* ── Status badges ───────────────────────────────────────────────────── */}
       <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5">
         {isStreaming && (
           <div className="flex items-center gap-1.5 bg-card/80 backdrop-blur-sm rounded-full px-2.5 py-1 border border-border/40 text-xs text-muted-foreground">
@@ -416,9 +448,9 @@ export function LiveChat({
         )}
       </div>
 
-      {/* ─── Messages ─── */}
+      {/* ── Messages ────────────────────────────────────────────────────────── */}
       {hasMessages && (
-        <div className="relative z-10 flex-1 overflow-hidden px-3 sm:px-4 pt-14 pb-2">
+        <div className="relative z-10 flex-1 min-h-0 overflow-hidden px-3 sm:px-4 pt-14 pb-2">
           <ScrollArea className="h-full">
             <div className="space-y-3 py-2">
               {messages.map((message) => (
@@ -445,7 +477,7 @@ export function LiveChat({
                 </div>
               ))}
 
-              {/* Streaming response bubble */}
+              {/* Streaming bubble */}
               {streamingText && (
                 <div className="flex gap-2 items-end animate-fade-in">
                   <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
@@ -457,7 +489,7 @@ export function LiveChat({
                 </div>
               )}
 
-              {/* Typing indicator (while waiting for first token) */}
+              {/* Typing indicator while waiting for first token */}
               {isStreaming && !streamingText && (
                 <div className="flex gap-2 items-end animate-fade-in">
                   <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
@@ -479,17 +511,17 @@ export function LiveChat({
         </div>
       )}
 
-      {/* ─── Voice transcript overlay ─── */}
+      {/* ── Voice transcript overlay ─────────────────────────────────────────── */}
       {liveModeTranscript && (
-        <div className="absolute bottom-24 sm:bottom-28 left-3 right-3 z-20" aria-live="polite">
+        <div className="absolute bottom-36 sm:bottom-40 left-3 right-3 z-20" aria-live="polite">
           <div className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 border border-border/40 text-sm text-muted-foreground italic">
             &ldquo;{liveModeTranscript}&rdquo;
           </div>
         </div>
       )}
 
-      {/* ─── Bottom Controls ─── */}
-      <div className="relative z-20 mt-auto p-3 sm:p-4 space-y-3">
+      {/* ── Bottom Controls ──────────────────────────────────────────────────── */}
+      <div className="relative z-20 mt-auto p-3 sm:p-4 space-y-3 bg-background/60 backdrop-blur-md border-t border-border/30">
         {/* Text input row */}
         <form onSubmit={handleTextSend} className="flex gap-2">
           <Input
@@ -516,7 +548,7 @@ export function LiveChat({
         </form>
 
         {/* Media controls row */}
-        <div className="flex items-center justify-center gap-3 relative">
+        <div className="flex items-center justify-center gap-3">
           {/* Mic button */}
           <div className="relative">
             {isMicOn && isListeningVoice && (
@@ -552,7 +584,7 @@ export function LiveChat({
             <span className="text-xs text-primary font-medium">Reborn AI</span>
           </div>
 
-          {/* Stop / exit button */}
+          {/* Stop / exit */}
           <Button
             variant="outline"
             size="icon"
