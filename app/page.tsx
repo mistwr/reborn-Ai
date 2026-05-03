@@ -1447,7 +1447,7 @@ export default function RebornAI() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex bg-background" style={{ height: "100dvh" }}>
       {/* Sidebar */}
       <div
         className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
@@ -1679,9 +1679,9 @@ export default function RebornAI() {
           </div>
         </header>
 
-        {/* Main content area with proper scroll */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+        {/* Main content area — live/vision tabs fill height, others scroll */}
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
             {/* Tabs List */}
             <div className="border-b border-border mb-4 pb-2">
               <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap">
@@ -1739,7 +1739,7 @@ export default function RebornAI() {
             </div>
 
             {/* Chat Tab */}
-            <TabsContent value="chat" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+            <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto py-4 space-y-4">
                   {messages.length === 0 && (
@@ -1900,7 +1900,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Images Tab */}
-            <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="max-w-2xl mx-auto w-full space-y-4 p-4">
                 <Card className="p-4 sm:p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -1962,7 +1962,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* WebCraft Tab */}
-            <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
                 {/* Config Panel */}
                 <Card className="lg:w-96 shrink-0 p-4 overflow-auto">
@@ -2189,7 +2189,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Presentations Tab */}
-            <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
                 <Card className="lg:w-80 shrink-0 p-4">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -2286,7 +2286,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Ebooks Tab */}
-            <TabsContent value="ebooks" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="ebooks" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
                 <Card className="lg:w-80 shrink-0 p-4">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -2375,7 +2375,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* SMS Tab - Updated with contact name parsing */}
-            <TabsContent value="sms" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="sms" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
                   <Card className="p-4 sm:p-6">
@@ -2573,7 +2573,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* CHANGE: Add Email Mass Sending Tab after SMS Tab */}
-            <TabsContent value="email" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="email" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
                   <Card className="p-4 sm:p-6">
@@ -2872,7 +2872,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* CHANGE: Add WhatsApp Mass Sending Tab */}
-            <TabsContent value="whatsapp" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="whatsapp" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto p-4 space-y-4">
                   <Card className="p-4 sm:p-6">
@@ -3177,7 +3177,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Clipper Tab - Adding clipper functionality */}
-            <TabsContent value="clipper" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="clipper" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <div className="max-w-4xl mx-auto w-full space-y-4 p-4">
                 <Card className="p-4 sm:p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -3208,7 +3208,7 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Marketing Tab */}
-            <TabsContent value="marketing" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="marketing" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
               <ScrollArea className="flex-1">
                 <div className="max-w-4xl mx-auto w-full space-y-6 p-4 pb-20">
                   <div className="text-center mb-6">

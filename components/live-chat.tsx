@@ -22,51 +22,74 @@ import {
   Zap,
   Video,
   Bot,
+  Eye,
 } from "lucide-react"
 
-// Slideshow slides showcasing Reborn AI features
+// ── Slides ────────────────────────────────────────────────────────────────────
 const SLIDES = [
   {
-    title: "Chat Inteligente",
-    subtitle: "Conversa natural com IA avançada",
-    icon: MessageSquare,
-    hue: 220,
-  },
-  {
-    title: "Geração de Imagens",
-    subtitle: "Cria imagens únicas com IA",
-    icon: ImagePlus,
-    hue: 270,
-  },
-  {
-    title: "WebCraft",
-    subtitle: "Websites completos em segundos",
-    icon: Globe,
-    hue: 190,
-  },
-  {
-    title: "Apresentações",
-    subtitle: "Slides profissionais com IA",
-    icon: Presentation,
-    hue: 150,
-  },
-  {
-    title: "Ebooks",
-    subtitle: "Livros digitais gerados por IA",
-    icon: BookOpen,
-    hue: 50,
-  },
-  {
-    title: "Modo Live",
-    subtitle: "Conversa em tempo real com câmara e voz",
-    icon: Video,
-    hue: 10,
-  },
-  {
+    tag: "Chat com IA",
     title: "Reborn AI",
-    subtitle: "O futuro da inteligência artificial",
+    subtitle: "Conversa inteligente, respostas instantâneas.",
+    icon: MessageSquare,
+    h1: 220,
+    h2: 250,
+  },
+  {
+    tag: "Geração de Imagens",
+    title: "Cria sem limites",
+    subtitle: "Transforma ideias em imagens únicas com IA.",
+    icon: ImagePlus,
+    h1: 270,
+    h2: 300,
+  },
+  {
+    tag: "WebCraft",
+    title: "Sites em segundos",
+    subtitle: "Websites completos gerados pela inteligência artificial.",
+    icon: Globe,
+    h1: 190,
+    h2: 210,
+  },
+  {
+    tag: "Apresentações",
+    title: "Slides profissionais",
+    subtitle: "Apresentações de impacto criadas automaticamente.",
+    icon: Presentation,
+    h1: 150,
+    h2: 170,
+  },
+  {
+    tag: "Ebooks",
+    title: "Publica o teu livro",
+    subtitle: "Livros digitais completos, escritos por IA.",
+    icon: BookOpen,
+    h1: 50,
+    h2: 30,
+  },
+  {
+    tag: "Visao AI",
+    title: "Vê tudo",
+    subtitle: "OCR, análise de imagens e PDFs em segundos.",
+    icon: Eye,
+    h1: 130,
+    h2: 160,
+  },
+  {
+    tag: "Modo Live",
+    title: "Ao vivo contigo",
+    subtitle: "Câmara, voz e IA em tempo real.",
+    icon: Video,
+    h1: 10,
+    h2: 340,
+  },
+  {
+    tag: "Inteligencia Total",
+    title: "O futuro é agora",
+    subtitle: "Uma plataforma. Infinitas possibilidades.",
     icon: Zap,
-    hue: 240,
+    h1: 240,
+    h2: 280,
   },
 ]
 
@@ -92,15 +115,14 @@ export function LiveChat({
   onToggleMic,
 }: LiveChatProps) {
   const [slideIndex, setSlideIndex] = useState(0)
-  const [slideVisible, setSlideVisible] = useState(true)
+  const [slideIn, setSlideIn] = useState(true)
   const [textInput, setTextInput] = useState("")
-  const [liveModeTranscript, setLiveModeTranscript] = useState("")
-  const [isListeningVoice, setIsListeningVoice] = useState(false)
+  const [transcript, setTranscript] = useState("")
+  const [isListening, setIsListening] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState("")
 
-  // Internal media refs — LiveChat owns its own camera/mic
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
@@ -108,96 +130,80 @@ export function LiveChat({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  // ── Camera stream management ──────────────────────────────────────────────
+  const hasMessages = messages.length > 0 || !!streamingText
+  const currentSlide = SLIDES[slideIndex]
+  const SlideIcon = currentSlide.icon
+
+  // ── Camera ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isCameraOn) {
       if (!mediaStreamRef.current) {
-        // Acquire stream
         navigator.mediaDevices
           .getUserMedia({ video: { facingMode: "user" }, audio: isMicOn })
           .then((stream) => {
             mediaStreamRef.current = stream
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream
-            }
+            if (videoRef.current) videoRef.current.srcObject = stream
           })
-          .catch(() => {
-            // Camera permission denied — notify parent to toggle off
-            onToggleCamera()
-          })
+          .catch(() => onToggleCamera())
       } else {
-        // Re-enable video tracks
         mediaStreamRef.current.getVideoTracks().forEach((t) => (t.enabled = true))
       }
     } else {
-      // Disable video tracks (keep stream alive for mic)
       mediaStreamRef.current?.getVideoTracks().forEach((t) => (t.enabled = false))
     }
-  }, [isCameraOn]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isCameraOn]) // eslint-disable-line
 
-  // Cleanup all media on unmount
   useEffect(() => {
     return () => {
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
       mediaStreamRef.current = null
       window.speechSynthesis?.cancel()
-      stopVoiceRecognition()
+      stopVoice()
       abortRef.current?.abort()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line
 
-  // ── Slideshow auto-advance ────────────────────────────────────────────────
+  // ── Slideshow ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSlideVisible(false)
+    const id = setInterval(() => {
+      setSlideIn(false)
       setTimeout(() => {
         setSlideIndex((i) => (i + 1) % SLIDES.length)
-        setSlideVisible(true)
-      }, 600)
-    }, 4000)
-    return () => clearInterval(interval)
+        setSlideIn(true)
+      }, 500)
+    }, 4500)
+    return () => clearInterval(id)
   }, [])
 
-  // ── Auto-scroll messages ──────────────────────────────────────────────────
+  // ── Scroll ────────────────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streamingText])
 
   // ── TTS ───────────────────────────────────────────────────────────────────
-  const speakResponse = useCallback((text: string) => {
-    if (!text || typeof window === "undefined" || !window.speechSynthesis) return
+  const speak = useCallback((text: string) => {
+    if (!text || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = "pt-PT"
-    utterance.rate = 1.05
-    utterance.pitch = 1
-    window.speechSynthesis.speak(utterance)
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = "pt-PT"
+    u.rate = 1.05
+    window.speechSynthesis.speak(u)
   }, [])
 
-  // ── Send message + stream response ───────────────────────────────────────
+  // ── Send to AI ────────────────────────────────────────────────────────────
   const sendToAI = useCallback(
     async (userText: string) => {
       if (!userText.trim() || isStreaming) return
-
-      const userMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: "user",
-        content: userText.trim(),
-      }
-
-      setMessages((prev) => [...prev, userMessage])
+      const msg: ChatMessage = { id: Date.now().toString(), role: "user", content: userText.trim() }
+      setMessages((prev) => [...prev, msg])
       setIsStreaming(true)
       setStreamingText("")
 
-      const history = [...messages, userMessage].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }))
-
+      const history = [...messages, msg].map((m) => ({ role: m.role, content: m.content }))
       abortRef.current = new AbortController()
 
       try {
-        const response = await fetch("/api/live", {
+        const res = await fetch("/api/live", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -208,37 +214,22 @@ export function LiveChat({
           signal: abortRef.current.signal,
         })
 
-        if (!response.ok) throw new Error("Erro na resposta")
-        if (!response.body) throw new Error("Sem corpo de resposta")
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let fullText = ""
-
+        if (!res.ok || !res.body) throw new Error()
+        const reader = res.body.getReader()
+        const dec = new TextDecoder()
+        let full = ""
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          fullText += chunk
-          setStreamingText(fullText)
+          full += dec.decode(value, { stream: true })
+          setStreamingText(full)
         }
-
-        setMessages((prev) => [
-          ...prev,
-          { id: (Date.now() + 1).toString(), role: "assistant", content: fullText },
-        ])
+        setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: full }])
         setStreamingText("")
-        speakResponse(fullText)
-      } catch (err: any) {
-        if (err?.name !== "AbortError") {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: (Date.now() + 1).toString(),
-              role: "assistant",
-              content: "Desculpa, ocorreu um erro. Tenta novamente.",
-            },
-          ])
+        speak(full)
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "Desculpa, ocorreu um erro. Tenta novamente." }])
           setStreamingText("")
         }
       } finally {
@@ -246,354 +237,404 @@ export function LiveChat({
         abortRef.current = null
       }
     },
-    [isStreaming, messages, isCameraOn, speakResponse],
+    [isStreaming, messages, isCameraOn, speak],
   )
 
-  // ── Voice recognition ─────────────────────────────────────────────────────
-  const stopVoiceRecognition = useCallback(() => {
+  // ── Voice ─────────────────────────────────────────────────────────────────
+  const stopVoice = useCallback(() => {
     if (recognitionRef.current) {
       const r = recognitionRef.current
       recognitionRef.current = null
       try { r.stop() } catch {}
     }
-    setIsListeningVoice(false)
-    setLiveModeTranscript("")
+    setIsListening(false)
+    setTranscript("")
   }, [])
 
-  const startVoiceRecognition = useCallback(() => {
+  const startVoice = useCallback(() => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) return
     if (recognitionRef.current) return
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = "pt-PT"
-
-    recognition.onresult = (event: any) => {
-      const lastResult = event.results[event.results.length - 1]
-      const transcript = lastResult[0].transcript
-      setLiveModeTranscript(transcript)
-      if (lastResult.isFinal && transcript.trim()) {
-        setLiveModeTranscript("")
-        sendToAI(transcript)
-      }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const r = new SR()
+    r.continuous = true
+    r.interimResults = true
+    r.lang = "pt-PT"
+    r.onresult = (e: any) => {
+      const last = e.results[e.results.length - 1]
+      const t = last[0].transcript
+      setTranscript(t)
+      if (last.isFinal && t.trim()) { setTranscript(""); sendToAI(t) }
     }
-
-    recognition.onerror = () => {
-      setIsListeningVoice(false)
-      recognitionRef.current = null
+    r.onerror = () => { setIsListening(false); recognitionRef.current = null }
+    r.onend = () => {
+      if (recognitionRef.current) { try { r.start() } catch {} }
+      else setIsListening(false)
     }
-
-    recognition.onend = () => {
-      if (recognitionRef.current) {
-        try { recognition.start() } catch {}
-      } else {
-        setIsListeningVoice(false)
-      }
-    }
-
-    recognition.start()
-    recognitionRef.current = recognition
-    setIsListeningVoice(true)
+    r.start()
+    recognitionRef.current = r
+    setIsListening(true)
   }, [sendToAI])
 
-  // React to isMicOn prop changes
   useEffect(() => {
-    if (isMicOn) {
-      startVoiceRecognition()
-    } else {
-      stopVoiceRecognition()
-    }
-  }, [isMicOn]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (isMicOn) startVoice()
+    else stopVoice()
+  }, [isMicOn]) // eslint-disable-line
 
-  const handleTextSend = (e: React.FormEvent) => {
+  const handleSend = (e: React.FormEvent) => {
     e.preventDefault()
     if (!textInput.trim() || isStreaming) return
     sendToAI(textInput)
     setTextInput("")
   }
 
-  const currentSlide = SLIDES[slideIndex]
-  const SlideIcon = currentSlide.icon
-  const hasMessages = messages.length > 0 || !!streamingText
+  const goToSlide = (i: number) => {
+    setSlideIn(false)
+    setTimeout(() => { setSlideIndex(i); setSlideIn(true) }, 300)
+  }
 
   return (
-    <div className="relative w-full flex flex-col overflow-hidden rounded-lg bg-background" style={{ height: "100%" }}>
+    <div className="relative w-full h-full flex flex-col overflow-hidden bg-[oklch(0.04_0.01_260)]">
 
-      {/* ── Background Slideshow (always visible, dimmed when chat active) ── */}
+      {/* ── Animated Background ─────────────────────────────────────────────── */}
       <div
-        className="absolute inset-0 overflow-hidden pointer-events-none select-none transition-opacity duration-700"
-        style={{ opacity: hasMessages ? 0.35 : 1 }}
+        className="absolute inset-0 pointer-events-none select-none"
+        style={{ opacity: hasMessages ? 0.25 : 1, transition: "opacity 0.8s ease" }}
         aria-hidden
       >
-        {/* Animated radial glow */}
+        {/* Deep background gradient */}
         <div
-          className="absolute inset-0 transition-opacity duration-700"
+          className="absolute inset-0"
           style={{
-            opacity: slideVisible ? 1 : 0,
-            background: `radial-gradient(ellipse at 30% 50%, oklch(0.22 0.12 ${currentSlide.hue} / 0.5) 0%, transparent 60%),
-                         radial-gradient(ellipse at 70% 80%, oklch(0.14 0.08 ${currentSlide.hue + 20} / 0.3) 0%, transparent 50%)`,
+            background: `
+              radial-gradient(ellipse 80% 60% at 20% 40%,
+                oklch(0.18 0.15 ${currentSlide.h1} / 0.45) 0%,
+                transparent 55%),
+              radial-gradient(ellipse 60% 70% at 80% 70%,
+                oklch(0.14 0.12 ${currentSlide.h2} / 0.35) 0%,
+                transparent 50%),
+              radial-gradient(ellipse 40% 40% at 50% 10%,
+                oklch(0.12 0.10 ${currentSlide.h1 + 30} / 0.2) 0%,
+                transparent 60%)
+            `,
+            transition: "background 1.2s ease",
           }}
         />
-        {/* Subtle grid */}
+        {/* Subtle dot-grid */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0"
           style={{
-            backgroundImage: `linear-gradient(oklch(0.65 0.22 220) 1px, transparent 1px),
-                               linear-gradient(90deg, oklch(0.65 0.22 220) 1px, transparent 1px)`,
-            backgroundSize: "44px 44px",
+            backgroundImage: `radial-gradient(oklch(0.55 0.18 ${currentSlide.h1} / 0.12) 1px, transparent 1px)`,
+            backgroundSize: "28px 28px",
+            opacity: 0.6,
           }}
         />
-        {/* Primary orb */}
+        {/* Large primary orb */}
         <div
-          className="absolute top-1/4 left-1/4 w-56 sm:w-80 h-56 sm:h-80 rounded-full blur-3xl transition-all duration-1000"
+          className="absolute rounded-full blur-[120px]"
           style={{
-            opacity: slideVisible ? 0.28 : 0,
-            background: `oklch(0.65 0.22 ${currentSlide.hue})`,
-            transform: `translate(-50%, -50%) scale(${isStreaming ? 1.35 : 1})`,
-            transition: "transform 0.6s ease, opacity 1s ease",
+            width: "clamp(280px, 55vw, 700px)",
+            height: "clamp(280px, 55vw, 700px)",
+            top: "5%",
+            left: "-10%",
+            background: `oklch(0.55 0.28 ${currentSlide.h1})`,
+            opacity: slideIn ? 0.22 : 0.0,
+            transition: "opacity 1.2s ease, background 1.4s ease",
           }}
         />
         {/* Secondary orb */}
         <div
-          className="absolute bottom-1/3 right-1/4 w-36 sm:w-56 h-36 sm:h-56 rounded-full blur-3xl"
+          className="absolute rounded-full blur-[100px]"
           style={{
-            opacity: slideVisible ? 0.18 : 0,
-            background: `oklch(0.6 0.18 ${currentSlide.hue + 30})`,
-            transition: "opacity 1s ease",
+            width: "clamp(200px, 40vw, 500px)",
+            height: "clamp(200px, 40vw, 500px)",
+            bottom: "10%",
+            right: "-5%",
+            background: `oklch(0.50 0.24 ${currentSlide.h2})`,
+            opacity: slideIn ? 0.18 : 0.0,
+            transition: "opacity 1.2s ease 0.3s, background 1.4s ease",
+          }}
+        />
+        {/* Accent ring */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: "clamp(150px, 30vw, 380px)",
+            height: "clamp(150px, 30vw, 380px)",
+            top: "35%",
+            right: "20%",
+            border: `1px solid oklch(0.60 0.20 ${currentSlide.h1} / 0.12)`,
+            boxShadow: `0 0 80px oklch(0.60 0.20 ${currentSlide.h1} / 0.08)`,
+            transition: "border-color 1.4s ease",
           }}
         />
       </div>
 
-      {/* ── Slide Feature Card (shown behind chat when no messages) ─────── */}
+      {/* ── Slideshow Hero (hidden when chat is active) ──────────────────────── */}
       {!hasMessages && (
         <div
-          className={`absolute inset-0 flex flex-col items-center justify-center gap-4 sm:gap-6 px-4 pb-36 sm:pb-40 z-10 transition-all duration-500 ${
-            slideVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-          }`}
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 sm:px-10"
+          style={{
+            paddingBottom: "clamp(120px, 22vh, 180px)",
+            opacity: slideIn ? 1 : 0,
+            transform: slideIn ? "translateY(0)" : "translateY(12px)",
+            transition: "opacity 0.5s ease, transform 0.5s ease",
+          }}
           aria-live="polite"
         >
+          {/* Tag pill */}
           <div
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center"
+            className="mb-5 sm:mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-widest uppercase"
             style={{
-              background: `oklch(0.65 0.22 ${currentSlide.hue} / 0.15)`,
-              border: `1px solid oklch(0.65 0.22 ${currentSlide.hue} / 0.3)`,
+              background: `oklch(0.60 0.22 ${currentSlide.h1} / 0.12)`,
+              border: `1px solid oklch(0.60 0.22 ${currentSlide.h1} / 0.28)`,
+              color: `oklch(0.78 0.20 ${currentSlide.h1})`,
             }}
           >
-            <SlideIcon
-              className="w-8 h-8 sm:w-10 sm:h-10"
-              style={{ color: `oklch(0.72 0.22 ${currentSlide.hue})` }}
-              aria-hidden
-            />
+            <SlideIcon className="w-3 h-3" aria-hidden />
+            {currentSlide.tag}
           </div>
 
-          <div className="text-center">
-            <h2 className="text-2xl sm:text-4xl font-bold text-balance">{currentSlide.title}</h2>
-            <p className="mt-1.5 text-sm sm:text-base text-muted-foreground">{currentSlide.subtitle}</p>
-          </div>
+          {/* Main title */}
+          <h2
+            className="text-center font-bold leading-none tracking-tight text-balance"
+            style={{
+              fontSize: "clamp(2.4rem, 9vw, 6.5rem)",
+              color: "oklch(0.97 0 0)",
+              textShadow: `0 0 80px oklch(0.60 0.22 ${currentSlide.h1} / 0.35)`,
+            }}
+          >
+            {currentSlide.title}
+          </h2>
+
+          {/* Brand name below */}
+          <p
+            className="mt-2 sm:mt-3 font-bold tracking-[0.25em] uppercase"
+            style={{
+              fontSize: "clamp(0.6rem, 1.8vw, 0.9rem)",
+              color: `oklch(0.70 0.22 ${currentSlide.h1})`,
+            }}
+          >
+            Reborn AI
+          </p>
+
+          {/* Subtitle */}
+          <p
+            className="mt-4 sm:mt-5 text-center max-w-sm sm:max-w-lg text-balance"
+            style={{
+              fontSize: "clamp(0.9rem, 2.2vw, 1.15rem)",
+              color: "oklch(0.65 0 0)",
+              lineHeight: 1.6,
+            }}
+          >
+            {currentSlide.subtitle}
+          </p>
 
           {/* Dot indicators */}
-          <div className="flex gap-1.5 pointer-events-auto" role="tablist" aria-label="Slides">
-            {SLIDES.map((_, i) => (
+          <div className="mt-8 sm:mt-10 flex gap-2 pointer-events-auto" role="tablist" aria-label="Funcionalidades">
+            {SLIDES.map((s, i) => (
               <button
                 key={i}
                 role="tab"
                 aria-selected={i === slideIndex}
-                className={`h-1 rounded-full transition-all duration-300 ${
-                  i === slideIndex
-                    ? "w-6 bg-primary"
-                    : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50"
-                }`}
-                onClick={() => {
-                  setSlideVisible(false)
-                  setTimeout(() => {
-                    setSlideIndex(i)
-                    setSlideVisible(true)
-                  }, 300)
+                aria-label={s.tag}
+                className="rounded-full transition-all duration-400 focus:outline-none"
+                style={{
+                  height: "5px",
+                  width: i === slideIndex ? "28px" : "5px",
+                  background: i === slideIndex
+                    ? `oklch(0.70 0.22 ${currentSlide.h1})`
+                    : "oklch(0.35 0 0)",
                 }}
+                onClick={() => goToSlide(i)}
               />
             ))}
           </div>
 
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+          {/* CTA hint */}
+          <p
+            className="mt-6 flex items-center gap-2 text-xs"
+            style={{ color: "oklch(0.42 0 0)" }}
+          >
             <Mic className="w-3 h-3" aria-hidden />
-            Fala ou escreve para começar
+            Fala ou escreve para começar a conversa
           </p>
         </div>
       )}
 
-      {/* ── Camera PiP ──────────────────────────────────────────────────────── */}
+      {/* ── Camera PiP ───────────────────────────────────────────────────────── */}
       {isCameraOn && (
-        <div className="absolute top-3 right-3 w-24 h-[72px] sm:w-36 sm:h-28 rounded-xl overflow-hidden border border-border/40 z-20 shadow-xl">
+        <div className="absolute top-3 right-3 z-30 rounded-xl overflow-hidden shadow-2xl border border-white/10"
+          style={{ width: "clamp(80px, 18vw, 140px)", height: "clamp(60px, 13.5vw, 105px)" }}>
           <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
         </div>
       )}
       {!isCameraOn && <video ref={videoRef} className="hidden" />}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* ── Status badges ───────────────────────────────────────────────────── */}
-      <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5">
+      {/* ── Status badges ────────────────────────────────────────────────────── */}
+      <div className="absolute top-3 left-3 z-30 flex flex-col gap-1.5">
         {isStreaming && (
-          <div className="flex items-center gap-1.5 bg-card/80 backdrop-blur-sm rounded-full px-2.5 py-1 border border-border/40 text-xs text-muted-foreground">
-            <Loader2 className="w-3 h-3 animate-spin text-primary" aria-hidden />
+          <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 border border-white/10 text-xs text-white/70">
+            <Loader2 className="w-3 h-3 animate-spin text-primary" />
             A processar...
           </div>
         )}
-        {isMicOn && isListeningVoice && !isStreaming && (
-          <div className="flex items-center gap-1.5 bg-card/80 backdrop-blur-sm rounded-full px-2.5 py-1 border border-red-500/30 text-xs text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" aria-hidden />
+        {isMicOn && isListening && !isStreaming && (
+          <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 border border-red-500/30 text-xs text-white/70">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             Ao vivo
           </div>
         )}
       </div>
 
-      {/* ── Messages ────────────────────────────────────────────────────────── */}
+      {/* ── Messages ─────────────────────────────────────────────────────────── */}
       {hasMessages && (
-        <div className="relative z-10 flex-1 min-h-0 overflow-hidden px-3 sm:px-4 pt-14 pb-2">
+        <div className="relative z-10 flex-1 min-h-0 overflow-hidden pt-14 pb-2 px-3 sm:px-4 md:px-6">
           <ScrollArea className="h-full">
-            <div className="space-y-3 py-2">
-              {messages.map((message) => (
+            <div className="space-y-3 py-2 max-w-2xl mx-auto">
+              {messages.map((m) => (
                 <div
-                  key={message.id}
-                  className={`flex gap-2 items-end animate-fade-in ${
-                    message.role === "user" ? "flex-row-reverse" : "flex-row"
-                  }`}
+                  key={m.id}
+                  className={`flex gap-2 items-end animate-fade-in ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}
                 >
-                  {message.role === "assistant" && (
+                  {m.role === "assistant" && (
                     <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
-                      <Bot className="w-3.5 h-3.5 text-primary" aria-hidden />
+                      <Bot className="w-3.5 h-3.5 text-primary" />
                     </div>
                   )}
                   <div
                     className={`max-w-[80%] sm:max-w-[72%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                      message.role === "user"
+                      m.role === "user"
                         ? "bg-primary text-primary-foreground rounded-tr-sm"
-                        : "bg-card/85 backdrop-blur-sm text-foreground rounded-tl-sm border border-border/40"
+                        : "bg-white/8 backdrop-blur-sm text-foreground rounded-tl-sm border border-white/10"
                     }`}
                   >
-                    {message.content}
+                    {m.content}
                   </div>
                 </div>
               ))}
 
-              {/* Streaming bubble */}
               {streamingText && (
                 <div className="flex gap-2 items-end animate-fade-in">
                   <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
-                    <Brain className="w-3.5 h-3.5 text-primary" aria-hidden />
+                    <Brain className="w-3.5 h-3.5 text-primary" />
                   </div>
-                  <div className="max-w-[80%] sm:max-w-[72%] px-3 py-2 rounded-2xl rounded-tl-sm bg-card/85 backdrop-blur-sm text-foreground border border-border/40 text-sm leading-relaxed typing-cursor">
+                  <div className="max-w-[80%] sm:max-w-[72%] px-3 py-2 rounded-2xl rounded-tl-sm bg-white/8 backdrop-blur-sm text-foreground border border-white/10 text-sm leading-relaxed typing-cursor">
                     {streamingText}
                   </div>
                 </div>
               )}
 
-              {/* Typing indicator while waiting for first token */}
               {isStreaming && !streamingText && (
                 <div className="flex gap-2 items-end animate-fade-in">
                   <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
-                    <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" aria-hidden />
+                    <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                   </div>
-                  <div className="bg-card/85 backdrop-blur-sm rounded-2xl rounded-tl-sm border border-border/40 px-3 py-2">
+                  <div className="bg-white/8 backdrop-blur-sm rounded-2xl rounded-tl-sm border border-white/10 px-3 py-2">
                     <div className="flex gap-1 items-center h-4">
-                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "300ms" }} />
                     </div>
                   </div>
                 </div>
               )}
-
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
         </div>
       )}
 
-      {/* ── Voice transcript overlay ─────────────────────────────────────────── */}
-      {liveModeTranscript && (
-        <div className="absolute bottom-36 sm:bottom-40 left-3 right-3 z-20" aria-live="polite">
-          <div className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 border border-border/40 text-sm text-muted-foreground italic">
-            &ldquo;{liveModeTranscript}&rdquo;
+      {/* ── Voice transcript ─────────────────────────────────────────────────── */}
+      {transcript && (
+        <div className="absolute z-30 left-3 right-3 bottom-[calc(var(--controls-h,160px)+8px)]" aria-live="polite">
+          <div className="max-w-xl mx-auto bg-black/70 backdrop-blur-md rounded-xl px-3 py-2 border border-white/10 text-sm text-white/60 italic">
+            &ldquo;{transcript}&rdquo;
           </div>
         </div>
       )}
 
-      {/* ── Bottom Controls ──────────────────────────────────────────────────── */}
-      <div className="relative z-20 mt-auto p-3 sm:p-4 space-y-3 bg-background/60 backdrop-blur-md border-t border-border/30">
-        {/* Text input row */}
-        <form onSubmit={handleTextSend} className="flex gap-2">
-          <Input
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder="Escreve uma mensagem..."
-            className="flex-1 bg-card/80 backdrop-blur-sm border-border/50 text-sm h-10"
-            disabled={isStreaming}
-            aria-label="Mensagem para o Reborn AI"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="h-10 w-10 flex-shrink-0"
-            disabled={isStreaming || !textInput.trim()}
-            aria-label="Enviar mensagem"
-          >
-            {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
-        </form>
-
-        {/* Media controls row */}
-        <div className="flex items-center justify-center gap-3">
-          {/* Mic button */}
-          <div className="relative">
-            {isMicOn && isListeningVoice && (
-              <span className="absolute inset-0 rounded-full border-2 border-primary/30 animate-ping pointer-events-none" />
-            )}
+      {/* ── Bottom Controls ───────────────────────────────────────────────────── */}
+      <div
+        className="relative z-20 mt-auto shrink-0"
+        style={{ background: "linear-gradient(to top, oklch(0.04 0.01 260) 60%, transparent)" }}
+      >
+        <div className="px-3 sm:px-4 md:px-6 pb-4 sm:pb-5 pt-6 space-y-3 max-w-2xl mx-auto w-full">
+          {/* Text input */}
+          <form onSubmit={handleSend} className="flex gap-2">
+            <Input
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Escreve uma mensagem..."
+              className="flex-1 bg-white/6 backdrop-blur-sm border-white/12 text-sm h-11 rounded-xl placeholder:text-white/30 focus:border-primary/50"
+              disabled={isStreaming}
+              aria-label="Mensagem para o Reborn AI"
+            />
             <Button
-              variant={isMicOn ? "default" : "destructive"}
+              type="submit"
               size="icon"
-              className="h-12 w-12 rounded-full shadow-lg relative"
-              onClick={onToggleMic}
-              aria-label={isMicOn ? "Desligar microfone" : "Ligar microfone"}
-              aria-pressed={isMicOn}
+              className="h-11 w-11 rounded-xl flex-shrink-0"
+              disabled={isStreaming || !textInput.trim()}
+              aria-label="Enviar mensagem"
             >
-              {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+              {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </form>
+
+          {/* Media controls */}
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            {/* Mic */}
+            <div className="relative">
+              {isMicOn && isListening && (
+                <span className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping pointer-events-none" />
+              )}
+              <Button
+                variant={isMicOn ? "default" : "destructive"}
+                size="icon"
+                className="h-12 w-12 rounded-full shadow-xl"
+                onClick={onToggleMic}
+                aria-label={isMicOn ? "Desligar microfone" : "Ligar microfone"}
+                aria-pressed={isMicOn}
+              >
+                {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+              </Button>
+            </div>
+
+            {/* Camera */}
+            <Button
+              variant={isCameraOn ? "default" : "outline"}
+              size="icon"
+              className="h-12 w-12 rounded-full shadow-xl border-white/15"
+              onClick={onToggleCamera}
+              aria-label={isCameraOn ? "Desligar câmara" : "Ligar câmara"}
+              aria-pressed={isCameraOn}
+            >
+              {isCameraOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
+            </Button>
+
+            {/* Brand pill */}
+            <div
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full border"
+              style={{
+                background: `oklch(0.60 0.22 ${currentSlide.h1} / 0.10)`,
+                borderColor: `oklch(0.60 0.22 ${currentSlide.h1} / 0.22)`,
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5" style={{ color: `oklch(0.72 0.20 ${currentSlide.h1})` }} />
+              <span className="text-xs font-semibold" style={{ color: `oklch(0.72 0.20 ${currentSlide.h1})` }}>Reborn AI</span>
+            </div>
+
+            {/* Exit */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 rounded-full shadow-xl border-white/15 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
+              onClick={onStop}
+              aria-label="Sair do modo live"
+            >
+              <X className="h-5 w-5" />
             </Button>
           </div>
-
-          {/* Camera button */}
-          <Button
-            variant={isCameraOn ? "default" : "outline"}
-            size="icon"
-            className="h-12 w-12 rounded-full shadow-lg"
-            onClick={onToggleCamera}
-            aria-label={isCameraOn ? "Desligar câmara" : "Ligar câmara"}
-            aria-pressed={isCameraOn}
-          >
-            {isCameraOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
-          </Button>
-
-          {/* Brand pill */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
-            <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden />
-            <span className="text-xs text-primary font-medium">Reborn AI</span>
-          </div>
-
-          {/* Stop / exit */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-12 w-12 rounded-full shadow-lg border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
-            onClick={onStop}
-            aria-label="Sair do modo live"
-          >
-            <X className="h-5 w-5" />
-          </Button>
         </div>
       </div>
     </div>
