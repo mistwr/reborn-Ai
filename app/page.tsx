@@ -81,6 +81,7 @@ import {
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
+import { LiveChat } from "@/components/live-chat"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -2057,84 +2058,33 @@ export default function RebornAI() {
 
             {/* Live Mode Tab */}
             <TabsContent value="live" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-              <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
-                {!liveMode ? (
+              {!liveMode ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
                   <div className="text-center space-y-4">
                     <Video className="h-16 w-16 mx-auto text-primary" />
                     <h2 className="text-2xl font-bold">Modo Live</h2>
                     <p className="text-muted-foreground max-w-md">
-                      Converse com o Reborn AI em tempo real usando câmara e microfone
+                      Converse com o Reborn AI em tempo real usando câmara e microfone. Fala, vê o slideshow e interaja naturalmente.
                     </p>
                     <Button onClick={startLiveMode} size="lg" className="gap-2">
                       <Video className="h-5 w-5" />
                       Iniciar Modo Live
                     </Button>
                   </div>
-                ) : (
-                  <div className="w-full max-w-4xl space-y-4">
-                    {/* Video Feed */}
-                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-                      <canvas ref={canvasRef} className="hidden" /> {/* Hidden canvas for frame capture */}
-                      {/* Live Controls */}
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                        <Button
-                          variant={liveMode.isMicOn ? "default" : "destructive"}
-                          size="icon"
-                          className="rounded-full h-12 w-12 shadow-lg"
-                          onClick={toggleLiveMic}
-                        >
-                          {liveMode.isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-                        </Button>
-                        <Button
-                          variant={liveMode.isCameraOn ? "default" : "destructive"}
-                          size="icon"
-                          className="rounded-full h-12 w-12 shadow-lg"
-                          onClick={toggleLiveCamera}
-                        >
-                          {liveMode.isCameraOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
-                        </Button>
-                      </div>
-                      {/* Animated Orb when speaking */}
-                      {liveMode.isProcessing && ( // Changed from isListening to isProcessing for better visual cue
-                        <div className="absolute inset-0 flex items-center justify-center z-0">
-                          <div className="w-32 h-32 rounded-full bg-primary/30 backdrop-blur-sm animate-ping"></div>
-                          <div
-                            className={`w-32 h-32 rounded-full bg-primary/30 backdrop-blur-sm flex items-center justify-center`}
-                          >
-                            <Mic className="h-16 w-16 text-primary" />
-                          </div>
-                        </div>
-                      )}
-                      {/* Transcript Overlay */}
-                      {liveModeTranscript && (
-                        <div className="absolute top-4 left-4 right-4 bg-black/70 rounded-lg p-3 z-10">
-                          <p className="text-white text-sm">{liveModeTranscript}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex justify-center gap-4">
-                      <Button onClick={stopLiveMode} size="lg" variant="outline" className="gap-2 bg-transparent">
-                        <X className="h-5 w-5" />
-                        Sair do Modo Live
-                      </Button>
-                    </div>
-
-                    {/* Live AI Response */}
-                    {liveMode.response && (
-                      <Card className="p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Brain className="h-5 w-5 text-primary" />
-                          <span className="font-medium">Resposta AI</span>
-                          {liveMode.isProcessing && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{liveMode.response}</p>
-                      </Card>
-                    )}
-                  </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-hidden">
+                  <LiveChat
+                    onStop={stopLiveMode}
+                    isCameraOn={liveMode.isCameraOn}
+                    isMicOn={liveMode.isMicOn}
+                    onToggleCamera={toggleLiveCamera}
+                    onToggleMic={toggleLiveMic}
+                    videoRef={videoRef}
+                    canvasRef={canvasRef}
+                  />
+                </div>
+              )}
             </TabsContent>
 
             {/* Images Tab */}
@@ -3756,17 +3706,7 @@ export default function RebornAI() {
         <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
       </a>
 
-      <div className="fixed bottom-3 left-3 z-50 bg-black/70 backdrop-blur-sm rounded-md p-1 shadow-md">
-        <audio
-          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Em%20um%20mundo%20acelerado%2C%20onde%20tudo%20%C3%A9%20conex%20%281%29-grzbOEqHGivnGcHpOmGX2QXzwqJmGp.mp3"
-          controls
-          loop
-          className="h-6 w-32 sm:h-7 sm:w-40"
-          style={{
-            filter: "invert(1) hue-rotate(180deg)",
-          }}
-        />
-      </div>
+
 
       {/* Overlay when sidebar is open on mobile */}
       {sidebarOpen && (
