@@ -1,31 +1,38 @@
 /**
  * API do Modo Live - Reborn AI
- * Streaming em tempo real com suporte a UIMessageStream (AI SDK 6)
+ * Streaming de texto em tempo real com AI SDK v5
  */
 
-import { streamText, convertToModelMessages } from "ai"
+import { streamText } from "ai"
 
 export const maxDuration = 120
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { messages = [], mode = "voice" } = body
+    const {
+      message,
+      conversationHistory = [],
+      mode = "voice",
+    } = body
 
-    // Convert UIMessage format to ModelMessage format for streamText
-    let modelMessages: any[]
-    try {
-      modelMessages = await convertToModelMessages(messages)
-    } catch {
-      // Fallback: messages already in model format or empty
-      modelMessages = messages.map((m: any) => ({
-        role: m.role,
-        content: m.content || (m.parts ? m.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join("") : ""),
-      }))
+    // Build messages array in ModelMessage format
+    const modelMessages: { role: "user" | "assistant"; content: string }[] = []
+
+    // Add conversation history
+    for (const msg of conversationHistory) {
+      if (msg.role === "user" || msg.role === "assistant") {
+        modelMessages.push({ role: msg.role, content: msg.content || "" })
+      }
+    }
+
+    // Add current message
+    if (message) {
+      modelMessages.push({ role: "user", content: message })
     }
 
     if (modelMessages.length === 0) {
-      modelMessages = [{ role: "user", content: "Olá" }]
+      modelMessages.push({ role: "user", content: "Olá" })
     }
 
     const result = streamText({
@@ -53,7 +60,7 @@ REGRAS:
       maxOutputTokens: 200,
     })
 
-    return result.toUIMessageStreamResponse()
+    return result.toTextStreamResponse()
   } catch (error: any) {
     console.error("Live mode error:", error)
     return new Response(JSON.stringify({ error: error?.message || "Erro no modo live" }), {
