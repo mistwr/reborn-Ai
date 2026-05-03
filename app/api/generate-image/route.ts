@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         if (check.ok || check.status === 200) {
           return Response.json({
             url,
-            provider: provider.name,
+            provider: "Reborn AI",
             seed,
             success: true,
           })
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     // Fallback: return Pollinations URL directly without verification
     const seed2 = Math.floor(Math.random() * 9999999)
     const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${seed2}`
-    return Response.json({ url: fallbackUrl, provider: "pollinations-fallback", seed: seed2, success: true })
+    return Response.json({ url: fallbackUrl, provider: "Reborn AI", seed: seed2, success: true })
   } catch (error: any) {
     console.error("Image generation error:", error)
     return Response.json({ error: error?.message || "Falha ao gerar imagem" }, { status: 500 })

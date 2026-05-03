@@ -20,9 +20,9 @@ import {
 } from "lucide-react"
 
 const MODELS = [
-  { id: "flux", label: "FLUX", desc: "Alta qualidade, realista" },
-  { id: "turbo", label: "Turbo", desc: "Rapido, criativo" },
-  { id: "default", label: "Stable", desc: "Equilibrado" },
+  { id: "flux", label: "Reborn HD", desc: "Alta qualidade, realista" },
+  { id: "turbo", label: "Reborn Fast", desc: "Rapido, criativo" },
+  { id: "default", label: "Reborn Std", desc: "Equilibrado" },
 ]
 
 const SIZES = [
@@ -333,11 +333,9 @@ export function ImageGenerator() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {selected.provider && (
-                  <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/30 text-primary">
-                    {selected.provider}
-                  </Badge>
-                )}
+                <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/30 text-primary">
+                  Reborn AI
+                </Badge>
                 <Badge variant="outline" className="text-[10px]">
                   {SIZES.find((s) => s.id === selected.size)?.label}
                 </Badge>

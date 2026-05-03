@@ -86,6 +86,7 @@ import { VisionTab } from "@/components/vision-tab"
 import { ChatWelcome } from "@/components/chat-welcome"
 import { ImageGenerator } from "@/components/image-generator"
 import { MarketingStudio } from "@/components/marketing-studio"
+import { PresentationStudio } from "@/components/presentation-studio"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -321,11 +322,7 @@ export default function RebornAI() {
   const [selectedSections, setSelectedSections] = useState<string[]>(["hero", "features", "cta"])
 
   // Presentation state
-  const [presentationPrompt, setPresentationPrompt] = useState("")
-  const [generatedPresentation, setGeneratedPresentation] = useState<string | null>(null)
-  const [isGeneratingPresentation, setIsGeneratingPresentation] = useState(false)
-  const [presentationTemplate, setPresentationTemplate] = useState("modern")
-  const [slideCount, setSlideCount] = useState(5)
+
 
   // Ebook state
   const [ebookPrompt, setEbookPrompt] = useState("")
@@ -721,33 +718,6 @@ export default function RebornAI() {
   }
   // </CHANGE>
 
-  const generatePresentation = async () => {
-    if (!presentationPrompt.trim()) return // Basic validation
-    setIsGeneratingPresentation(true)
-    try {
-      const response = await fetch("/api/generate-presentation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: presentationPrompt,
-          template: presentationTemplate,
-          slideCount,
-        }),
-      })
-      const data = await response.json()
-      if (data.html) {
-        setGeneratedPresentation(data.html)
-      } else {
-        throw new Error(data.error || "Erro desconhecido ao gerar apresentação")
-      }
-    } catch (error: any) {
-      console.error("Error generating presentation:", error)
-      alert(`Falha ao gerar apresentação: ${error.message}`)
-    } finally {
-      setIsGeneratingPresentation(false)
-    }
-  }
-
   const generateEbook = async () => {
     if (!ebookPrompt.trim()) return // Basic validation
     setIsGeneratingEbook(true)
@@ -836,21 +806,6 @@ export default function RebornAI() {
     { id: "cta", name: "Call to Action" },
     { id: "chatbot", name: "Chatbot" },
     { id: "newsletter", name: "Newsletter" },
-  ]
-
-  const presentationTemplates = [
-    { id: "modern", name: "Moderno" },
-    { id: "corporate", name: "Corporativo" },
-    { id: "creative", name: "Criativo" },
-    { id: "minimal", name: "Minimalista" },
-    { id: "dark", name: "Escuro" },
-    { id: "gradient", name: "Gradiente" },
-    { id: "nature", name: "Natureza" },
-    { id: "tech", name: "Tecnologia" },
-    { id: "elegant", name: "Elegante" },
-    { id: "bold", name: "Bold" },
-    { id: "pastel", name: "Pastel" },
-    { id: "neon", name: "Neon" },
   ]
 
   const ebookStyles = [
@@ -2045,100 +2000,8 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Presentations Tab */}
-            <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
-              <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
-                <Card className="lg:w-80 shrink-0 p-4">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Presentation className="h-5 w-5" />
-                    Criar Apresentação
-                  </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Tema</Label>
-                      <Textarea
-                        value={presentationPrompt}
-                        onChange={(e) => setPresentationPrompt(e.target.value)}
-                        placeholder="Ex: Introdução ao Marketing Digital"
-                        className="min-h-[80px]"
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Template</Label>
-                      <Select value={presentationTemplate} onValueChange={setPresentationTemplate}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {presentationTemplates.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label>Número de Slides: {slideCount}</Label>
-                      <Slider
-                        value={[slideCount]}
-                        onValueChange={([v]) => setSlideCount(v)}
-                        min={3}
-                        max={15}
-                        step={1}
-                        className="mt-2"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={generatePresentation}
-                      disabled={isGeneratingPresentation || !presentationPrompt.trim()}
-                      className="w-full"
-                    >
-                      {isGeneratingPresentation ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />A gerar...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Gerar Apresentação
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                  <div className="p-3 border-b border-border flex items-center justify-between">
-                    <span className="font-medium text-sm">Preview</span>
-                    {generatedPresentation && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadContent(generatedPresentation, "presentation.html")}
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        Download
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex-1 min-h-0 bg-white">
-                    {generatedPresentation ? (
-                      <iframe
-                        srcDoc={generatedPresentation}
-                        className="w-full h-full border-0"
-                        title="Presentation Preview"
-                      />
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground">
-                        <p>A apresentação aparecerá aqui</p>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
+            <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <PresentationStudio />
             </TabsContent>
 
             {/* Ebooks Tab */}

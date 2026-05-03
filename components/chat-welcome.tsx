@@ -173,7 +173,7 @@ export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-xs sm:text-sm font-medium">
             <Sparkles className="h-3 w-3" />
-            Powered by Gemini 2.0 Flash
+            Reborn AI — Assistente Inteligente
           </div>
 
           {/* Animated headline */}
