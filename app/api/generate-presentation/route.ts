@@ -458,6 +458,8 @@ Last slide: conclusion/thank you
 For imageQuery use short English keywords (e.g. "team collaboration office", "data analytics dashboard").
 Alternate layouts: "image-right", "image-left", "full-text" for slides 2+.
 
+IDENTITY RULE: This tool is called REBORN AI. NEVER mention "Gemini", "Google", "GPT", "OpenAI", "Claude" or any model/company name in the generated content. If any slide references the tool, use "Reborn AI" only.
+
 Reply ONLY with valid JSON array, no markdown fences:
 [{"title":"...","content":["..."],"imageQuery":"...","layout":"image-right","notes":"..."}]`,
     })

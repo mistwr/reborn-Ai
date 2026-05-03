@@ -89,6 +89,8 @@ import { MarketingStudio } from "@/components/marketing-studio"
 import { PresentationStudio } from "@/components/presentation-studio"
 import { MessagingHub } from "@/components/messaging-hub"
 import { EbookStudio } from "@/components/ebook-studio"
+import { WebCraftStudio } from "@/components/webcraft-studio"
+import { ClipperStudio } from "@/components/clipper-studio"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -307,21 +309,7 @@ export default function RebornAI() {
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>("") // Changed from null to string for consistency
 
-  // WebCraft state
-  const [showWebCraft, setShowWebCraft] = useState(false)
-  const [websitePrompt, setWebsitePrompt] = useState("")
-  const [generatedWebsite, setGeneratedWebsite] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [editableHtml, setEditableHtml] = useState("")
-  const [uploadedImages, setUploadedImages] = useState<{ id: string; dataUrl: string; name: string }[]>([])
-  // </CHANGE>
-  const [isGeneratingWebsite, setIsGeneratingWebsite] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState("startup")
-  const [selectedTemplate, setSelectedTemplate] = useState("modern")
-  const [selectedColorScheme, setSelectedColorScheme] = useState("blue")
-  const [businessName, setBusinessName] = useState("")
-  const [businessContact, setBusinessContact] = useState("")
-  const [selectedSections, setSelectedSections] = useState<string[]>(["hero", "features", "cta"])
+
 
   // Presentation state
 
@@ -618,174 +606,16 @@ export default function RebornAI() {
     }
   }
 
-  const handleWebCraftImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string
-        const newImage = {
-          id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          dataUrl,
-          name: file.name,
-        }
-        setUploadedImages((prev) => [...prev, newImage])
-      }
-      reader.readAsDataURL(file)
-    })
-
-    // Reset input
-    e.target.value = ""
-  }
-  // </CHANGE>
-
-  const insertImageIntoHtml = (imageDataUrl: string) => {
-    if (!editMode || !editableHtml) return
-
-    // Find first img tag with placeholder src and replace it
-    const imgRegex = /(src=["'])(https:\/\/picsum\.photos\/[^"']+|https:\/\/placehold\.co\/[^"']+)(["'])/
-    if (imgRegex.test(editableHtml)) {
-      const newHtml = editableHtml.replace(imgRegex, `$1${imageDataUrl}$3`)
-      setEditableHtml(newHtml)
-      setGeneratedWebsite(newHtml)
-    } else {
-      alert("Nenhuma imagem placeholder encontrada no HTML. Adicione manualmente no editor.")
-    }
-  }
-  // </CHANGE>
-
-  const generateWebsite = async () => {
-    if (!websitePrompt.trim() && !businessName.trim()) return // Basic validation
-    setIsGeneratingWebsite(true)
-    setGeneratedWebsite("") // Clear previous content
-    setEditMode(false) // Reset edit mode
-    setUploadedImages([]) // Clear uploaded images
-
-    try {
-      const response = await fetch("/api/generate-website", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: websitePrompt,
-          category: selectedCategory,
-          template: selectedTemplate,
-          colorScheme: selectedColorScheme,
-          businessName,
-          contact: businessContact,
-          sections: selectedSections,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || "Erro ao gerar website")
-      }
-
-      // Process text stream
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error("Stream não disponível")
-
-      const decoder = new TextDecoder()
-      let html = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        html += chunk
-        // Clean any markdown code blocks that AI might add
-        const cleanHtml = html.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
-        setGeneratedWebsite(cleanHtml)
-      }
-
-      // Final cleanup
-      const finalHtml = html.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
-      setGeneratedWebsite(finalHtml)
-      setEditableHtml(finalHtml) // Initialize editable HTML
-    } catch (error: any) {
-      console.error("Error generating website:", error)
-      alert(`Falha ao gerar website: ${error.message}`)
-    } finally {
-      setIsGeneratingWebsite(false)
-    }
-  }
-  // </CHANGE>
-
-  const downloadContent = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: "text/html" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  // Template options
-  const categories = [
-    { id: "startup", name: "Startup/Tech" },
-    { id: "ecommerce", name: "E-commerce" },
-    { id: "restaurant", name: "Restaurante" },
-    { id: "portfolio", name: "Portfolio" },
-    { id: "services", name: "Serviços" },
-    { id: "health", name: "Saúde" },
-    { id: "education", name: "Educação" },
-    { id: "realestate", name: "Imobiliária" },
-    { id: "events", name: "Eventos" },
-    { id: "blog", name: "Blog" },
-    { id: "agency", name: "Agência" },
-    { id: "fitness", name: "Fitness" },
-  ]
-
-  const templates = [
-    { id: "modern", name: "Moderno" },
-    { id: "minimal", name: "Minimalista" },
-    { id: "bold", name: "Bold" },
-    { id: "elegant", name: "Elegante" },
-  ]
-
-  const colorSchemes = [
-    { id: "blue", name: "Azul", color: "#3B82F6" },
-    { id: "green", name: "Verde", color: "#10B981" },
-    { id: "purple", name: "Roxo", color: "#8B5CF6" },
-    { id: "red", name: "Vermelho", color: "#EF4444" },
-    { id: "orange", name: "Laranja", color: "#F97316" },
-    { id: "pink", name: "Rosa", color: "#EC4899" },
-    { id: "teal", name: "Teal", color: "#14B8A6" },
-    { id: "indigo", name: "Indigo", color: "#6366F1" },
-    { id: "amber", name: "Amber", color: "#F59E0B" },
-    { id: "cyan", name: "Cyan", color: "#06B6D4" },
-  ]
-
-  const sections = [
-    { id: "hero", name: "Hero" },
-    { id: "features", name: "Funcionalidades" },
-    { id: "about", name: "Sobre" },
-    { id: "services", name: "Serviços" },
-    { id: "pricing", name: "Preços" },
-    { id: "testimonials", name: "Testemunhos" },
-    { id: "team", name: "Equipa" },
-    { id: "faq", name: "FAQ" },
-    { id: "contact", name: "Contacto" },
-    { id: "cta", name: "Call to Action" },
-    { id: "chatbot", name: "Chatbot" },
-    { id: "newsletter", name: "Newsletter" },
-  ]
-
-
-  // Handler for toggling listening for the main chat input
   const startListening = () => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("O seu navegador não suporta reconhecimento de voz.")
+      alert("O seu navegador nao suporta reconhecimento de voz.")
       return
     }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     const recognition = new SpeechRecognition()
-    recognition.continuous = false
-    recognition.interimResults = false
     recognition.lang = "pt-PT"
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript
@@ -1282,231 +1112,10 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* WebCraft Tab */}
-            <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
-              <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
-                {/* Config Panel */}
-                <Card className="lg:w-96 shrink-0 p-4 overflow-auto">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Globe className="h-5 w-5" />
-                    WebCraft
-                  </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Categoria</Label>
-                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label>Template</Label>
-                      <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {templates.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label>Cores</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {colorSchemes.map((c) => (
-                          <button
-                            key={c.id}
-                            className={`w-8 h-8 rounded-full border-2 transition-all ${
-                              selectedColorScheme === c.id ? "border-foreground scale-110" : "border-transparent"
-                            }`}
-                            style={{ backgroundColor: c.color }}
-                            onClick={() => setSelectedColorScheme(c.id)}
-                            title={c.name}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>Nome do Negócio</Label>
-                      <Input
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="Ex: Minha Empresa"
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Contacto/Email</Label>
-                      <Input
-                        value={businessContact}
-                        onChange={(e) => setBusinessContact(e.target.value)}
-                        placeholder="Ex: email@empresa.com"
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Secções</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {sections.map((s) => (
-                          <Badge
-                            key={s.id}
-                            variant={selectedSections.includes(s.id) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setSelectedSections((prev) =>
-                                prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id],
-                              )
-                            }}
-                          >
-                            {s.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>Descrição do Site</Label>
-                      <Textarea
-                        value={websitePrompt}
-                        onChange={(e) => setWebsitePrompt(e.target.value)}
-                        placeholder="Descreve o que queres no site..."
-                        className="min-h-[80px]"
-                      />
-                    </div>
-
-                    <Button onClick={generateWebsite} disabled={isGeneratingWebsite} className="w-full">
-                      {isGeneratingWebsite ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />A gerar...
-                        </>
-                      ) : (
-                        <>
-                          <Rocket className="h-4 w-4 mr-2" />
-                          Gerar Website
-                        </>
-                      )}
-                    </Button>
-
-                    {generatedWebsite && (
-                      <>
-                        <div className="pt-4 border-t border-border">
-                          <Label className="mb-2 block">Upload de Imagens</Label>
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleWebCraftImageUpload}
-                            className="mb-2"
-                          />
-                          {uploadedImages.length > 0 && (
-                            <div className="space-y-2 max-h-32 overflow-y-auto">
-                              {uploadedImages.map((img) => (
-                                <div
-                                  key={img.id}
-                                  className="flex items-center gap-2 p-2 bg-muted rounded-md cursor-pointer hover:bg-muted/80"
-                                  onClick={() => insertImageIntoHtml(img.dataUrl)}
-                                >
-                                  <img
-                                    src={img.dataUrl || "/placeholder.svg"}
-                                    alt={img.name}
-                                    className="w-10 h-10 object-cover rounded"
-                                  />
-                                  <span className="text-xs flex-1 truncate">{img.name}</span>
-                                  <Badge variant="outline" className="text-xs">
-                                    Inserir
-                                  </Badge>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <Button
-                          variant={editMode ? "default" : "outline"}
-                          onClick={() => {
-                            if (editMode) {
-                              // Save changes
-                              setGeneratedWebsite(editableHtml)
-                            } else {
-                              // Enter edit mode
-                              setEditableHtml(generatedWebsite)
-                            }
-                            setEditMode(!editMode)
-                          }}
-                          className="w-full"
-                        >
-                          {editMode ? (
-                            <>
-                              <Check className="h-4 w-4 mr-2" />
-                              Guardar Alterações
-                            </>
-                          ) : (
-                            <>
-                              <Edit3 className="h-4 w-4 mr-2" />
-                              Editar HTML
-                            </>
-                          )}
-                        </Button>
-                      </>
-                    )}
-                    {/* </CHANGE> */}
-                  </div>
-                </Card>
-
-                {/* Preview Panel */}
-                <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                  <div className="p-3 border-b border-border flex items-center justify-between">
-                    <span className="font-medium text-sm">
-                      {editMode ? "Editor HTML" : "Preview"}
-                      {/* </CHANGE> */}
-                    </span>
-                    {generatedWebsite && (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadContent(generatedWebsite, "website.html")}
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-h-0 bg-white">
-                    {editMode && generatedWebsite ? (
-                      <Textarea
-                        value={editableHtml}
-                        onChange={(e) => setEditableHtml(e.target.value)}
-                        className="w-full h-full font-mono text-xs p-4 border-0 resize-none"
-                        placeholder="Cole ou edite o código HTML aqui..."
-                      />
-                    ) : generatedWebsite ? (
-                      <iframe srcDoc={generatedWebsite} className="w-full h-full border-0" title="Website Preview" />
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground">
-                        <p>O preview aparecerá aqui</p>
-                      </div>
-                    )}
-                    {/* </CHANGE> */}
-                  </div>
-                </Card>
-              </div>
+            <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <WebCraftStudio />
             </TabsContent>
+
 
             {/* Presentations Tab */}
             <TabsContent value="presentations" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
@@ -1527,34 +1136,8 @@ export default function RebornAI() {
 
 
             {/* Clipper Tab - Adding clipper functionality */}
-            <TabsContent value="clipper" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
-              <div className="max-w-4xl mx-auto w-full space-y-4 p-4">
-                <Card className="p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Scissors className="h-5 w-5" />
-                    Clipper AI
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Transforma vídeos longos em clips curtos otimizados para TikTok, Reels e Shorts.
-                  </p>
-                  <div className="grid gap-4">
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                      <Video className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-4">Arrasta um vídeo ou clica para selecionar</p>
-                      <Input type="file" accept="video/*" className="max-w-xs mx-auto" />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button className="flex-1" disabled>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Gerar Clips (Em breve)
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center">
-                      Requer configuração do Cloudflare Worker. Consulta /clipper para a versão completa.
-                    </p>
-                  </div>
-                </Card>
-              </div>
+            <TabsContent value="clipper" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <ClipperStudio />
             </TabsContent>
 
             {/* Marketing Tab */}

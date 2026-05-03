@@ -115,6 +115,8 @@ Autor: ${author}
 Gera exatamente ${chapters} capítulos completos.
 Cada capítulo deve ter: title, content (texto completo do capítulo com pelo menos 4 parágrafos detalhados)
 
+REGRA DE IDENTIDADE: Esta ferramenta chama-se REBORN AI. NUNCA menciones "Gemini", "Google", "GPT", "OpenAI", "Claude" ou qualquer nome de modelo/empresa no conteúdo gerado.
+
 Responde APENAS com JSON array, sem markdown:
 [{"title": "Capítulo 1: ...", "content": "Texto completo do capítulo..."}]`,
     })
