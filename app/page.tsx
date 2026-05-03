@@ -83,6 +83,7 @@ import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
 import { LiveChat } from "@/components/live-chat"
 import { VisionTab } from "@/components/vision-tab"
+import { ChatWelcome } from "@/components/chat-welcome"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -1448,6 +1449,15 @@ export default function RebornAI() {
 
   return (
     <div className="flex bg-background" style={{ height: "100dvh" }}>
+      {/* Sidebar overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <div
         className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
@@ -1653,27 +1663,33 @@ export default function RebornAI() {
       {/* Added proper overflow handling for main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
+        <header className="border-b border-border bg-card/60 backdrop-blur-md px-3 sm:px-4 lg:px-6 py-3 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden h-9 w-9 shrink-0"
+              aria-label="Abrir menu"
+            >
               <Menu className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
               </div>
-              <h1 className="font-bold text-lg gradient-text hidden sm:block">Reborn AI</h1>
+              <span className="font-bold text-base sm:text-lg gradient-text">Reborn AI</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {enableSearch && (
-              <Badge variant="outline" className="gap-1 hidden sm:flex bg-primary/10 border-primary/30">
+              <Badge variant="outline" className="gap-1 hidden sm:flex bg-primary/10 border-primary/30 text-primary">
                 <Search className="h-3 w-3" />
                 Web Ativo
               </Badge>
             )}
-            <Badge variant="outline" className="gap-1 bg-green-500/10 border-green-500/30 text-green-400">
-              <Zap className="h-3 w-3" />
+            <Badge variant="outline" className="gap-1 bg-green-500/10 border-green-500/30 text-green-400 text-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
               <span className="hidden sm:inline">Online</span>
             </Badge>
           </div>
@@ -1743,17 +1759,7 @@ export default function RebornAI() {
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto py-4 space-y-4">
                   {messages.length === 0 && (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto mb-4">
-                        <Sparkles className="h-8 w-8 text-primary-foreground" />
-                      </div>
-                      <h2 className="text-xl font-semibold mb-2">Olá! Sou o Reborn AI</h2>
-                      <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                        Posso ajudar com conversas, análise de imagens, pesquisa web, criar websites, apresentações e
-                        ebooks.
-                        {enableSearch && " Pesquisa web ativada para informações atualizadas."}
-                      </p>
-                    </div>
+                    <ChatWelcome onTabChange={setActiveTab} />
                   )}
 
                   {messages.map((message, index) => (
