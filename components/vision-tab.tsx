@@ -80,7 +80,8 @@ const MODES: ModeOption[] = [
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "application/pdf"]
 const MAX_FILES = 5
-const MAX_FILE_MB = 15
+const MAX_FILE_MB = 3 // Reduced to stay under Vercel payload limits
+const MAX_IMAGE_DIMENSION = 1920 // Max width/height for images
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,65 @@ function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Compress image to reduce file size for API payload
+async function compressImage(file: File, maxDimension: number = MAX_IMAGE_DIMENSION, quality: number = 0.8): Promise<{ dataUrl: string; size: number }> {
+  return new Promise((resolve, reject) => {
+    // For PDFs, just return original
+    if (file.type === "application/pdf") {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ dataUrl: reader.result as string, size: file.size })
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+      return
+    }
+
+    const img = new Image()
+    img.onload = () => {
+      // Calculate new dimensions
+      let { width, height } = img
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width)
+          width = maxDimension
+        } else {
+          width = Math.round((width * maxDimension) / height)
+          height = maxDimension
+        }
+      }
+
+      // Create canvas and draw resized image
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        reject(new Error("Canvas context not available"))
+        return
+      }
+      ctx.drawImage(img, 0, 0, width, height)
+
+      // Convert to JPEG for better compression (unless PNG needed for transparency)
+      const outputType = file.type === "image/png" ? "image/png" : "image/jpeg"
+      const dataUrl = canvas.toDataURL(outputType, quality)
+      
+      // Calculate compressed size
+      const base64 = dataUrl.split(",")[1] || ""
+      const size = Math.round((base64.length * 3) / 4)
+
+      resolve({ dataUrl, size })
+    }
+    img.onerror = () => reject(new Error("Failed to load image"))
+
+    // Load image from file
+    const reader = new FileReader()
+    reader.onload = () => {
+      img.src = reader.result as string
+    }
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
@@ -121,22 +181,57 @@ export function VisionTab() {
 
     for (const file of incoming) {
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError(`Tipo não suportado: ${file.name}. Usa imagens (JPG, PNG, WebP, GIF) ou PDFs.`)
+        setError(`Tipo nao suportado: ${file.name}. Usa imagens (JPG, PNG, WebP, GIF) ou PDFs.`)
         continue
       }
-      if (file.size > MAX_FILE_MB * 1024 * 1024) {
-        setError(`Ficheiro demasiado grande: ${file.name} (máx. ${MAX_FILE_MB}MB).`)
+      
+      // Check original size - if too large, we'll compress
+      const isImage = file.type.startsWith("image/")
+      const originalSize = file.size
+      const maxBytes = MAX_FILE_MB * 1024 * 1024
+
+      let dataUrl: string
+      let finalSize: number
+
+      if (isImage && originalSize > maxBytes * 0.5) {
+        // Compress images that are more than half max size
+        try {
+          const compressed = await compressImage(file, MAX_IMAGE_DIMENSION, 0.75)
+          dataUrl = compressed.dataUrl
+          finalSize = compressed.size
+          
+          // If still too large, compress more aggressively
+          if (finalSize > maxBytes) {
+            const moreCompressed = await compressImage(file, 1280, 0.6)
+            dataUrl = moreCompressed.dataUrl
+            finalSize = moreCompressed.size
+          }
+        } catch {
+          // Fallback to original
+          dataUrl = await fileToDataUrl(file)
+          finalSize = originalSize
+        }
+      } else if (file.type === "application/pdf" && originalSize > maxBytes) {
+        setError(`PDF demasiado grande: ${file.name} (${formatBytes(originalSize)}). Maximo: ${MAX_FILE_MB}MB.`)
+        continue
+      } else {
+        dataUrl = await fileToDataUrl(file)
+        finalSize = originalSize
+      }
+
+      // Final size check
+      if (finalSize > maxBytes) {
+        setError(`Ficheiro ainda demasiado grande apos compressao: ${file.name}. Tenta uma imagem menor.`)
         continue
       }
 
-      const dataUrl = await fileToDataUrl(file)
       toAdd.push({
         id: `${Date.now()}-${Math.random()}`,
         name: file.name,
-        mimeType: file.type,
+        mimeType: isImage ? (dataUrl.includes("image/jpeg") ? "image/jpeg" : file.type) : file.type,
         dataUrl,
-        size: file.size,
-        preview: file.type.startsWith("image/") ? dataUrl : undefined,
+        size: finalSize,
+        preview: isImage ? dataUrl : undefined,
       })
     }
 
@@ -202,6 +297,12 @@ export function VisionTab() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
+        
+        // Handle specific error codes
+        if (response.status === 413 || data.code === "FILE_TOO_LARGE" || data.code === "PAYLOAD_TOO_LARGE" || data.code === "TOTAL_SIZE_EXCEEDED") {
+          throw new Error("Ficheiros muito grandes. Por favor, usa imagens mais pequenas (max 3MB cada) ou comprime antes de enviar.")
+        }
+        
         throw new Error(data.error || `Erro ${response.status}`)
       }
 
