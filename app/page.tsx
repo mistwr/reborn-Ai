@@ -82,6 +82,7 @@ import {
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
 import { LiveChat } from "@/components/live-chat"
+import { VisionTab } from "@/components/vision-tab"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -1597,6 +1598,14 @@ export default function RebornAI() {
                 <Megaphone className="h-4 w-4 mr-2" />
                 Marketing
               </Button>
+              <Button
+                variant={activeTab === "vision" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("vision")}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Visao AI
+              </Button>
             </div>
           </nav>
 
@@ -1720,6 +1729,10 @@ export default function RebornAI() {
                   <TabsTrigger value="marketing" className="px-3 rounded-lg">
                     <Megaphone className="h-4 w-4 mr-2" />
                     Marketing
+                  </TabsTrigger>
+                  <TabsTrigger value="vision" className="px-3 rounded-lg">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Visao AI
                   </TabsTrigger>
                 </TabsList>
               </ScrollArea>
@@ -3425,6 +3438,11 @@ export default function RebornAI() {
                   </Card>
                 </div>
               </ScrollArea>
+            </TabsContent>
+
+            {/* Vision AI Tab */}
+            <TabsContent value="vision" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <VisionTab />
             </TabsContent>
           </Tabs>
         </main>
