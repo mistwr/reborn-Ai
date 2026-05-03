@@ -1871,32 +1871,18 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Live Mode Tab */}
-            <TabsContent value="live" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-              {!liveMode ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-6 p-4">
-                  <div className="text-center space-y-4">
-                    <Video className="h-16 w-16 mx-auto text-primary" />
-                    <h2 className="text-2xl font-bold">Modo Live</h2>
-                    <p className="text-muted-foreground max-w-md">
-                      Converse com o Reborn AI em tempo real usando câmara e microfone. Fala, vê o slideshow e interaja naturalmente.
-                    </p>
-                    <Button onClick={startLiveMode} size="lg" className="gap-2">
-                      <Video className="h-5 w-5" />
-                      Iniciar Modo Live
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <LiveChat
-                    onStop={stopLiveMode}
-                    isCameraOn={liveMode.isCameraOn}
-                    isMicOn={liveMode.isMicOn}
-                    onToggleCamera={toggleLiveCamera}
-                    onToggleMic={toggleLiveMic}
-                  />
-                </div>
-              )}
+            <TabsContent value="live" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <LiveChat
+                  onStop={stopLiveMode}
+                  onStart={startLiveMode}
+                  isActive={!!liveMode}
+                  isCameraOn={liveMode?.isCameraOn ?? true}
+                  isMicOn={liveMode?.isMicOn ?? true}
+                  onToggleCamera={toggleLiveCamera}
+                  onToggleMic={toggleLiveMic}
+                />
+              </div>
             </TabsContent>
 
             {/* Images Tab */}
