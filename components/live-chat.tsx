@@ -5,79 +5,100 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Mic, MicOff, Camera, CameraOff, X, Send, Loader2,
-  Brain, Sparkles, Globe, ImagePlus, Presentation,
-  BookOpen, MessageSquare, Zap, Video, Bot, Eye,
+  Mic,
+  MicOff,
+  Camera,
+  CameraOff,
+  X,
+  Send,
+  Loader2,
+  Brain,
+  Sparkles,
+  Globe,
+  ImagePlus,
+  Presentation,
+  BookOpen,
+  MessageSquare,
+  Zap,
+  Video,
+  Bot,
+  Eye,
+  Play,
 } from "lucide-react"
 
+// ── Slides ─────────────────────────────────────────────────────────────────────
 const SLIDES = [
   {
-    tag: "Chat Inteligente",
+    tag: "Chat com IA",
     title: "Reborn AI",
-    subtitle: "Conversa natural com inteligência artificial avançada. Respostas instantâneas para qualquer pergunta.",
+    subtitle: "Conversa inteligente com respostas instantâneas e contexto total.",
     icon: MessageSquare,
-    color1: 220,
-    color2: 250,
+    h1: 220,
+    h2: 250,
   },
   {
     tag: "Geração de Imagens",
     title: "Cria sem limites",
-    subtitle: "Transforma texto em imagens únicas e profissionais com IA generativa de última geração.",
+    subtitle: "Transforma qualquer ideia em imagens únicas com inteligência artificial.",
     icon: ImagePlus,
-    color1: 280,
-    color2: 310,
+    h1: 270,
+    h2: 300,
   },
   {
     tag: "WebCraft",
     title: "Sites em segundos",
-    subtitle: "Websites completos, modernos e responsivos gerados automaticamente pela inteligência artificial.",
+    subtitle: "Websites completos e responsivos gerados automaticamente pela IA.",
     icon: Globe,
-    color1: 160,
-    color2: 190,
+    h1: 190,
+    h2: 210,
   },
   {
     tag: "Apresentações",
     title: "Slides profissionais",
-    subtitle: "Apresentações de impacto criadas automaticamente. Do tema ao design final em segundos.",
+    subtitle: "Apresentações de impacto criadas em segundos, prontas a usar.",
     icon: Presentation,
-    color1: 30,
-    color2: 50,
+    h1: 150,
+    h2: 170,
   },
   {
-    tag: "Ebooks",
+    tag: "Ebooks & Conteúdo",
     title: "Publica o teu livro",
-    subtitle: "Livros digitais completos escritos por IA. Do índice ao conteúdo, tudo automatizado.",
+    subtitle: "Livros digitais completos e artigos profissionais escritos por IA.",
     icon: BookOpen,
-    color1: 130,
-    color2: 150,
+    h1: 50,
+    h2: 30,
   },
   {
     tag: "Visao AI",
-    title: "Vê tudo",
-    subtitle: "OCR avançado, análise de imagens e PDFs em segundos. Extrai texto e descreve qualquer ficheiro.",
+    title: "Vê e entende tudo",
+    subtitle: "OCR, análise de imagens, PDFs e documentos em segundos.",
     icon: Eye,
-    color1: 200,
-    color2: 230,
+    h1: 130,
+    h2: 160,
   },
   {
     tag: "Modo Live",
     title: "Ao vivo contigo",
-    subtitle: "Câmara, voz e IA em tempo real. Fala naturalmente e recebe respostas imediatas.",
+    subtitle: "Câmara, voz e inteligência artificial em conversa real e contínua.",
     icon: Video,
-    color1: 10,
-    color2: 340,
+    h1: 10,
+    h2: 340,
   },
   {
-    tag: "Plataforma Total",
+    tag: "Inteligencia Total",
     title: "O futuro é agora",
-    subtitle: "Uma plataforma. Marketing, SMS, Email, WhatsApp e infinitas possibilidades com IA.",
+    subtitle: "Uma plataforma completa. Infinitas possibilidades. Zero limites.",
     icon: Zap,
-    color1: 260,
-    color2: 290,
+    h1: 240,
+    h2: 280,
   },
 ]
 
-type ChatMessage = { id: string; role: "user" | "assistant"; content: string }
+type ChatMessage = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+}
 
 interface LiveChatProps {
   onStop: () => void
@@ -89,7 +110,15 @@ interface LiveChatProps {
   onToggleMic: () => void
 }
 
-export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onToggleCamera, onToggleMic }: LiveChatProps) {
+export function LiveChat({
+  onStop,
+  onStart,
+  isActive,
+  isCameraOn,
+  isMicOn,
+  onToggleCamera,
+  onToggleMic,
+}: LiveChatProps) {
   const [slideIndex, setSlideIndex] = useState(0)
   const [slideVisible, setSlideVisible] = useState(true)
   const [textInput, setTextInput] = useState("")
@@ -109,22 +138,20 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
   const hasMessages = messages.length > 0 || !!streamingText
   const slide = SLIDES[slideIndex]
   const SlideIcon = slide.icon
-  const c1 = slide.color1
-  const c2 = slide.color2
 
-  // ── Slideshow timer ───────────────────────────────────────────────────────
+  // ── Slideshow — always runs ────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => {
       setSlideVisible(false)
       setTimeout(() => {
         setSlideIndex((i) => (i + 1) % SLIDES.length)
         setSlideVisible(true)
-      }, 500)
-    }, 5000)
+      }, 450)
+    }, 4500)
     return () => clearInterval(id)
   }, [])
 
-  // ── Camera stream ─────────────────────────────────────────────────────────
+  // ── Camera ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive) return
     if (isCameraOn) {
@@ -144,7 +171,7 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
     }
   }, [isCameraOn, isActive]) // eslint-disable-line
 
-  // ── Cleanup on unmount ───────────────────────────────────────────────────
+  // ── Cleanup on unmount ────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -155,7 +182,7 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
     }
   }, []) // eslint-disable-line
 
-  // ── Auto-scroll ───────────────────────────────────────────────────────────
+  // ── Scroll ────────────────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streamingText])
@@ -164,62 +191,80 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
   const speak = useCallback((text: string) => {
     if (!text || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
+    const u = new SpeechSynthesisUtterance(text.slice(0, 500))
     u.lang = "pt-PT"
     u.rate = 1.05
     window.speechSynthesis.speak(u)
   }, [])
 
   // ── Send to AI ────────────────────────────────────────────────────────────
-  const sendToAI = useCallback(async (userText: string) => {
-    if (!userText.trim() || isStreaming) return
-    const msg: ChatMessage = { id: Date.now().toString(), role: "user", content: userText.trim() }
-    setMessages((prev) => [...prev, msg])
-    setIsStreaming(true)
-    setStreamingText("")
-    const history = [...messages, msg].map((m) => ({ role: m.role, content: m.content }))
-    abortRef.current = new AbortController()
-    try {
-      const res = await fetch("/api/live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userText.trim(),
-          conversationHistory: history.slice(0, -1),
-          mode: isCameraOn ? "both" : "voice",
-        }),
-        signal: abortRef.current.signal,
-      })
-      if (!res.ok || !res.body) throw new Error()
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      let full = ""
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        full += dec.decode(value, { stream: true })
-        setStreamingText(full)
-      }
-      setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: full }])
+  const sendToAI = useCallback(
+    async (userText: string) => {
+      if (!userText.trim() || isStreaming) return
+      const msg: ChatMessage = { id: Date.now().toString(), role: "user", content: userText.trim() }
+      setMessages((prev) => [...prev, msg])
+      setIsStreaming(true)
       setStreamingText("")
-      speak(full)
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "Desculpa, ocorreu um erro. Tenta novamente." }])
+
+      const history = [...messages, msg].map((m) => ({ role: m.role, content: m.content }))
+      abortRef.current = new AbortController()
+
+      try {
+        const res = await fetch("/api/live", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: userText.trim(),
+            conversationHistory: history.slice(0, -1),
+            mode: isCameraOn ? "both" : "voice",
+          }),
+          signal: abortRef.current.signal,
+        })
+
+        if (!res.ok || !res.body) throw new Error()
+        const reader = res.body.getReader()
+        const dec = new TextDecoder()
+        let full = ""
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          full += dec.decode(value, { stream: true })
+          setStreamingText(full)
+        }
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 1).toString(), role: "assistant", content: full },
+        ])
         setStreamingText("")
+        speak(full)
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: "Desculpa, ocorreu um erro. Tenta novamente.",
+            },
+          ])
+          setStreamingText("")
+        }
+      } finally {
+        setIsStreaming(false)
+        abortRef.current = null
       }
-    } finally {
-      setIsStreaming(false)
-      abortRef.current = null
-    }
-  }, [isStreaming, messages, isCameraOn, speak])
+    },
+    [isStreaming, messages, isCameraOn, speak],
+  )
 
   // ── Voice recognition ─────────────────────────────────────────────────────
   const stopVoice = useCallback(() => {
     if (recognitionRef.current) {
       const r = recognitionRef.current
       recognitionRef.current = null
-      try { r.stop() } catch {}
+      try {
+        r.stop()
+      } catch {}
     }
     setIsListening(false)
     setTranscript("")
@@ -237,17 +282,29 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
       const last = e.results[e.results.length - 1]
       const t = last[0].transcript
       setTranscript(t)
-      if (last.isFinal && t.trim()) { setTranscript(""); sendToAI(t) }
+      if (last.isFinal && t.trim()) {
+        setTranscript("")
+        sendToAI(t)
+      }
     }
-    r.onerror = () => { setIsListening(false); recognitionRef.current = null }
-    r.onend = () => { if (recognitionRef.current) { try { r.start() } catch {} } else setIsListening(false) }
+    r.onerror = () => {
+      setIsListening(false)
+      recognitionRef.current = null
+    }
+    r.onend = () => {
+      if (recognitionRef.current) {
+        try {
+          r.start()
+        } catch {}
+      } else setIsListening(false)
+    }
     r.start()
     recognitionRef.current = r
     setIsListening(true)
   }, [sendToAI])
 
   useEffect(() => {
-    if (!isActive) { stopVoice(); return }
+    if (!isActive) return
     if (isMicOn) startVoice()
     else stopVoice()
   }, [isMicOn, isActive]) // eslint-disable-line
@@ -261,28 +318,38 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
 
   const goToSlide = (i: number) => {
     setSlideVisible(false)
-    setTimeout(() => { setSlideIndex(i); setSlideVisible(true) }, 300)
+    setTimeout(() => {
+      setSlideIndex(i)
+      setSlideVisible(true)
+    }, 300)
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div
-      className="relative w-full h-full flex flex-col overflow-hidden"
-      style={{ background: "oklch(0.04 0.015 260)" }}
+      className="relative w-full h-full overflow-hidden flex flex-col"
+      style={{ background: "oklch(0.04 0.01 260)" }}
     >
-      {/* ── Animated background ───────────────────────────────────────────── */}
+      {/* ── Animated background — always visible, dims during chat ──────────── */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ opacity: hasMessages && isActive ? 0.20 : 1, transition: "opacity 1s ease" }}
+        className="absolute inset-0 pointer-events-none select-none"
+        style={{
+          opacity: hasMessages && isActive ? 0.18 : 1,
+          transition: "opacity 1s ease",
+        }}
         aria-hidden
       >
-        {/* Base radial gradients */}
+        {/* Gradient background */}
         <div
           className="absolute inset-0"
           style={{
             background: `
-              radial-gradient(ellipse 90% 70% at 15% 35%, oklch(0.20 0.18 ${c1} / 0.50) 0%, transparent 55%),
-              radial-gradient(ellipse 70% 80% at 85% 65%, oklch(0.16 0.14 ${c2} / 0.40) 0%, transparent 50%),
-              radial-gradient(ellipse 50% 50% at 50% 5%,  oklch(0.14 0.12 ${c1 + 20} / 0.25) 0%, transparent 60%)
+              radial-gradient(ellipse 80% 60% at 15% 35%,
+                oklch(0.18 0.15 ${slide.h1} / 0.5) 0%, transparent 55%),
+              radial-gradient(ellipse 65% 70% at 82% 72%,
+                oklch(0.14 0.12 ${slide.h2} / 0.4) 0%, transparent 50%),
+              radial-gradient(ellipse 45% 45% at 52% 8%,
+                oklch(0.12 0.10 ${slide.h1 + 30} / 0.25) 0%, transparent 60%)
             `,
             transition: "background 1.4s ease",
           }}
@@ -291,100 +358,105 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: `radial-gradient(oklch(0.55 0.18 ${c1} / 0.10) 1px, transparent 1px)`,
-            backgroundSize: "30px 30px",
+            backgroundImage: `radial-gradient(oklch(0.55 0.18 ${slide.h1} / 0.10) 1px, transparent 1px)`,
+            backgroundSize: "26px 26px",
           }}
         />
-        {/* Large orb left */}
+        {/* Primary orb */}
         <div
           className="absolute rounded-full"
           style={{
-            width: "clamp(300px, 60vw, 800px)",
-            height: "clamp(300px, 60vw, 800px)",
-            top: "-10%", left: "-15%",
-            background: `oklch(0.55 0.30 ${c1})`,
-            filter: "blur(130px)",
-            opacity: slideVisible ? 0.20 : 0,
-            transition: "opacity 1.4s ease, background 1.4s ease",
+            width: "clamp(260px, 50vw, 680px)",
+            height: "clamp(260px, 50vw, 680px)",
+            top: "0%",
+            left: "-12%",
+            background: `oklch(0.52 0.28 ${slide.h1})`,
+            filter: "blur(120px)",
+            opacity: slideVisible ? 0.22 : 0,
+            transition: "opacity 1.3s ease, background 1.5s ease",
           }}
         />
-        {/* Orb right */}
+        {/* Secondary orb */}
         <div
           className="absolute rounded-full"
           style={{
-            width: "clamp(200px, 45vw, 600px)",
-            height: "clamp(200px, 45vw, 600px)",
-            bottom: "0%", right: "-10%",
-            background: `oklch(0.50 0.26 ${c2})`,
-            filter: "blur(110px)",
-            opacity: slideVisible ? 0.16 : 0,
-            transition: "opacity 1.4s ease 0.3s, background 1.4s ease",
+            width: "clamp(180px, 38vw, 460px)",
+            height: "clamp(180px, 38vw, 460px)",
+            bottom: "8%",
+            right: "-6%",
+            background: `oklch(0.48 0.24 ${slide.h2})`,
+            filter: "blur(100px)",
+            opacity: slideVisible ? 0.18 : 0,
+            transition: "opacity 1.3s ease 0.3s, background 1.5s ease",
           }}
         />
-        {/* Decorative ring */}
+        {/* Accent ring (desktop only) */}
         <div
-          className="absolute rounded-full"
+          className="absolute rounded-full hidden sm:block"
           style={{
-            width: "clamp(180px, 35vw, 450px)",
-            height: "clamp(180px, 35vw, 450px)",
-            top: "30%", right: "18%",
-            border: `1px solid oklch(0.60 0.20 ${c1} / 0.14)`,
-            boxShadow: `0 0 100px oklch(0.60 0.20 ${c1} / 0.06)`,
+            width: "clamp(140px, 28vw, 360px)",
+            height: "clamp(140px, 28vw, 360px)",
+            top: "30%",
+            right: "18%",
+            border: `1px solid oklch(0.60 0.20 ${slide.h1} / 0.14)`,
+            boxShadow: `0 0 80px oklch(0.60 0.20 ${slide.h1} / 0.07)`,
             transition: "border-color 1.4s ease",
           }}
         />
       </div>
 
-      {/* ── SLIDESHOW HERO — always visible when no messages or not active ─── */}
+      {/* ── Slideshow hero — ALWAYS shows, fades when messages present ──────── */}
       <div
-        className="absolute inset-0 z-10 flex flex-col items-center justify-center px-5 sm:px-8 md:px-16 text-center"
+        className="absolute inset-0 z-10 flex flex-col items-center justify-center px-5 sm:px-10"
         style={{
-          paddingBottom: "clamp(130px, 24vh, 200px)",
+          paddingBottom: isActive
+            ? "clamp(150px, 26vh, 210px)"
+            : "clamp(40px, 8vh, 80px)",
           opacity: hasMessages && isActive ? 0 : 1,
           pointerEvents: hasMessages && isActive ? "none" : "auto",
-          transition: "opacity 0.6s ease",
+          transition: "opacity 0.7s ease, padding-bottom 0.5s ease",
         }}
         aria-live="polite"
       >
-        {/* Feature tag pill */}
+        {/* Tag pill */}
         <div
-          className="mb-5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase"
+          className="mb-4 sm:mb-5 inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest uppercase"
           style={{
+            background: `oklch(0.60 0.22 ${slide.h1} / 0.12)`,
+            border: `1px solid oklch(0.60 0.22 ${slide.h1} / 0.28)`,
+            color: `oklch(0.78 0.20 ${slide.h1})`,
             opacity: slideVisible ? 1 : 0,
-            transform: slideVisible ? "translateY(0)" : "translateY(8px)",
-            transition: "opacity 0.5s ease, transform 0.5s ease",
-            background: `oklch(0.58 0.22 ${c1} / 0.14)`,
-            border: `1px solid oklch(0.58 0.22 ${c1} / 0.32)`,
-            color: `oklch(0.80 0.20 ${c1})`,
+            transform: slideVisible ? "translateY(0)" : "translateY(10px)",
+            transition: "opacity 0.45s ease, transform 0.45s ease",
           }}
         >
-          <SlideIcon className="w-3.5 h-3.5" aria-hidden />
+          <SlideIcon className="w-3 h-3 flex-shrink-0" aria-hidden />
           {slide.tag}
         </div>
 
-        {/* Giant title */}
-        <h1
-          className="font-extrabold leading-none tracking-tight text-balance"
+        {/* Main title */}
+        <h2
+          className="text-center font-bold leading-none tracking-tight text-balance"
           style={{
-            fontSize: "clamp(2.8rem, 10vw, 7rem)",
+            fontSize: "clamp(2.6rem, 10vw, 7rem)",
             color: "oklch(0.97 0 0)",
-            textShadow: `0 0 100px oklch(0.58 0.22 ${c1} / 0.40), 0 2px 40px oklch(0 0 0 / 0.60)`,
+            textShadow: `0 0 100px oklch(0.60 0.22 ${slide.h1} / 0.40)`,
             opacity: slideVisible ? 1 : 0,
             transform: slideVisible ? "translateY(0)" : "translateY(14px)",
-            transition: "opacity 0.5s ease 0.05s, transform 0.5s ease 0.05s",
+            transition: "opacity 0.45s ease 0.05s, transform 0.45s ease 0.05s, text-shadow 1.4s ease",
           }}
         >
           {slide.title}
-        </h1>
+        </h2>
 
         {/* Brand label */}
         <p
-          className="mt-3 font-black tracking-[0.3em] uppercase"
+          className="mt-2 sm:mt-3 font-bold tracking-[0.28em] uppercase"
           style={{
-            fontSize: "clamp(0.6rem, 1.6vw, 0.85rem)",
-            color: `oklch(0.68 0.22 ${c1})`,
+            fontSize: "clamp(0.55rem, 1.6vw, 0.85rem)",
+            color: `oklch(0.68 0.22 ${slide.h1})`,
             opacity: slideVisible ? 1 : 0,
-            transition: "opacity 0.5s ease 0.1s",
+            transition: "opacity 0.45s ease 0.10s, color 1.4s ease",
           }}
         >
           Reborn AI
@@ -392,93 +464,117 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
 
         {/* Subtitle */}
         <p
-          className="mt-5 max-w-xs sm:max-w-md md:max-w-lg text-balance leading-relaxed"
+          className="mt-4 sm:mt-5 text-center max-w-xs sm:max-w-md text-balance leading-relaxed"
           style={{
-            fontSize: "clamp(0.9rem, 2.4vw, 1.15rem)",
-            color: "oklch(0.62 0.02 260)",
+            fontSize: "clamp(0.85rem, 2vw, 1.1rem)",
+            color: "oklch(0.58 0 0)",
             opacity: slideVisible ? 1 : 0,
             transform: slideVisible ? "translateY(0)" : "translateY(8px)",
-            transition: "opacity 0.5s ease 0.12s, transform 0.5s ease 0.12s",
+            transition: "opacity 0.45s ease 0.12s, transform 0.45s ease 0.12s",
           }}
         >
           {slide.subtitle}
         </p>
 
         {/* Dot indicators */}
-        <div className="mt-8 flex gap-2" role="tablist" aria-label="Funcionalidades">
-          {SLIDES.map((_, i) => (
+        <div
+          className="mt-7 sm:mt-8 flex gap-2 pointer-events-auto"
+          role="tablist"
+          aria-label="Funcionalidades"
+        >
+          {SLIDES.map((s, i) => (
             <button
               key={i}
               role="tab"
               aria-selected={i === slideIndex}
-              aria-label={SLIDES[i].tag}
-              onClick={() => goToSlide(i)}
-              className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label={s.tag}
+              className="rounded-full focus:outline-none focus-visible:ring-2"
               style={{
                 height: "5px",
-                width: i === slideIndex ? "32px" : "5px",
-                background: i === slideIndex ? `oklch(0.72 0.22 ${c1})` : "oklch(0.30 0 0)",
-                transition: "width 0.4s ease, background 0.4s ease",
+                width: i === slideIndex ? "30px" : "5px",
+                background:
+                  i === slideIndex
+                    ? `oklch(0.70 0.22 ${slide.h1})`
+                    : "oklch(0.28 0 0)",
+                transition: "width 0.35s ease, background 0.35s ease",
               }}
+              onClick={() => goToSlide(i)}
             />
           ))}
         </div>
 
-        {/* CTA — start live or hint */}
-        <div className="mt-8 flex flex-col items-center gap-3">
-          {!isActive ? (
+        {/* CTA button — shown only before starting */}
+        {!isActive && (
+          <div
+            className="mt-8 sm:mt-10 flex flex-col items-center gap-3"
+            style={{
+              opacity: slideVisible ? 1 : 0,
+              transition: "opacity 0.45s ease 0.15s",
+            }}
+          >
             <Button
-              onClick={onStart}
               size="lg"
-              className="h-12 px-8 rounded-full text-sm font-semibold shadow-2xl gap-2"
+              className="rounded-full h-12 px-8 text-sm font-semibold gap-2 shadow-2xl border-0"
               style={{
-                background: `oklch(0.58 0.24 ${c1})`,
-                boxShadow: `0 0 40px oklch(0.58 0.24 ${c1} / 0.40)`,
+                background: `oklch(0.58 0.22 ${slide.h1})`,
+                boxShadow: `0 0 40px oklch(0.58 0.22 ${slide.h1} / 0.40)`,
+                color: "oklch(0.97 0 0)",
               }}
+              onClick={onStart}
             >
-              <Video className="w-4 h-4" />
+              <Play className="w-4 h-4 fill-current" />
               Iniciar Modo Live
             </Button>
-          ) : null}
+            <p className="flex items-center gap-1.5 text-xs" style={{ color: "oklch(0.38 0 0)" }}>
+              <Mic className="w-3 h-3" aria-hidden />
+              Câmara, voz e IA em tempo real
+            </p>
+          </div>
+        )}
+
+        {/* Hint when active but no messages yet */}
+        {isActive && !hasMessages && (
           <p
-            className="flex items-center gap-1.5 text-xs"
-            style={{ color: "oklch(0.40 0 0)" }}
+            className="mt-6 flex items-center gap-2 text-xs"
+            style={{
+              color: "oklch(0.42 0 0)",
+              opacity: slideVisible ? 1 : 0,
+              transition: "opacity 0.45s ease 0.15s",
+            }}
           >
             <Mic className="w-3 h-3" aria-hidden />
-            {isActive ? "Fala ou escreve para começar" : "Câmara e voz em tempo real"}
+            Fala ou escreve para começar
           </p>
-        </div>
+        )}
       </div>
 
-      {/* ── Camera PiP ────────────────────────────────────────────────────────── */}
+      {/* ── Camera PiP ───────────────────────────────────────────────────────── */}
       {isActive && isCameraOn && (
         <div
           className="absolute top-3 right-3 z-30 rounded-xl overflow-hidden shadow-2xl"
           style={{
-            width: "clamp(80px, 18vw, 150px)",
-            height: "clamp(60px, 13.5vw, 112px)",
-            border: "1px solid oklch(1 0 0 / 0.12)",
+            width: "clamp(80px, 18vw, 140px)",
+            height: "clamp(60px, 13.5vw, 105px)",
+            border: "1px solid oklch(1 0 0 / 0.10)",
           }}
         >
           <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
         </div>
       )}
-      {(!isActive || !isCameraOn) && <video ref={videoRef} className="hidden" />}
-      <canvas ref={canvasRef} className="hidden" />
+      {(!isActive || !isCameraOn) && <video ref={videoRef} className="hidden" aria-hidden />}
+      <canvas ref={canvasRef} className="hidden" aria-hidden />
 
       {/* ── Status badges ─────────────────────────────────────────────────────── */}
       {isActive && (
         <div className="absolute top-3 left-3 z-30 flex flex-col gap-1.5">
           {isStreaming && (
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-white/70"
-              style={{ background: "oklch(0 0 0 / 0.60)", backdropFilter: "blur(8px)", border: "1px solid oklch(1 0 0 / 0.10)" }}>
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 border border-white/10 text-xs text-white/70">
               <Loader2 className="w-3 h-3 animate-spin text-primary" />
               A processar...
             </div>
           )}
           {isMicOn && isListening && !isStreaming && (
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-white/70"
-              style={{ background: "oklch(0 0 0 / 0.60)", backdropFilter: "blur(8px)", border: "1px solid oklch(0.65 0.25 25 / 0.35)" }}>
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 border border-red-500/30 text-xs text-white/70">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               Ao vivo
             </div>
@@ -486,33 +582,32 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
         </div>
       )}
 
-      {/* ── Messages ──────────────────────────────────────────────────────────── */}
-      {hasMessages && isActive && (
-        <div className="relative z-10 flex-1 min-h-0 overflow-hidden pt-14 pb-2 px-3 sm:px-5 md:px-8">
+      {/* ── Messages ─────────────────────────────────────────────────────────── */}
+      {isActive && hasMessages && (
+        <div
+          className="absolute inset-0 z-10 pt-12 px-3 sm:px-4 md:px-6"
+          style={{ paddingBottom: "clamp(150px, 26vh, 210px)" }}
+        >
           <ScrollArea className="h-full">
             <div className="space-y-3 py-2 max-w-2xl mx-auto">
               {messages.map((m) => (
                 <div
                   key={m.id}
-                  className={`flex gap-2.5 items-end animate-fade-in ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  className={`flex gap-2 items-end animate-fade-in ${
+                    m.role === "user" ? "flex-row-reverse" : "flex-row"
+                  }`}
                 >
                   {m.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ background: `oklch(0.58 0.22 ${c1} / 0.16)`, border: `1px solid oklch(0.58 0.22 ${c1} / 0.28)` }}>
+                    <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
                       <Bot className="w-3.5 h-3.5 text-primary" />
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] sm:max-w-[72%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                    className={`max-w-[80%] sm:max-w-[72%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
                       m.role === "user"
                         ? "bg-primary text-primary-foreground rounded-tr-sm"
-                        : "rounded-tl-sm text-foreground"
+                        : "bg-white/8 backdrop-blur-sm text-foreground rounded-tl-sm border border-white/10"
                     }`}
-                    style={m.role === "assistant" ? {
-                      background: "oklch(1 0 0 / 0.07)",
-                      backdropFilter: "blur(8px)",
-                      border: "1px solid oklch(1 0 0 / 0.10)",
-                    } : {}}
                   >
                     {m.content}
                   </div>
@@ -520,34 +615,35 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
               ))}
 
               {streamingText && (
-                <div className="flex gap-2.5 items-end animate-fade-in">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: `oklch(0.58 0.22 ${c1} / 0.16)`, border: `1px solid oklch(0.58 0.22 ${c1} / 0.28)` }}>
+                <div className="flex gap-2 items-end animate-fade-in">
+                  <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
                     <Brain className="w-3.5 h-3.5 text-primary" />
                   </div>
-                  <div
-                    className="max-w-[80%] sm:max-w-[72%] px-3.5 py-2.5 rounded-2xl rounded-tl-sm text-foreground text-sm leading-relaxed typing-cursor"
-                    style={{ background: "oklch(1 0 0 / 0.07)", backdropFilter: "blur(8px)", border: "1px solid oklch(1 0 0 / 0.10)" }}
-                  >
+                  <div className="max-w-[80%] sm:max-w-[72%] px-3 py-2 rounded-2xl rounded-tl-sm bg-white/8 backdrop-blur-sm text-foreground border border-white/10 text-sm leading-relaxed typing-cursor">
                     {streamingText}
                   </div>
                 </div>
               )}
 
               {isStreaming && !streamingText && (
-                <div className="flex gap-2.5 items-end animate-fade-in">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: "oklch(1 0 0 / 0.07)", border: "1px solid oklch(1 0 0 / 0.10)" }}>
+                <div className="flex gap-2 items-end animate-fade-in">
+                  <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
                     <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                   </div>
-                  <div
-                    className="px-3.5 py-2.5 rounded-2xl rounded-tl-sm"
-                    style={{ background: "oklch(1 0 0 / 0.07)", border: "1px solid oklch(1 0 0 / 0.10)" }}
-                  >
+                  <div className="bg-white/8 backdrop-blur-sm rounded-2xl rounded-tl-sm border border-white/10 px-3 py-2">
                     <div className="flex gap-1 items-center h-4">
-                      {[0, 150, 300].map((d) => (
-                        <span key={d} className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                      ))}
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -559,32 +655,34 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
       )}
 
       {/* ── Voice transcript overlay ──────────────────────────────────────────── */}
-      {transcript && (
-        <div className="absolute z-30 left-3 right-3 bottom-36 sm:bottom-40" aria-live="polite">
-          <div
-            className="max-w-xl mx-auto rounded-xl px-3 py-2 text-sm text-white/55 italic"
-            style={{ background: "oklch(0 0 0 / 0.70)", backdropFilter: "blur(12px)", border: "1px solid oklch(1 0 0 / 0.09)" }}
-          >
+      {isActive && transcript && (
+        <div
+          className="absolute z-30 left-3 right-3"
+          style={{ bottom: "clamp(158px, 27vh, 215px)" }}
+          aria-live="polite"
+        >
+          <div className="max-w-xl mx-auto bg-black/70 backdrop-blur-md rounded-xl px-3 py-2 border border-white/10 text-sm text-white/60 italic">
             &ldquo;{transcript}&rdquo;
           </div>
         </div>
       )}
 
-      {/* ── Bottom controls bar ──────────────────────────────────────────────── */}
+      {/* ── Bottom controls — only when active ───────────────────────────────── */}
       {isActive && (
         <div
-          className="relative z-20 mt-auto shrink-0"
-          style={{ background: "linear-gradient(to top, oklch(0.04 0.015 260) 55%, transparent)" }}
+          className="absolute bottom-0 left-0 right-0 z-20"
+          style={{
+            background: "linear-gradient(to top, oklch(0.04 0.01 260) 65%, transparent)",
+          }}
         >
-          <div className="px-3 sm:px-5 md:px-8 pb-4 sm:pb-6 pt-8 space-y-3 max-w-2xl mx-auto w-full">
+          <div className="px-3 sm:px-5 pb-safe-or-4 pb-4 sm:pb-5 pt-6 space-y-3 max-w-2xl mx-auto w-full">
             {/* Text input */}
             <form onSubmit={handleSend} className="flex gap-2">
               <Input
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
                 placeholder="Escreve uma mensagem..."
-                className="flex-1 h-11 rounded-xl text-sm placeholder:text-white/30 focus:border-primary/50"
-                style={{ background: "oklch(1 0 0 / 0.06)", border: "1px solid oklch(1 0 0 / 0.12)", backdropFilter: "blur(8px)" }}
+                className="flex-1 bg-white/6 backdrop-blur-sm border-white/12 text-sm h-11 rounded-xl placeholder:text-white/30 focus:border-primary/50"
                 disabled={isStreaming}
                 aria-label="Mensagem para o Reborn AI"
               />
@@ -599,7 +697,7 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
               </Button>
             </form>
 
-            {/* Media controls */}
+            {/* Media controls row */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
               {/* Mic */}
               <div className="relative">
@@ -622,8 +720,7 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
               <Button
                 variant={isCameraOn ? "default" : "outline"}
                 size="icon"
-                className="h-12 w-12 rounded-full shadow-xl"
-                style={!isCameraOn ? { border: "1px solid oklch(1 0 0 / 0.15)" } : {}}
+                className="h-12 w-12 rounded-full shadow-xl border-white/15"
                 onClick={onToggleCamera}
                 aria-label={isCameraOn ? "Desligar câmara" : "Ligar câmara"}
                 aria-pressed={isCameraOn}
@@ -633,22 +730,29 @@ export function LiveChat({ onStop, onStart, isActive, isCameraOn, isMicOn, onTog
 
               {/* Brand pill */}
               <div
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full border"
                 style={{
-                  background: `oklch(0.58 0.22 ${c1} / 0.12)`,
-                  border: `1px solid oklch(0.58 0.22 ${c1} / 0.24)`,
+                  background: `oklch(0.60 0.22 ${slide.h1} / 0.10)`,
+                  borderColor: `oklch(0.60 0.22 ${slide.h1} / 0.22)`,
                 }}
               >
-                <Sparkles className="w-3.5 h-3.5" style={{ color: `oklch(0.74 0.20 ${c1})` }} />
-                <span className="text-xs font-bold" style={{ color: `oklch(0.74 0.20 ${c1})` }}>Reborn AI</span>
+                <Sparkles
+                  className="w-3.5 h-3.5"
+                  style={{ color: `oklch(0.72 0.20 ${slide.h1})` }}
+                />
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: `oklch(0.72 0.20 ${slide.h1})` }}
+                >
+                  Reborn AI
+                </span>
               </div>
 
               {/* Exit */}
               <Button
                 variant="outline"
                 size="icon"
-                className="h-12 w-12 rounded-full shadow-xl hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
-                style={{ border: "1px solid oklch(1 0 0 / 0.15)" }}
+                className="h-12 w-12 rounded-full shadow-xl border-white/15 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
                 onClick={onStop}
                 aria-label="Sair do modo live"
               >

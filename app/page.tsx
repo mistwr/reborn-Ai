@@ -1872,17 +1872,15 @@ export default function RebornAI() {
 
             {/* Live Mode Tab */}
             <TabsContent value="live" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <LiveChat
-                  onStop={stopLiveMode}
-                  onStart={startLiveMode}
-                  isActive={!!liveMode}
-                  isCameraOn={liveMode?.isCameraOn ?? true}
-                  isMicOn={liveMode?.isMicOn ?? true}
-                  onToggleCamera={toggleLiveCamera}
-                  onToggleMic={toggleLiveMic}
-                />
-              </div>
+              <LiveChat
+                onStop={stopLiveMode}
+                onStart={startLiveMode}
+                isActive={!!liveMode}
+                isCameraOn={liveMode?.isCameraOn ?? true}
+                isMicOn={liveMode?.isMicOn ?? true}
+                onToggleCamera={toggleLiveCamera}
+                onToggleMic={toggleLiveMic}
+              />
             </TabsContent>
 
             {/* Images Tab */}
