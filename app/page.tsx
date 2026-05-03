@@ -84,6 +84,8 @@ import * as XLSX from "xlsx"
 import { LiveChat } from "@/components/live-chat"
 import { VisionTab } from "@/components/vision-tab"
 import { ChatWelcome } from "@/components/chat-welcome"
+import { ImageGenerator } from "@/components/image-generator"
+import { MarketingStudio } from "@/components/marketing-studio"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -302,11 +304,6 @@ export default function RebornAI() {
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>("") // Changed from null to string for consistency
 
-  // Image generation state
-  const [imagePrompt, setImagePrompt] = useState("")
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null)
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
-
   // WebCraft state
   const [showWebCraft, setShowWebCraft] = useState(false)
   const [websitePrompt, setWebsitePrompt] = useState("")
@@ -336,19 +333,6 @@ export default function RebornAI() {
   const [isGeneratingEbook, setIsGeneratingEbook] = useState(false)
   const [ebookStyle, setEbookStyle] = useState("modern")
   const [chapterCount, setChapterCount] = useState(5)
-
-  // Marketing state
-  const [marketingType, setMarketingType] = useState<"post" | "banner" | "story" | "thumbnail" | "logo">("post")
-  const [marketingPlatform, setMarketingPlatform] = useState<
-    "instagram" | "facebook" | "twitter" | "linkedin" | "youtube" | "tiktok"
-  >("instagram")
-  const [marketingText, setMarketingText] = useState("")
-  const [marketingStyle, setMarketingStyle] = useState<
-    "minimal" | "bold" | "elegant" | "playful" | "corporate" | "neon"
-  >("minimal")
-  const [marketingColor, setMarketingColor] = useState("#6366f1")
-  const [generatedMarketing, setGeneratedMarketing] = useState<string | null>(null)
-  const [isGeneratingMarketing, setIsGeneratingMarketing] = useState(false)
 
   const [enableSearch, setEnableSearch] = useState(true)
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({
@@ -562,67 +546,6 @@ export default function RebornAI() {
         setSelectedImage(event.target?.result as string)
       }
       reader.readAsDataURL(file)
-    }
-  }
-
-  const generateImage = async () => {
-    if (!imagePrompt.trim()) return
-    setIsGeneratingImage(true)
-    try {
-      const response = await fetch("/api/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: imagePrompt }),
-      })
-      const data = await response.json()
-      if (data.url) {
-        setGeneratedImage(data.url)
-        setImagePrompt("") // Clear prompt after generation
-      } else {
-        throw new Error(data.error || "Erro desconhecido ao gerar imagem")
-      }
-    } catch (error: any) {
-      console.error("Error generating image:", error)
-      alert(`Falha ao gerar imagem: ${error.message}`)
-    } finally {
-      setIsGeneratingImage(false)
-    }
-  }
-
-  const generateMarketing = async () => {
-    if (!marketingText.trim()) return
-    setIsGeneratingMarketing(true)
-
-    const sizes: Record<string, { w: number; h: number }> = {
-      post: { w: 1080, h: 1080 },
-      banner: { w: 1920, h: 1080 },
-      story: { w: 1080, h: 1920 },
-      thumbnail: { w: 1280, h: 720 },
-      logo: { w: 500, h: 500 },
-    }
-
-    const stylePrompts: Record<string, string> = {
-      minimal: "clean minimalist design, white space, simple typography",
-      bold: "bold colors, strong typography, high contrast, dynamic",
-      elegant: "luxury elegant design, gold accents, serif typography",
-      playful: "colorful fun playful design, rounded shapes, friendly",
-      corporate: "professional corporate design, business, trust",
-      neon: "neon glow effects, cyberpunk, dark background, vibrant colors",
-    }
-
-    const size = sizes[marketingType]
-    const stylePrompt = stylePrompts[marketingStyle]
-
-    const prompt = `${marketingType} design for ${marketingPlatform}, ${stylePrompt}, text says "${marketingText}", professional marketing material, high quality, ${marketingColor} color theme`
-
-    try {
-      const seed = Math.floor(Math.random() * 1000000)
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${size.w}&height=${size.h}&nologo=true&seed=${seed}`
-      setGeneratedMarketing(url)
-    } catch (error) {
-      alert("Erro ao gerar design")
-    } finally {
-      setIsGeneratingMarketing(false)
     }
   }
 
@@ -1890,65 +1813,8 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Images Tab */}
-            <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
-              <div className="max-w-2xl mx-auto w-full space-y-4 p-4">
-                <Card className="p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <ImagePlus className="h-5 w-5" />
-                    Gerar Imagem com IA
-                  </h3>
-                  <div className="space-y-4">
-                    <Textarea
-                      value={imagePrompt}
-                      onChange={(e) => setImagePrompt(e.target.value)}
-                      placeholder="Descreve a imagem que queres criar..."
-                      className="min-h-[100px]"
-                    />
-                    <Button
-                      onClick={generateImage}
-                      disabled={isGeneratingImage || !imagePrompt.trim()}
-                      className="w-full"
-                    >
-                      {isGeneratingImage ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />A gerar...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Gerar Imagem
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-
-                {generatedImage && (
-                  <Card className="p-4 sm:p-6">
-                    <img
-                      src={generatedImage || "/placeholder.svg"}
-                      alt="Generated"
-                      className="w-full rounded-lg mb-4"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1 bg-transparent"
-                        onClick={() => window.open(generatedImage, "_blank")}
-                      >
-                        <Maximize2 className="h-4 w-4 mr-2" />
-                        Ver Original
-                      </Button>
-                      <Button variant="outline" className="flex-1 bg-transparent" asChild>
-                        <a href={generatedImage} download="reborn-ai-image.png">
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </a>
-                      </Button>
-                    </div>
-                  </Card>
-                )}
-              </div>
+            <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <ImageGenerator />
             </TabsContent>
 
             {/* WebCraft Tab */}
@@ -3198,236 +3064,8 @@ export default function RebornAI() {
             </TabsContent>
 
             {/* Marketing Tab */}
-            <TabsContent value="marketing" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto">
-              <ScrollArea className="flex-1">
-                <div className="max-w-4xl mx-auto w-full space-y-6 p-4 pb-20">
-                  <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold mb-2">Marketing Studio</h2>
-                    <p className="text-muted-foreground">Cria posts, banners, stories e thumbnails profissionais</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Settings Panel */}
-                    <Card className="p-4 sm:p-6 space-y-4">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Settings className="h-4 w-4" />
-                        Configuracoes
-                      </h3>
-
-                      {/* Type Selection */}
-                      <div className="space-y-2">
-                        <Label>Tipo de Conteudo</Label>
-                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                          {[
-                            { id: "post", label: "Post", icon: Square },
-                            { id: "banner", label: "Banner", icon: Monitor },
-                            { id: "story", label: "Story", icon: Smartphone },
-                            { id: "thumbnail", label: "Thumbnail", icon: Play },
-                            { id: "logo", label: "Logo", icon: Hexagon },
-                          ].map(({ id, label, icon: Icon }) => (
-                            <Button
-                              key={id}
-                              variant={marketingType === id ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setMarketingType(id as any)}
-                              className="flex flex-col h-auto py-2"
-                            >
-                              <Icon className="h-4 w-4 mb-1" />
-                              <span className="text-xs">{label}</span>
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Platform Selection */}
-                      <div className="space-y-2">
-                        <Label>Plataforma</Label>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                          {[
-                            { id: "instagram", icon: Instagram, color: "#E4405F" },
-                            { id: "facebook", icon: Facebook, color: "#1877F2" },
-                            { id: "twitter", icon: Twitter, color: "#1DA1F2" },
-                            { id: "linkedin", icon: Linkedin, color: "#0A66C2" },
-                            { id: "youtube", icon: Youtube, color: "#FF0000" },
-                            { id: "tiktok", icon: Video, color: "#000000" },
-                          ].map(({ id, icon: Icon, color }) => (
-                            <Button
-                              key={id}
-                              variant={marketingPlatform === id ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setMarketingPlatform(id as any)}
-                              className="flex flex-col h-auto py-2"
-                              style={marketingPlatform === id ? { backgroundColor: color } : {}}
-                            >
-                              <Icon className="h-4 w-4" />
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Style Selection */}
-                      <div className="space-y-2">
-                        <Label>Estilo Visual</Label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {[
-                            { id: "minimal", label: "Minimalista", gradient: "from-gray-100 to-gray-200" },
-                            { id: "bold", label: "Bold", gradient: "from-red-500 to-orange-500" },
-                            { id: "elegant", label: "Elegante", gradient: "from-amber-200 to-yellow-500" },
-                            { id: "playful", label: "Divertido", gradient: "from-pink-400 to-purple-500" },
-                            { id: "corporate", label: "Corporativo", gradient: "from-blue-600 to-blue-800" },
-                            { id: "neon", label: "Neon", gradient: "from-cyan-400 to-purple-600" },
-                          ].map(({ id, label, gradient }) => (
-                            <Button
-                              key={id}
-                              variant={marketingStyle === id ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setMarketingStyle(id as any)}
-                              className={`bg-gradient-to-r ${gradient} ${marketingStyle === id ? "ring-2 ring-primary" : ""}`}
-                            >
-                              {label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Color Picker */}
-                      <div className="space-y-2">
-                        <Label>Cor Principal</Label>
-                        <div className="flex gap-2">
-                          <input
-                            type="color"
-                            value={marketingColor}
-                            onChange={(e) => setMarketingColor(e.target.value)}
-                            className="w-12 h-10 rounded cursor-pointer"
-                          />
-                          <div className="flex gap-1 flex-wrap">
-                            {[
-                              "#6366f1",
-                              "#ec4899",
-                              "#10b981",
-                              "#f59e0b",
-                              "#ef4444",
-                              "#3b82f6",
-                              "#8b5cf6",
-                              "#000000",
-                            ].map((color) => (
-                              <button
-                                key={color}
-                                onClick={() => setMarketingColor(color)}
-                                className={`w-8 h-8 rounded-full border-2 ${marketingColor === color ? "border-white ring-2 ring-primary" : "border-transparent"}`}
-                                style={{ backgroundColor: color }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Text Input */}
-                      <div className="space-y-2">
-                        <Label>Texto Principal</Label>
-                        <Textarea
-                          placeholder="Ex: Grande Promocao de Verao - Ate 50% OFF"
-                          value={marketingText}
-                          onChange={(e) => setMarketingText(e.target.value)}
-                          className="min-h-[80px]"
-                        />
-                      </div>
-
-                      <Button
-                        className="w-full"
-                        onClick={generateMarketing}
-                        disabled={isGeneratingMarketing || !marketingText.trim()}
-                      >
-                        {isGeneratingMarketing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />A gerar...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Gerar Design
-                          </>
-                        )}
-                      </Button>
-                    </Card>
-
-                    {/* Preview Panel */}
-                    <Card className="p-4 sm:p-6">
-                      <h3 className="font-semibold mb-4 flex items-center gap-2">
-                        <Eye className="h-4 w-4" />
-                        Preview
-                      </h3>
-
-                      <div className="aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                        {generatedMarketing ? (
-                          <img
-                            src={generatedMarketing || "/placeholder.svg"}
-                            alt="Generated marketing"
-                            className="w-full h-full object-contain"
-                          />
-                        ) : (
-                          <div className="text-center text-muted-foreground p-4">
-                            <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                            <p>O preview aparecera aqui</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {generatedMarketing && (
-                        <div className="flex gap-2 mt-4">
-                          <Button asChild className="flex-1">
-                            <a
-                              href={generatedMarketing}
-                              download="marketing-design.png"
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Download
-                            </a>
-                          </Button>
-                          <Button variant="outline" onClick={() => setGeneratedMarketing(null)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </Card>
-                  </div>
-
-                  {/* Templates Gallery */}
-                  <Card className="p-4 sm:p-6">
-                    <h3 className="font-semibold mb-4">Templates Rapidos</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {[
-                        { text: "Promocao Especial", style: "bold", type: "post" },
-                        { text: "Novo Produto", style: "elegant", type: "post" },
-                        { text: "Inscricoes Abertas", style: "corporate", type: "banner" },
-                        { text: "Evento Online", style: "neon", type: "story" },
-                        { text: "Tutorial Video", style: "playful", type: "thumbnail" },
-                        { text: "Dica do Dia", style: "minimal", type: "post" },
-                        { text: "Lancamento", style: "bold", type: "story" },
-                        { text: "Desconto Flash", style: "neon", type: "post" },
-                      ].map((template, i) => (
-                        <Button
-                          key={i}
-                          variant="outline"
-                          className="h-auto py-3 flex flex-col bg-transparent"
-                          onClick={() => {
-                            setMarketingText(template.text)
-                            setMarketingStyle(template.style as any)
-                            setMarketingType(template.type as any)
-                          }}
-                        >
-                          <span className="text-sm font-medium">{template.text}</span>
-                          <span className="text-xs text-muted-foreground capitalize">
-                            {template.style} • {template.type}
-                          </span>
-                        </Button>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
-              </ScrollArea>
+            <TabsContent value="marketing" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <MarketingStudio />
             </TabsContent>
 
             {/* Vision AI Tab */}
