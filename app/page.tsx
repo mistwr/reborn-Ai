@@ -518,14 +518,65 @@ export default function RebornAI() {
     setIsSpeaking(false)
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Compress image before uploading to stay under API payload limits
+  const compressImageForChat = (file: File, maxDimension: number = 1280, quality: number = 0.7): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        let { width, height } = img
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width)
+            width = maxDimension
+          } else {
+            width = Math.round((width * maxDimension) / height)
+            height = maxDimension
+          }
+        }
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          reject(new Error("Canvas context not available"))
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+        const dataUrl = canvas.toDataURL("image/jpeg", quality)
+        resolve(dataUrl)
+      }
+      img.onerror = () => reject(new Error("Failed to load image"))
+      const reader = new FileReader()
+      reader.onload = () => { img.src = reader.result as string }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setSelectedImage(event.target?.result as string)
+      try {
+        // Compress images larger than 500KB
+        if (file.size > 500 * 1024 && file.type.startsWith("image/")) {
+          const compressed = await compressImageForChat(file, 1280, 0.7)
+          setSelectedImage(compressed)
+        } else {
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            setSelectedImage(event.target?.result as string)
+          }
+          reader.readAsDataURL(file)
+        }
+      } catch (err) {
+        console.error("Error compressing image:", err)
+        // Fallback to original
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          setSelectedImage(event.target?.result as string)
+        }
+        reader.readAsDataURL(file)
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -561,11 +612,17 @@ export default function RebornAI() {
       if (!response.ok) {
         const errorText = await response.text()
         let errorMessage = "Erro ao processar"
-        try {
-          const errorJson = JSON.parse(errorText)
-          errorMessage = errorJson.error || errorMessage
-        } catch {
-          errorMessage = errorText || errorMessage
+        
+        // Handle payload too large error
+        if (response.status === 413 || errorText.includes("TOO_LARGE") || errorText.includes("Entity Too Large")) {
+          errorMessage = "A imagem e muito grande. Por favor usa uma imagem menor (max 2MB)."
+        } else {
+          try {
+            const errorJson = JSON.parse(errorText)
+            errorMessage = errorJson.error || errorMessage
+          } catch {
+            errorMessage = errorText || errorMessage
+          }
         }
         throw new Error(errorMessage)
       }
@@ -675,39 +732,42 @@ export default function RebornAI() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — Premium dark design */}
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform duration-300 ease-in-out flex flex-col ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-sidebar-border shrink-0">
+        <div className="p-4 border-b border-white/5 shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary to-violet-600 flex items-center justify-center shadow-lg shadow-primary/30">
+                <Sparkles className="h-5 w-5 text-white" />
               </div>
-              <span className="font-semibold text-lg">Reborn AI</span>
+              <div className="flex flex-col">
+                <span className="font-bold text-white text-lg leading-none">Reborn AI</span>
+                <span className="text-[11px] text-zinc-500 leading-none mt-1">Plataforma Inteligente</span>
+              </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="lg:hidden">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5">
               <X className="h-5 w-5" />
             </Button>
           </div>
 
           {session?.user ? (
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                <Avatar className="h-8 w-8">
-                  <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center">
-                    <User className="h-4 w-4 text-primary" />
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/5">
+                <Avatar className="h-9 w-9">
+                  <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center">
+                    <User className="h-4 w-4 text-white" />
                   </div>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{session.user.name || session.user.email}</p>
+                  <p className="text-sm font-medium text-white truncate">{session.user.name || session.user.email}</p>
                   {isPro ? (
-                    <Badge variant="secondary" className="text-xs">
-                      Pro
+                    <Badge className="text-[10px] bg-gradient-to-r from-amber-500 to-orange-500 border-0 text-white">
+                      PRO
                     </Badge>
                   ) : (
                     <Button
@@ -716,261 +776,232 @@ export default function RebornAI() {
                       className="h-auto p-0 text-xs text-primary"
                       onClick={() => setShowProModal(true)}
                     >
-                      Upgrade para Pro
+                      Upgrade Pro
                     </Button>
                   )}
                 </div>
               </div>
-              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => signOut()}>
-                Sair
+              <Button variant="ghost" size="sm" className="w-full text-xs text-zinc-500 hover:text-white hover:bg-white/5" onClick={() => signOut()}>
+                Terminar Sessao
               </Button>
             </div>
           ) : (
-            <Button className="w-full mt-3" onClick={() => setShowAuthModal(true)}>
+            <Button className="w-full mt-4 bg-white text-black hover:bg-zinc-200" onClick={() => setShowAuthModal(true)}>
               <User className="h-4 w-4 mr-2" />
-              Entrar / Registar
+              Entrar
             </Button>
           )}
         </div>
 
+        {/* Navigation */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-          <nav className="space-y-1">
-            {/* CHANGED: Removed TabsList from sidebar as it was outside Tabs component */}
-            <div className="flex flex-col items-start gap-1">
-              <Button
-                variant={activeTab === "chat" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("chat")}
+          <div className="mb-3">
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Ferramentas</p>
+          </div>
+          <nav className="space-y-0.5">
+            <div className="flex flex-col gap-0.5">
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "chat" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("chat"); setSidebarOpen(false); }}
               >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Chat
-              </Button>
-              <Button
-                variant={activeTab === "live" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("live")}
+                <MessageSquare className="h-4 w-4" />
+                Chat IA
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "live" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("live"); setSidebarOpen(false); }}
               >
-                <Video className="h-4 w-4 mr-2" />
+                <Video className="h-4 w-4" />
                 Modo Live
-              </Button>
-              <Button
-                variant={activeTab === "images" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("images")}
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "images" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("images"); setSidebarOpen(false); }}
               >
-                <ImagePlus className="h-4 w-4 mr-2" />
-                Imagens
-              </Button>
-              <Button
-                variant={activeTab === "webcraft" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("webcraft")}
+                <ImagePlus className="h-4 w-4" />
+                Gerar Imagens
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "vision" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("vision"); setSidebarOpen(false); }}
               >
-                <Globe className="h-4 w-4 mr-2" />
+                <Eye className="h-4 w-4" />
+                Visao OCR
+              </button>
+            </div>
+            
+            <div className="my-3 border-t border-white/5" />
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Criacao</p>
+            
+            <div className="flex flex-col gap-0.5">
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "webcraft" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("webcraft"); setSidebarOpen(false); }}
+              >
+                <Globe className="h-4 w-4" />
                 WebCraft
-              </Button>
-              <Button
-                variant={activeTab === "presentations" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("presentations")}
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "presentations" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("presentations"); setSidebarOpen(false); }}
               >
-                <Presentation className="h-4 w-4 mr-2" />
+                <Presentation className="h-4 w-4" />
                 Slides
-              </Button>
-              <Button
-                variant={activeTab === "ebooks" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("ebooks")}
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "ebooks" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("ebooks"); setSidebarOpen(false); }}
               >
-                <BookOpen className="h-4 w-4 mr-2" />
+                <BookOpen className="h-4 w-4" />
                 Ebooks
-              </Button>
-              <Button
-                variant={activeTab === "sms" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("sms")}
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "clipper" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("clipper"); setSidebarOpen(false); }}
               >
-                <MessageCircleIcon className="h-4 w-4 mr-2" />
-                SMS
-              </Button>
-              <Button
-                variant={activeTab === "email" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("email")}
+                <Scissors className="h-4 w-4" />
+                Video Clipper
+              </button>
+            </div>
+
+            <div className="my-3 border-t border-white/5" />
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Marketing</p>
+            
+            <div className="flex flex-col gap-0.5">
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "marketing" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("marketing"); setSidebarOpen(false); }}
               >
-                <Mail className="h-4 w-4 mr-2" />
-                Email
-              </Button>
-              <Button
-                variant={activeTab === "whatsapp" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("whatsapp")}
+                <Megaphone className="h-4 w-4" />
+                Redes Sociais
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "sms" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("sms"); setSidebarOpen(false); }}
               >
-                <Share2 className="h-4 w-4 mr-2" />
-                WhatsApp
-              </Button>
-              <Button
-                variant={activeTab === "clipper" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("clipper")}
-              >
-                <Scissors className="h-4 w-4 mr-2" />
-                Clipper
-              </Button>
-              <Button
-                variant={activeTab === "marketing" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("marketing")}
-              >
-                <Megaphone className="h-4 w-4 mr-2" />
-                Marketing
-              </Button>
-              <Button
-                variant={activeTab === "vision" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("vision")}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Visao AI
-              </Button>
+                <MessageCircleIcon className="h-4 w-4" />
+                Mensagens
+              </button>
             </div>
           </nav>
 
           {/* Chat History */}
-          <div className="mt-8 pt-4 border-t border-sidebar-border">
-            <h4 className="px-3 text-sm font-semibold text-muted-foreground mb-2">Histórico</h4>
-            <nav className="space-y-1">
-              {chatHistories.map((chat) => (
+          <div className="mt-6 pt-4 border-t border-white/5">
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Historico</p>
+            <div className="space-y-0.5 max-h-48 overflow-y-auto">
+              {chatHistories.slice(0, 5).map((chat) => (
                 <div
                   key={chat.id}
-                  className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                    currentChatId === chat.id ? "bg-muted" : "hover:bg-muted/50"
+                  className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+                    currentChatId === chat.id ? "bg-white/10 text-white" : "text-zinc-500 hover:text-white hover:bg-white/5"
                   }`}
-                  onClick={() => loadChat(chat)}
+                  onClick={() => { loadChat(chat); setSidebarOpen(false); }}
                 >
-                  <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 text-sm truncate">{chat.title}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 text-xs truncate">{chat.title}</span>
+                  <button
+                    className="h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-400"
                     onClick={(e) => {
                       e.stopPropagation()
                       deleteChat(chat.id)
                     }}
                   >
                     <Trash2 className="h-3 w-3" />
-                  </Button>
+                  </button>
                 </div>
               ))}
-            </nav>
+            </div>
           </div>
         </div>
 
         {/* New Chat Button */}
-        <div className="p-3 border-t border-sidebar-border shrink-0">
-          <Button onClick={createNewChat} className="w-full gap-2 bg-transparent" variant="outline">
+        <div className="p-3 border-t border-white/5 shrink-0">
+          <button 
+            onClick={() => { createNewChat(); setSidebarOpen(false); }} 
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white text-black font-medium text-sm hover:bg-zinc-200 transition-colors"
+          >
             <Plus className="h-4 w-4" />
             Nova Conversa
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Main Content */}
       {/* Added proper overflow handling for main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
-        <header className="border-b border-border bg-card/60 backdrop-blur-md px-3 sm:px-4 lg:px-6 py-3 flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3">
+        {/* Header — Clean minimal design */}
+        <header className="h-14 border-b border-border/50 bg-background/80 backdrop-blur-xl px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden h-9 w-9 shrink-0"
-              aria-label="Abrir menu"
+              className="h-9 w-9 shrink-0 hover:bg-muted"
+              aria-label="Menu"
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
+            <div className="hidden sm:flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="font-bold text-base sm:text-lg gradient-text">Reborn AI</span>
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm leading-none">Reborn AI</span>
+                <span className="text-[10px] text-muted-foreground leading-none mt-0.5">Assistente Inteligente</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {enableSearch && (
-              <Badge variant="outline" className="gap-1 hidden sm:flex bg-primary/10 border-primary/30 text-primary">
-                <Search className="h-3 w-3" />
-                Web Ativo
-              </Badge>
-            )}
-            <Badge variant="outline" className="gap-1 bg-green-500/10 border-green-500/30 text-green-400 text-xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="hidden sm:inline">Online</span>
+            <Badge variant="outline" className="gap-1.5 h-7 bg-emerald-500/10 border-emerald-500/20 text-emerald-500 text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Online
             </Badge>
           </div>
         </header>
 
-        {/* Main content area — live/vision tabs fill height, others scroll */}
+        {/* Main content area — clean, no visible tabs */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-            {/* Tabs List */}
-            <div className="border-b border-border mb-4 pb-2">
-              <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap">
-                <TabsList className="inline-flex gap-1 h-12">
-                  <TabsTrigger value="chat" className="px-3 rounded-lg">
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Chat
-                  </TabsTrigger>
-                  <TabsTrigger value="live" className="px-3 rounded-lg">
-                    <Video className="h-4 w-4 mr-2" />
-                    Modo Live
-                  </TabsTrigger>
-                  <TabsTrigger value="images" className="px-3 rounded-lg">
-                    <ImagePlus className="h-4 w-4 mr-2" />
-                    Imagens
-                  </TabsTrigger>
-                  <TabsTrigger value="webcraft" className="px-3 rounded-lg">
-                    <Globe className="h-4 w-4 mr-2" />
-                    WebCraft
-                  </TabsTrigger>
-                  <TabsTrigger value="presentations" className="px-3 rounded-lg">
-                    <Presentation className="h-4 w-4 mr-2" />
-                    Slides
-                  </TabsTrigger>
-                  <TabsTrigger value="ebooks" className="px-3 rounded-lg">
-                    <BookOpen className="h-4 w-4 mr-2" />
-                    Ebooks
-                  </TabsTrigger>
-                  <TabsTrigger value="sms" className="px-3 rounded-lg">
-                    <MessageCircleIcon className="h-4 w-4 mr-2" />
-                    SMS
-                  </TabsTrigger>
-                  <TabsTrigger value="email" className="px-3 rounded-lg">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Email
-                  </TabsTrigger>
-                  <TabsTrigger value="whatsapp" className="px-3 rounded-lg">
-                    <Share2 className="h-4 w-4 mr-2" />
-                    WhatsApp
-                  </TabsTrigger>
-                  <TabsTrigger value="clipper" className="px-3 rounded-lg">
-                    <Scissors className="h-4 w-4 mr-2" />
-                    Clipper
-                  </TabsTrigger>
-                  <TabsTrigger value="marketing" className="px-3 rounded-lg">
-                    <Megaphone className="h-4 w-4 mr-2" />
-                    Marketing
-                  </TabsTrigger>
-                  <TabsTrigger value="vision" className="px-3 rounded-lg">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Visao AI
-                  </TabsTrigger>
-                </TabsList>
-              </ScrollArea>
-            </div>
-
             {/* Chat Tab */}
             <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <ScrollArea className="flex-1">
