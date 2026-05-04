@@ -518,14 +518,65 @@ export default function RebornAI() {
     setIsSpeaking(false)
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Compress image before uploading to stay under API payload limits
+  const compressImageForChat = (file: File, maxDimension: number = 1280, quality: number = 0.7): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        let { width, height } = img
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width)
+            width = maxDimension
+          } else {
+            width = Math.round((width * maxDimension) / height)
+            height = maxDimension
+          }
+        }
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          reject(new Error("Canvas context not available"))
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+        const dataUrl = canvas.toDataURL("image/jpeg", quality)
+        resolve(dataUrl)
+      }
+      img.onerror = () => reject(new Error("Failed to load image"))
+      const reader = new FileReader()
+      reader.onload = () => { img.src = reader.result as string }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setSelectedImage(event.target?.result as string)
+      try {
+        // Compress images larger than 500KB
+        if (file.size > 500 * 1024 && file.type.startsWith("image/")) {
+          const compressed = await compressImageForChat(file, 1280, 0.7)
+          setSelectedImage(compressed)
+        } else {
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            setSelectedImage(event.target?.result as string)
+          }
+          reader.readAsDataURL(file)
+        }
+      } catch (err) {
+        console.error("Error compressing image:", err)
+        // Fallback to original
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          setSelectedImage(event.target?.result as string)
+        }
+        reader.readAsDataURL(file)
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -561,11 +612,17 @@ export default function RebornAI() {
       if (!response.ok) {
         const errorText = await response.text()
         let errorMessage = "Erro ao processar"
-        try {
-          const errorJson = JSON.parse(errorText)
-          errorMessage = errorJson.error || errorMessage
-        } catch {
-          errorMessage = errorText || errorMessage
+        
+        // Handle payload too large error
+        if (response.status === 413 || errorText.includes("TOO_LARGE") || errorText.includes("Entity Too Large")) {
+          errorMessage = "A imagem e muito grande. Por favor usa uma imagem menor (max 2MB)."
+        } else {
+          try {
+            const errorJson = JSON.parse(errorText)
+            errorMessage = errorJson.error || errorMessage
+          } catch {
+            errorMessage = errorText || errorMessage
+          }
         }
         throw new Error(errorMessage)
       }
