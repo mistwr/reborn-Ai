@@ -348,7 +348,7 @@ export default function RebornAI() {
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
   const [tokenCount, setTokenCount] = useState(0) // Track token usage
   const [showTokenLimitMessage, setShowTokenLimitMessage] = useState(false)
-  const FREE_TOKEN_LIMIT = 100
+  const FREE_TOKEN_LIMIT = 1000
 
   const startLiveMode = () => {
     setLiveMode({
