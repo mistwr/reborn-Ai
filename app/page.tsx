@@ -333,7 +333,10 @@ export default function RebornAI() {
   // Background Music state
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
   const [showMusicPlayer, setShowMusicPlayer] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
+  const [showMiniPlayer, setShowMiniPlayer] = useState(false)
+  const [currentVideoId, setCurrentVideoId] = useState("rUlFW5gRiFE")
+  const [currentVideoTitle, setCurrentVideoTitle] = useState("Lo-Fi Hip Hop Radio")
+  const [youtubeSearchQuery, setYoutubeSearchQuery] = useState("")
   const youtubePlayerRef = useRef<HTMLIFrameElement>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -1058,19 +1061,28 @@ export default function RebornAI() {
       {/* Music Player Modal */}
       {showMusicPlayer && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+          <div className="w-full max-w-2xl bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <Music2 className="h-5 w-5 text-primary" />
                 <span className="font-semibold text-white">Musica Ambiente</span>
               </div>
-              <button
-                onClick={() => setShowMusicPlayer(false)}
-                className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowMusicPlayer(false); setShowMiniPlayer(true); }}
+                  className="h-8 px-3 rounded-full flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <Monitor className="h-3.5 w-3.5" />
+                  Mini Player
+                </button>
+                <button
+                  onClick={() => setShowMusicPlayer(false)}
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             
             {/* YouTube Player */}
@@ -1079,20 +1091,20 @@ export default function RebornAI() {
                 ref={youtubePlayerRef}
                 width="100%"
                 height="100%"
-                src="https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=1&loop=1&playlist=rUlFW5gRiFE&rel=0"
-                title="Background Music - Lo-Fi Beats"
+                src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}&rel=0&enablejsapi=1`}
+                title="Background Music"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 className="w-full h-full"
               />
             </div>
             
-            {/* Info & Search */}
+            {/* Controls & Search */}
             <div className="p-4 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white">Lo-Fi Hip Hop Radio</p>
-                  <p className="text-xs text-zinc-500">Beats para relaxar e focar</p>
+                  <p className="text-sm font-medium text-white">{currentVideoTitle}</p>
+                  <p className="text-xs text-zinc-500">A tocar agora</p>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -1108,67 +1120,125 @@ export default function RebornAI() {
                 </div>
               </div>
               
+              {/* YouTube Search - Integrated */}
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Pesquisar Musica no YouTube</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={youtubeSearchQuery}
+                    onChange={(e) => setYoutubeSearchQuery(e.target.value)}
+                    placeholder="Pesquisar musica, artista, playlist..."
+                    className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && youtubeSearchQuery) {
+                        // Search and show results in embedded player
+                        const searchUrl = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeSearchQuery)}&autoplay=1`
+                        if (youtubePlayerRef.current) {
+                          youtubePlayerRef.current.src = searchUrl
+                        }
+                        setCurrentVideoTitle(`Resultados: ${youtubeSearchQuery}`)
+                        setIsMusicPlaying(true)
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={() => {
+                      if (youtubeSearchQuery) {
+                        const searchUrl = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeSearchQuery)}&autoplay=1`
+                        if (youtubePlayerRef.current) {
+                          youtubePlayerRef.current.src = searchUrl
+                        }
+                        setCurrentVideoTitle(`Resultados: ${youtubeSearchQuery}`)
+                        setIsMusicPlaying(true)
+                      }
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    Pesquisar
+                  </Button>
+                </div>
+              </div>
+              
               {/* Quick Playlists */}
               <div className="space-y-2">
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Playlists Sugeridas</p>
-                <div className="grid grid-cols-2 gap-2">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Playlists Rapidas</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { name: "Lo-Fi Beats", id: "rUlFW5gRiFE", emoji: "🎵" },
-                    { name: "Jazz Relaxante", id: "Dx5qFachd3A", emoji: "🎷" },
-                    { name: "Piano Ambiente", id: "HSOtku1j600", emoji: "🎹" },
-                    { name: "Sons da Natureza", id: "eKFTSSKCzWA", emoji: "🌿" },
+                    { name: "Lo-Fi Beats", id: "rUlFW5gRiFE" },
+                    { name: "Jazz Relaxante", id: "Dx5qFachd3A" },
+                    { name: "Piano Ambiente", id: "HSOtku1j600" },
+                    { name: "Sons Natureza", id: "eKFTSSKCzWA" },
+                    { name: "Estudo Focus", id: "5qap5aO4i9A" },
+                    { name: "Chill Vibes", id: "5yx6BWlEVcY" },
+                    { name: "Cafe Music", id: "fEvM-OUbaKs" },
+                    { name: "Rain Sounds", id: "mPZkdNFkNps" },
                   ].map((playlist) => (
                     <button
                       key={playlist.id}
                       onClick={() => {
+                        setCurrentVideoId(playlist.id)
+                        setCurrentVideoTitle(playlist.name)
                         if (youtubePlayerRef.current) {
                           youtubePlayerRef.current.src = `https://www.youtube.com/embed/${playlist.id}?autoplay=1&loop=1&playlist=${playlist.id}&rel=0`
                         }
                         setIsMusicPlaying(true)
                       }}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-left transition-colors"
+                      className={`flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                        currentVideoId === playlist.id
+                          ? "bg-primary text-white"
+                          : "bg-white/5 text-zinc-300 hover:bg-white/10"
+                      }`}
                     >
-                      <span className="text-lg">{playlist.emoji}</span>
-                      <span className="text-xs text-zinc-300 truncate">{playlist.name}</span>
+                      {playlist.name}
                     </button>
                   ))}
                 </div>
               </div>
-              
-              {/* YouTube Search */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Pesquisar no YouTube</p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Pesquisar musica..."
-                    className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const query = (e.target as HTMLInputElement).value
-                        if (query) {
-                          window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query + " music")}`, "_blank")
-                        }
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
-                    onClick={() => {
-                      const input = document.querySelector('input[placeholder="Pesquisar musica..."]') as HTMLInputElement
-                      if (input?.value) {
-                        window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(input.value + " music")}`, "_blank")
-                      }
-                    }}
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-[10px] text-zinc-600">Prima Enter ou clique em pesquisar para encontrar no YouTube</p>
-              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Mini Player - Floating at bottom */}
+      {showMiniPlayer && isMusicPlaying && !showMusicPlayer && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 p-2 pl-3 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl animate-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+              <Music2 className="h-4 w-4 text-primary animate-pulse" />
+            </div>
+            <div className="hidden sm:block max-w-32">
+              <p className="text-xs font-medium text-white truncate">{currentVideoTitle}</p>
+              <p className="text-[10px] text-zinc-500">A tocar</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsMusicPlaying(false)}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Pause className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setShowMusicPlayer(true)}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => { setShowMiniPlayer(false); setIsMusicPlaying(false); }}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-white/10 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {/* Hidden iframe to keep music playing */}
+          <iframe
+            src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}&rel=0`}
+            className="absolute -top-[9999px] w-0 h-0"
+            title="Background Music"
+            allow="autoplay"
+          />
         </div>
       )}
 
