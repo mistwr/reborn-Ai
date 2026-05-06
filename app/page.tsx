@@ -963,7 +963,7 @@ export default function RebornAI() {
           </div>
         </div>
 
-        {/* Music Player */}
+        {/* Music Player Toggle */}
         <div className="px-3 py-2 border-t border-white/5">
           <button
             onClick={() => setShowMusicPlayer(!showMusicPlayer)}
@@ -979,35 +979,6 @@ export default function RebornAI() {
               </span>
             )}
           </button>
-          
-          {showMusicPlayer && (
-            <div className="mt-2 p-3 rounded-lg bg-white/5 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Lo-Fi Beats</span>
-                <button
-                  onClick={() => setIsMusicPlaying(!isMusicPlaying)}
-                  className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${
-                    isMusicPlaying 
-                      ? "bg-primary text-white" 
-                      : "bg-white/10 text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  {isMusicPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <VolumeX className="h-3 w-3 text-zinc-500" />
-                <Slider
-                  value={[musicVolume]}
-                  onValueChange={([v]) => setMusicVolume(v)}
-                  max={100}
-                  step={1}
-                  className="flex-1"
-                />
-                <Volume2 className="h-3 w-3 text-zinc-500" />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* New Chat Button */}
@@ -1022,18 +993,120 @@ export default function RebornAI() {
         </div>
       </div>
 
-      {/* Hidden YouTube Player for Background Music */}
-      {isMusicPlaying && (
-        <div className="fixed -top-[9999px] -left-[9999px] w-0 h-0 overflow-hidden pointer-events-none">
-          <iframe
-            ref={youtubePlayerRef}
-            width="1"
-            height="1"
-            src={`https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=1&loop=1&playlist=rUlFW5gRiFE&controls=0&showinfo=0&rel=0&mute=0`}
-            title="Background Music"
-            allow="autoplay"
-            style={{ opacity: 0 }}
-          />
+      {/* Music Player Modal */}
+      {showMusicPlayer && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Music2 className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-white">Musica Ambiente</span>
+              </div>
+              <button
+                onClick={() => setShowMusicPlayer(false)}
+                className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            {/* YouTube Player */}
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                ref={youtubePlayerRef}
+                width="100%"
+                height="100%"
+                src="https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=1&loop=1&playlist=rUlFW5gRiFE&rel=0"
+                title="Background Music - Lo-Fi Beats"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+            
+            {/* Info & Search */}
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">Lo-Fi Hip Hop Radio</p>
+                  <p className="text-xs text-zinc-500">Beats para relaxar e focar</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsMusicPlaying(!isMusicPlaying)}
+                    className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
+                      isMusicPlaying 
+                        ? "bg-primary text-white shadow-lg shadow-primary/30" 
+                        : "bg-white/10 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {isMusicPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Quick Playlists */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Playlists Sugeridas</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { name: "Lo-Fi Beats", id: "rUlFW5gRiFE", emoji: "🎵" },
+                    { name: "Jazz Relaxante", id: "Dx5qFachd3A", emoji: "🎷" },
+                    { name: "Piano Ambiente", id: "HSOtku1j600", emoji: "🎹" },
+                    { name: "Sons da Natureza", id: "eKFTSSKCzWA", emoji: "🌿" },
+                  ].map((playlist) => (
+                    <button
+                      key={playlist.id}
+                      onClick={() => {
+                        if (youtubePlayerRef.current) {
+                          youtubePlayerRef.current.src = `https://www.youtube.com/embed/${playlist.id}?autoplay=1&loop=1&playlist=${playlist.id}&rel=0`
+                        }
+                        setIsMusicPlaying(true)
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-left transition-colors"
+                    >
+                      <span className="text-lg">{playlist.emoji}</span>
+                      <span className="text-xs text-zinc-300 truncate">{playlist.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* YouTube Search */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Pesquisar no YouTube</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Pesquisar musica..."
+                    className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const query = (e.target as HTMLInputElement).value
+                        if (query) {
+                          window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query + " music")}`, "_blank")
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="Pesquisar musica..."]') as HTMLInputElement
+                      if (input?.value) {
+                        window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(input.value + " music")}`, "_blank")
+                      }
+                    }}
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-zinc-600">Prima Enter ou clique em pesquisar para encontrar no YouTube</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
