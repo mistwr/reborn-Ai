@@ -379,7 +379,30 @@ export default function RebornAI() {
   useEffect(() => {
     loadChatHistories()
     createNewChat() // Initialize with a new chat
+    
+    // Load token count from localStorage
+    const savedTokens = localStorage.getItem("rebornai-tokens")
+    if (savedTokens) {
+      setTokenCount(parseInt(savedTokens, 10))
+    }
   }, [])
+
+  // Give bonus tokens when user logs in
+  useEffect(() => {
+    if (session?.user) {
+      const bonusKey = `rebornai-bonus-${session.user.email}`
+      const hasReceivedBonus = localStorage.getItem(bonusKey)
+      if (!hasReceivedBonus) {
+        // Give 50 bonus tokens for creating account
+        setTokenCount(prev => {
+          const newCount = Math.max(0, prev - 50) // Subtract 50 (giving back tokens)
+          localStorage.setItem("rebornai-tokens", newCount.toString())
+          return newCount
+        })
+        localStorage.setItem(bonusKey, "true")
+      }
+    }
+  }, [session])
 
   // Scroll to bottom
   useEffect(() => {
@@ -678,6 +701,7 @@ export default function RebornAI() {
         const estimatedTokens = Math.ceil((input.length + fullContent.length) / 4)
         const newTokenCount = tokenCount + estimatedTokens
         setTokenCount(newTokenCount)
+        localStorage.setItem("rebornai-tokens", newTokenCount.toString())
         
         // Show upgrade message when approaching or exceeding limit
         if (!isPro && newTokenCount >= FREE_TOKEN_LIMIT) {
@@ -1704,7 +1728,10 @@ export default function RebornAI() {
               </div>
               <h2 className="text-xl font-bold text-white mb-2">Limite de Tokens Atingido</h2>
               <p className="text-zinc-400 text-sm mb-6">
-                Usaste os teus {FREE_TOKEN_LIMIT} tokens gratuitos. Faz upgrade para o plano Basic para continuar a usar o Reborn AI sem limites.
+                {!session 
+                  ? "Usaste os teus tokens gratuitos. Cria uma conta ou faz login para continuar a usar o Reborn AI."
+                  : "Usaste os teus tokens gratuitos. Faz upgrade para o plano Basic para continuar a usar o Reborn AI sem limites."
+                }
               </p>
               
               <div className="bg-white/5 rounded-xl p-4 mb-6">
@@ -1721,15 +1748,28 @@ export default function RebornAI() {
               </div>
               
               <div className="space-y-3">
-                <a
-                  href="https://buy.stripe.com/eVqdR93RbaHQ4ecbk95Rm00"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
-                >
-                  <Sparkles className="h-5 w-5" />
-                  Upgrade para Basic - 9.99 EUR/mes
-                </a>
+                {!session ? (
+                  <>
+                    <button
+                      onClick={() => { setShowTokenLimitMessage(false); setShowAuthModal(true); }}
+                      className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
+                    >
+                      <User className="h-5 w-5" />
+                      Criar Conta / Entrar
+                    </button>
+                    <p className="text-xs text-zinc-500">Ao criar conta, recebes +50 tokens gratis</p>
+                  </>
+                ) : (
+                  <a
+                    href="https://buy.stripe.com/eVqdR93RbaHQ4ecbk95Rm00"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    Upgrade para Basic - 9.99 EUR/mes
+                  </a>
+                )}
                 <button
                   onClick={() => setShowTokenLimitMessage(false)}
                   className="w-full py-2.5 px-4 text-zinc-400 hover:text-white text-sm font-medium transition-colors"
