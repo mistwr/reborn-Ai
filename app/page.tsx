@@ -1136,6 +1136,22 @@ export default function RebornAI() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Music Player Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowMusicPlayer(true)}
+              className={`h-9 w-9 relative ${isMusicPlaying ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              aria-label="Musica"
+            >
+              <Music2 className="h-5 w-5" />
+              {isMusicPlaying && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+                </span>
+              )}
+            </Button>
             <Badge variant="outline" className="gap-1.5 h-7 bg-emerald-500/10 border-emerald-500/20 text-emerald-500 text-xs font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Online
