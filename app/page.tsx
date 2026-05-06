@@ -33,6 +33,7 @@ import {
   Volume2,
   Download,
   Play,
+  Pause,
   Maximize2,
   Layout,
   Smartphone,
@@ -78,6 +79,8 @@ import {
   MessageCircle,
   Check,
   Edit3,
+  Music,
+  Music2,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
@@ -325,6 +328,12 @@ export default function RebornAI() {
 
   // Live Mode state
   const [liveMode, setLiveMode] = useState<LiveModeState | null>(null) // Initialize as null
+
+  // Background Music state
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false)
+  const [showMusicPlayer, setShowMusicPlayer] = useState(false)
+  const [musicVolume, setMusicVolume] = useState(30)
+  const youtubePlayerRef = useRef<HTMLIFrameElement>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -954,6 +963,53 @@ export default function RebornAI() {
           </div>
         </div>
 
+        {/* Music Player */}
+        <div className="px-3 py-2 border-t border-white/5">
+          <button
+            onClick={() => setShowMusicPlayer(!showMusicPlayer)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <Music2 className="h-4 w-4" />
+            <span className="flex-1 text-left">Musica Ambiente</span>
+            {isMusicPlaying && (
+              <span className="flex gap-0.5">
+                <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse" />
+                <span className="w-0.5 h-4 bg-primary rounded-full animate-pulse delay-75" />
+                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse delay-150" />
+              </span>
+            )}
+          </button>
+          
+          {showMusicPlayer && (
+            <div className="mt-2 p-3 rounded-lg bg-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">Lo-Fi Beats</span>
+                <button
+                  onClick={() => setIsMusicPlaying(!isMusicPlaying)}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${
+                    isMusicPlaying 
+                      ? "bg-primary text-white" 
+                      : "bg-white/10 text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  {isMusicPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <VolumeX className="h-3 w-3 text-zinc-500" />
+                <Slider
+                  value={[musicVolume]}
+                  onValueChange={([v]) => setMusicVolume(v)}
+                  max={100}
+                  step={1}
+                  className="flex-1"
+                />
+                <Volume2 className="h-3 w-3 text-zinc-500" />
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* New Chat Button */}
         <div className="p-3 border-t border-white/5 shrink-0">
           <button 
@@ -965,6 +1021,21 @@ export default function RebornAI() {
           </button>
         </div>
       </div>
+
+      {/* Hidden YouTube Player for Background Music */}
+      {isMusicPlaying && (
+        <div className="fixed -top-[9999px] -left-[9999px] w-0 h-0 overflow-hidden pointer-events-none">
+          <iframe
+            ref={youtubePlayerRef}
+            width="1"
+            height="1"
+            src={`https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=1&loop=1&playlist=rUlFW5gRiFE&controls=0&showinfo=0&rel=0&mute=0`}
+            title="Background Music"
+            allow="autoplay"
+            style={{ opacity: 0 }}
+          />
+        </div>
+      )}
 
       {/* Main Content */}
       {/* Added proper overflow handling for main content */}
