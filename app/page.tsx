@@ -86,6 +86,7 @@ import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
 import { LiveChat } from "@/components/live-chat"
 import { VisionTab } from "@/components/vision-tab"
+import { FacebookAutoPost } from "@/components/facebook-auto-post"
 import { ChatWelcome } from "@/components/chat-welcome"
 import { ImageGenerator } from "@/components/image-generator"
 import { MarketingStudio } from "@/components/marketing-studio"
@@ -332,7 +333,10 @@ export default function RebornAI() {
   // Background Music state
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
   const [showMusicPlayer, setShowMusicPlayer] = useState(false)
-  const [musicVolume, setMusicVolume] = useState(30)
+  const [showMiniPlayer, setShowMiniPlayer] = useState(false)
+  const [currentVideoId, setCurrentVideoId] = useState("rUlFW5gRiFE")
+  const [currentVideoTitle, setCurrentVideoTitle] = useState("Lo-Fi Hip Hop Radio")
+  const [youtubeSearchQuery, setYoutubeSearchQuery] = useState("")
   const youtubePlayerRef = useRef<HTMLIFrameElement>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -932,6 +936,67 @@ export default function RebornAI() {
                 Mensagens
               </button>
             </div>
+
+            <div className="my-3 border-t border-white/5" />
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Apps Integradas</p>
+            
+            <div className="flex flex-col gap-0.5">
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "whatsapp-web" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("whatsapp-web"); setSidebarOpen(false); }}
+              >
+                <MessageCircle className="h-4 w-4 text-green-500" />
+                WhatsApp Web
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "facebook-app" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("facebook-app"); setSidebarOpen(false); }}
+              >
+                <Facebook className="h-4 w-4 text-blue-500" />
+                Facebook
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "facebook-autopost" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("facebook-autopost"); setSidebarOpen(false); }}
+              >
+                <Zap className="h-4 w-4 text-orange-500" />
+                Auto-Post FB
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "instagram-app" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("instagram-app"); setSidebarOpen(false); }}
+              >
+                <Instagram className="h-4 w-4 text-pink-500" />
+                Instagram
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "youtube-app" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("youtube-app"); setSidebarOpen(false); }}
+              >
+                <Youtube className="h-4 w-4 text-red-500" />
+                YouTube
+              </button>
+            </div>
           </nav>
 
           {/* Chat History */}
@@ -963,7 +1028,7 @@ export default function RebornAI() {
           </div>
         </div>
 
-        {/* Music Player */}
+        {/* Music Player Toggle */}
         <div className="px-3 py-2 border-t border-white/5">
           <button
             onClick={() => setShowMusicPlayer(!showMusicPlayer)}
@@ -979,35 +1044,6 @@ export default function RebornAI() {
               </span>
             )}
           </button>
-          
-          {showMusicPlayer && (
-            <div className="mt-2 p-3 rounded-lg bg-white/5 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Lo-Fi Beats</span>
-                <button
-                  onClick={() => setIsMusicPlaying(!isMusicPlaying)}
-                  className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${
-                    isMusicPlaying 
-                      ? "bg-primary text-white" 
-                      : "bg-white/10 text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  {isMusicPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <VolumeX className="h-3 w-3 text-zinc-500" />
-                <Slider
-                  value={[musicVolume]}
-                  onValueChange={([v]) => setMusicVolume(v)}
-                  max={100}
-                  step={1}
-                  className="flex-1"
-                />
-                <Volume2 className="h-3 w-3 text-zinc-500" />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* New Chat Button */}
@@ -1022,17 +1058,186 @@ export default function RebornAI() {
         </div>
       </div>
 
-      {/* Hidden YouTube Player for Background Music */}
-      {isMusicPlaying && (
-        <div className="fixed -top-[9999px] -left-[9999px] w-0 h-0 overflow-hidden pointer-events-none">
+      {/* Music Player Modal */}
+      {showMusicPlayer && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-2xl bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Music2 className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-white">Musica Ambiente</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowMusicPlayer(false); setShowMiniPlayer(true); }}
+                  className="h-8 px-3 rounded-full flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <Monitor className="h-3.5 w-3.5" />
+                  Mini Player
+                </button>
+                <button
+                  onClick={() => setShowMusicPlayer(false)}
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            
+            {/* YouTube Player */}
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                ref={youtubePlayerRef}
+                width="100%"
+                height="100%"
+                src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}&rel=0&enablejsapi=1`}
+                title="Background Music"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+            
+            {/* Controls & Search */}
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">{currentVideoTitle}</p>
+                  <p className="text-xs text-zinc-500">A tocar agora</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsMusicPlaying(!isMusicPlaying)}
+                    className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
+                      isMusicPlaying 
+                        ? "bg-primary text-white shadow-lg shadow-primary/30" 
+                        : "bg-white/10 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {isMusicPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+                  </button>
+                </div>
+              </div>
+              
+              {/* YouTube Search - Integrated */}
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Pesquisar Musica no YouTube</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={youtubeSearchQuery}
+                    onChange={(e) => setYoutubeSearchQuery(e.target.value)}
+                    placeholder="Pesquisar musica, artista, playlist..."
+                    className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && youtubeSearchQuery) {
+                        // Search and show results in embedded player
+                        const searchUrl = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeSearchQuery)}&autoplay=1`
+                        if (youtubePlayerRef.current) {
+                          youtubePlayerRef.current.src = searchUrl
+                        }
+                        setCurrentVideoTitle(`Resultados: ${youtubeSearchQuery}`)
+                        setIsMusicPlaying(true)
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={() => {
+                      if (youtubeSearchQuery) {
+                        const searchUrl = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeSearchQuery)}&autoplay=1`
+                        if (youtubePlayerRef.current) {
+                          youtubePlayerRef.current.src = searchUrl
+                        }
+                        setCurrentVideoTitle(`Resultados: ${youtubeSearchQuery}`)
+                        setIsMusicPlaying(true)
+                      }
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    Pesquisar
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Quick Playlists */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Playlists Rapidas</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { name: "Lo-Fi Beats", id: "rUlFW5gRiFE" },
+                    { name: "Jazz Relaxante", id: "Dx5qFachd3A" },
+                    { name: "Piano Ambiente", id: "HSOtku1j600" },
+                    { name: "Sons Natureza", id: "eKFTSSKCzWA" },
+                    { name: "Estudo Focus", id: "5qap5aO4i9A" },
+                    { name: "Chill Vibes", id: "5yx6BWlEVcY" },
+                    { name: "Cafe Music", id: "fEvM-OUbaKs" },
+                    { name: "Rain Sounds", id: "mPZkdNFkNps" },
+                  ].map((playlist) => (
+                    <button
+                      key={playlist.id}
+                      onClick={() => {
+                        setCurrentVideoId(playlist.id)
+                        setCurrentVideoTitle(playlist.name)
+                        if (youtubePlayerRef.current) {
+                          youtubePlayerRef.current.src = `https://www.youtube.com/embed/${playlist.id}?autoplay=1&loop=1&playlist=${playlist.id}&rel=0`
+                        }
+                        setIsMusicPlaying(true)
+                      }}
+                      className={`flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                        currentVideoId === playlist.id
+                          ? "bg-primary text-white"
+                          : "bg-white/5 text-zinc-300 hover:bg-white/10"
+                      }`}
+                    >
+                      {playlist.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini Player - Floating at bottom */}
+      {showMiniPlayer && isMusicPlaying && !showMusicPlayer && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 p-2 pl-3 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl animate-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+              <Music2 className="h-4 w-4 text-primary animate-pulse" />
+            </div>
+            <div className="hidden sm:block max-w-32">
+              <p className="text-xs font-medium text-white truncate">{currentVideoTitle}</p>
+              <p className="text-[10px] text-zinc-500">A tocar</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsMusicPlaying(false)}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Pause className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setShowMusicPlayer(true)}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => { setShowMiniPlayer(false); setIsMusicPlaying(false); }}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-white/10 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {/* Hidden iframe to keep music playing */}
           <iframe
-            ref={youtubePlayerRef}
-            width="1"
-            height="1"
-            src={`https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=1&loop=1&playlist=rUlFW5gRiFE&controls=0&showinfo=0&rel=0&mute=0`}
+            src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}&rel=0`}
+            className="absolute -top-[9999px] w-0 h-0"
             title="Background Music"
             allow="autoplay"
-            style={{ opacity: 0 }}
           />
         </div>
       )}
@@ -1063,6 +1268,22 @@ export default function RebornAI() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Music Player Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowMusicPlayer(true)}
+              className={`h-9 w-9 relative ${isMusicPlaying ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              aria-label="Musica"
+            >
+              <Music2 className="h-5 w-5" />
+              {isMusicPlaying && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+                </span>
+              )}
+            </Button>
             <Badge variant="outline" className="gap-1.5 h-7 bg-emerald-500/10 border-emerald-500/20 text-emerald-500 text-xs font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Online
@@ -1250,6 +1471,189 @@ export default function RebornAI() {
             {/* Vision AI Tab */}
             <TabsContent value="vision" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <VisionTab />
+            </TabsContent>
+
+            {/* Facebook Auto-Post Tab */}
+            <TabsContent value="facebook-autopost" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <FacebookAutoPost />
+            </TabsContent>
+
+            {/* WhatsApp Web Embedded */}
+            <TabsContent value="whatsapp-web" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                      <MessageCircle className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">WhatsApp Web</h2>
+                      <p className="text-xs text-muted-foreground">Acede ao teu WhatsApp integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://web.whatsapp.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-[#111b21]">
+                  <iframe
+                    src="https://web.whatsapp.com"
+                    className="w-full h-full border-0"
+                    title="WhatsApp Web"
+                    allow="camera; microphone; clipboard-write; encrypted-media"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#111b21] text-white p-8 text-center pointer-events-none opacity-0 hover:opacity-100 transition-opacity">
+                    <MessageCircle className="h-16 w-16 text-green-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">WhatsApp Web</h3>
+                    <p className="text-zinc-400 text-sm max-w-md mb-4">
+                      Por questoes de seguranca, o WhatsApp Web pode nao carregar em iframes.
+                      Clica no botao abaixo para abrir numa nova aba.
+                    </p>
+                    <Button
+                      onClick={() => window.open("https://web.whatsapp.com", "_blank")}
+                      className="bg-green-500 hover:bg-green-600 text-white pointer-events-auto"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Abrir WhatsApp Web
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Facebook Embedded */}
+            <TabsContent value="facebook-app" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                      <Facebook className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">Facebook</h2>
+                      <p className="text-xs text-muted-foreground">Acede ao Facebook integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://www.facebook.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-[#18191a]">
+                  <iframe
+                    src="https://www.facebook.com"
+                    className="w-full h-full border-0"
+                    title="Facebook"
+                    allow="camera; microphone; clipboard-write; encrypted-media"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#18191a] text-white p-8 text-center">
+                    <Facebook className="h-16 w-16 text-blue-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">Facebook</h3>
+                    <p className="text-zinc-400 text-sm max-w-md mb-4">
+                      Por questoes de seguranca, o Facebook nao permite incorporacao em iframes.
+                      Clica no botao abaixo para abrir numa nova aba.
+                    </p>
+                    <Button
+                      onClick={() => window.open("https://www.facebook.com", "_blank")}
+                      className="bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      <Facebook className="h-4 w-4 mr-2" />
+                      Abrir Facebook
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Instagram Embedded */}
+            <TabsContent value="instagram-app" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 flex items-center justify-center">
+                      <Instagram className="h-5 w-5 text-pink-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">Instagram</h2>
+                      <p className="text-xs text-muted-foreground">Acede ao Instagram integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://www.instagram.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-black">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-white p-8 text-center">
+                    <Instagram className="h-16 w-16 text-pink-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">Instagram</h3>
+                    <p className="text-zinc-400 text-sm max-w-md mb-4">
+                      Por questoes de seguranca, o Instagram nao permite incorporacao em iframes.
+                      Clica no botao abaixo para abrir numa nova aba.
+                    </p>
+                    <Button
+                      onClick={() => window.open("https://www.instagram.com", "_blank")}
+                      className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:opacity-90 text-white"
+                    >
+                      <Instagram className="h-4 w-4 mr-2" />
+                      Abrir Instagram
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* YouTube Embedded */}
+            <TabsContent value="youtube-app" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                      <Youtube className="h-5 w-5 text-red-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">YouTube</h2>
+                      <p className="text-xs text-muted-foreground">Assiste videos do YouTube integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://www.youtube.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-[#0f0f0f]">
+                  <iframe
+                    src="https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=0"
+                    className="w-full h-full border-0"
+                    title="YouTube"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </main>
