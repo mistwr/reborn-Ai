@@ -1767,7 +1767,7 @@ export default function RebornAI() {
                     className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
                   >
                     <Sparkles className="h-5 w-5" />
-                    Upgrade para Basic - 9.99 EUR/mes
+                    Upgrade para Basic - 9.9 EUR/mes
                   </a>
                 )}
                 <button
@@ -1827,7 +1827,7 @@ export default function RebornAI() {
                 <div className="border-t border-border pt-6">
                   <div className="text-center mb-4">
                     <p className="text-3xl font-bold">
-                      €9.99<span className="text-lg text-muted-foreground">/mês</span>
+                      €9.9<span className="text-lg text-muted-foreground">/mês</span>
                     </p>
                   </div>
                   <Button className="w-full" size="lg" onClick={handleUpgradePro}>
