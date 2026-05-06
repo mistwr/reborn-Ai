@@ -86,6 +86,7 @@ import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
 import { LiveChat } from "@/components/live-chat"
 import { VisionTab } from "@/components/vision-tab"
+import { FacebookAutoPost } from "@/components/facebook-auto-post"
 import { ChatWelcome } from "@/components/chat-welcome"
 import { ImageGenerator } from "@/components/image-generator"
 import { MarketingStudio } from "@/components/marketing-studio"
@@ -961,6 +962,17 @@ export default function RebornAI() {
               </button>
               <button
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "facebook-autopost" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("facebook-autopost"); setSidebarOpen(false); }}
+              >
+                <Zap className="h-4 w-4 text-orange-500" />
+                Auto-Post FB
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   activeTab === "instagram-app" 
                     ? "bg-white/10 text-white" 
                     : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -1389,6 +1401,11 @@ export default function RebornAI() {
             {/* Vision AI Tab */}
             <TabsContent value="vision" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <VisionTab />
+            </TabsContent>
+
+            {/* Facebook Auto-Post Tab */}
+            <TabsContent value="facebook-autopost" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <FacebookAutoPost />
             </TabsContent>
 
             {/* WhatsApp Web Embedded */}
