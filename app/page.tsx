@@ -932,6 +932,56 @@ export default function RebornAI() {
                 Mensagens
               </button>
             </div>
+
+            <div className="my-3 border-t border-white/5" />
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Apps Integradas</p>
+            
+            <div className="flex flex-col gap-0.5">
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "whatsapp-web" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("whatsapp-web"); setSidebarOpen(false); }}
+              >
+                <MessageCircle className="h-4 w-4 text-green-500" />
+                WhatsApp Web
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "facebook-app" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("facebook-app"); setSidebarOpen(false); }}
+              >
+                <Facebook className="h-4 w-4 text-blue-500" />
+                Facebook
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "instagram-app" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("instagram-app"); setSidebarOpen(false); }}
+              >
+                <Instagram className="h-4 w-4 text-pink-500" />
+                Instagram
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "youtube-app" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("youtube-app"); setSidebarOpen(false); }}
+              >
+                <Youtube className="h-4 w-4 text-red-500" />
+                YouTube
+              </button>
+            </div>
           </nav>
 
           {/* Chat History */}
@@ -1339,6 +1389,184 @@ export default function RebornAI() {
             {/* Vision AI Tab */}
             <TabsContent value="vision" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <VisionTab />
+            </TabsContent>
+
+            {/* WhatsApp Web Embedded */}
+            <TabsContent value="whatsapp-web" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                      <MessageCircle className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">WhatsApp Web</h2>
+                      <p className="text-xs text-muted-foreground">Acede ao teu WhatsApp integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://web.whatsapp.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-[#111b21]">
+                  <iframe
+                    src="https://web.whatsapp.com"
+                    className="w-full h-full border-0"
+                    title="WhatsApp Web"
+                    allow="camera; microphone; clipboard-write; encrypted-media"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#111b21] text-white p-8 text-center pointer-events-none opacity-0 hover:opacity-100 transition-opacity">
+                    <MessageCircle className="h-16 w-16 text-green-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">WhatsApp Web</h3>
+                    <p className="text-zinc-400 text-sm max-w-md mb-4">
+                      Por questoes de seguranca, o WhatsApp Web pode nao carregar em iframes.
+                      Clica no botao abaixo para abrir numa nova aba.
+                    </p>
+                    <Button
+                      onClick={() => window.open("https://web.whatsapp.com", "_blank")}
+                      className="bg-green-500 hover:bg-green-600 text-white pointer-events-auto"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Abrir WhatsApp Web
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Facebook Embedded */}
+            <TabsContent value="facebook-app" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                      <Facebook className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">Facebook</h2>
+                      <p className="text-xs text-muted-foreground">Acede ao Facebook integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://www.facebook.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-[#18191a]">
+                  <iframe
+                    src="https://www.facebook.com"
+                    className="w-full h-full border-0"
+                    title="Facebook"
+                    allow="camera; microphone; clipboard-write; encrypted-media"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#18191a] text-white p-8 text-center">
+                    <Facebook className="h-16 w-16 text-blue-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">Facebook</h3>
+                    <p className="text-zinc-400 text-sm max-w-md mb-4">
+                      Por questoes de seguranca, o Facebook nao permite incorporacao em iframes.
+                      Clica no botao abaixo para abrir numa nova aba.
+                    </p>
+                    <Button
+                      onClick={() => window.open("https://www.facebook.com", "_blank")}
+                      className="bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      <Facebook className="h-4 w-4 mr-2" />
+                      Abrir Facebook
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Instagram Embedded */}
+            <TabsContent value="instagram-app" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 flex items-center justify-center">
+                      <Instagram className="h-5 w-5 text-pink-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">Instagram</h2>
+                      <p className="text-xs text-muted-foreground">Acede ao Instagram integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://www.instagram.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-black">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-white p-8 text-center">
+                    <Instagram className="h-16 w-16 text-pink-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">Instagram</h3>
+                    <p className="text-zinc-400 text-sm max-w-md mb-4">
+                      Por questoes de seguranca, o Instagram nao permite incorporacao em iframes.
+                      Clica no botao abaixo para abrir numa nova aba.
+                    </p>
+                    <Button
+                      onClick={() => window.open("https://www.instagram.com", "_blank")}
+                      className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:opacity-90 text-white"
+                    >
+                      <Instagram className="h-4 w-4 mr-2" />
+                      Abrir Instagram
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* YouTube Embedded */}
+            <TabsContent value="youtube-app" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col h-full">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                      <Youtube className="h-5 w-5 text-red-500" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold">YouTube</h2>
+                      <p className="text-xs text-muted-foreground">Assiste videos do YouTube integrado</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("https://www.youtube.com", "_blank")}
+                    className="gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Abrir em Nova Aba
+                  </Button>
+                </div>
+                <div className="flex-1 relative bg-[#0f0f0f]">
+                  <iframe
+                    src="https://www.youtube.com/embed/rUlFW5gRiFE?autoplay=0"
+                    className="w-full h-full border-0"
+                    title="YouTube"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </main>
