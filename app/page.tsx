@@ -346,6 +346,9 @@ export default function RebornAI() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
+  const [tokenCount, setTokenCount] = useState(0) // Track token usage
+  const [showTokenLimitMessage, setShowTokenLimitMessage] = useState(false)
+  const FREE_TOKEN_LIMIT = 1000
 
   const startLiveMode = () => {
     setLiveMode({
@@ -376,7 +379,30 @@ export default function RebornAI() {
   useEffect(() => {
     loadChatHistories()
     createNewChat() // Initialize with a new chat
+    
+    // Load token count from localStorage
+    const savedTokens = localStorage.getItem("rebornai-tokens")
+    if (savedTokens) {
+      setTokenCount(parseInt(savedTokens, 10))
+    }
   }, [])
+
+  // Give bonus tokens when user logs in
+  useEffect(() => {
+    if (session?.user) {
+      const bonusKey = `rebornai-bonus-${session.user.email}`
+      const hasReceivedBonus = localStorage.getItem(bonusKey)
+      if (!hasReceivedBonus) {
+        // Give 50 bonus tokens for creating account
+        setTokenCount(prev => {
+          const newCount = Math.max(0, prev - 50) // Subtract 50 (giving back tokens)
+          localStorage.setItem("rebornai-tokens", newCount.toString())
+          return newCount
+        })
+        localStorage.setItem(bonusKey, "true")
+      }
+    }
+  }, [session])
 
   // Scroll to bottom
   useEffect(() => {
@@ -597,6 +623,12 @@ export default function RebornAI() {
     e?.preventDefault()
     if ((!input.trim() && !selectedImage) || isLoading) return
 
+    // Check token limit for free users
+    if (!isPro && tokenCount >= FREE_TOKEN_LIMIT) {
+      setShowTokenLimitMessage(true)
+      return
+    }
+
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -664,6 +696,17 @@ export default function RebornAI() {
 
         const finalMessages = [...newMessages, { role: "assistant" as const, content: fullContent }]
         saveCurrentChat(finalMessages)
+        
+        // Increment token count (rough estimate: 1 token per 4 characters)
+        const estimatedTokens = Math.ceil((input.length + fullContent.length) / 4)
+        const newTokenCount = tokenCount + estimatedTokens
+        setTokenCount(newTokenCount)
+        localStorage.setItem("rebornai-tokens", newTokenCount.toString())
+        
+        // Show upgrade message when approaching or exceeding limit
+        if (!isPro && newTokenCount >= FREE_TOKEN_LIMIT) {
+          setShowTokenLimitMessage(true)
+        }
       }
     } catch (error: any) {
       console.error("Chat error:", error)
@@ -1268,6 +1311,20 @@ export default function RebornAI() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Token Counter - Only show for free users */}
+            {!isPro && (
+              <button
+                onClick={() => tokenCount >= FREE_TOKEN_LIMIT ? setShowTokenLimitMessage(true) : setShowProModal(true)}
+                className={`hidden sm:flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium transition-all ${
+                  tokenCount >= FREE_TOKEN_LIMIT * 0.8
+                    ? "bg-orange-500/10 border border-orange-500/20 text-orange-500"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Zap className="h-3 w-3" />
+                {tokenCount}/{FREE_TOKEN_LIMIT}
+              </button>
+            )}
             {/* Music Player Button */}
             <Button
               variant="ghost"
@@ -1661,6 +1718,70 @@ export default function RebornAI() {
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
+      {/* Token Limit Reached Modal */}
+      {showTokenLimitMessage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                <Zap className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Limite de Tokens Atingido</h2>
+              <p className="text-zinc-400 text-sm mb-6">
+                {!session 
+                  ? "Usaste os teus tokens gratuitos. Cria uma conta ou faz login para continuar a usar o Reborn AI."
+                  : "Usaste os teus tokens gratuitos. Faz upgrade para o plano Basic para continuar a usar o Reborn AI sem limites."
+                }
+              </p>
+              
+              <div className="bg-white/5 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-zinc-400">Tokens usados</span>
+                  <span className="text-sm font-bold text-white">{tokenCount} / {FREE_TOKEN_LIMIT}</span>
+                </div>
+                <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full transition-all"
+                    style={{ width: `${Math.min((tokenCount / FREE_TOKEN_LIMIT) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {!session ? (
+                  <>
+                    <button
+                      onClick={() => { setShowTokenLimitMessage(false); setShowAuthModal(true); }}
+                      className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
+                    >
+                      <User className="h-5 w-5" />
+                      Criar Conta / Entrar
+                    </button>
+                    <p className="text-xs text-zinc-500">Ao criar conta, recebes +50 tokens gratis</p>
+                  </>
+                ) : (
+                  <a
+                    href="https://buy.stripe.com/eVqdR93RbaHQ4ecbk95Rm00"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    Upgrade para Basic - 9.99 EUR/mes
+                  </a>
+                )}
+                <button
+                  onClick={() => setShowTokenLimitMessage(false)}
+                  className="w-full py-2.5 px-4 text-zinc-400 hover:text-white text-sm font-medium transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showProModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <Card className="w-full max-w-lg bg-card border-border shadow-2xl">
@@ -1706,7 +1827,7 @@ export default function RebornAI() {
                 <div className="border-t border-border pt-6">
                   <div className="text-center mb-4">
                     <p className="text-3xl font-bold">
-                      €9.99<span className="text-lg text-muted-foreground">/mês</span>
+                      €9.9<span className="text-lg text-muted-foreground">/mês</span>
                     </p>
                   </div>
                   <Button className="w-full" size="lg" onClick={handleUpgradePro}>
