@@ -346,6 +346,9 @@ export default function RebornAI() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showProModal, setShowProModal] = useState(false)
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
+  const [tokenCount, setTokenCount] = useState(0) // Track token usage
+  const [showTokenLimitMessage, setShowTokenLimitMessage] = useState(false)
+  const FREE_TOKEN_LIMIT = 100
 
   const startLiveMode = () => {
     setLiveMode({
@@ -597,6 +600,12 @@ export default function RebornAI() {
     e?.preventDefault()
     if ((!input.trim() && !selectedImage) || isLoading) return
 
+    // Check token limit for free users
+    if (!isPro && tokenCount >= FREE_TOKEN_LIMIT) {
+      setShowTokenLimitMessage(true)
+      return
+    }
+
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -664,6 +673,16 @@ export default function RebornAI() {
 
         const finalMessages = [...newMessages, { role: "assistant" as const, content: fullContent }]
         saveCurrentChat(finalMessages)
+        
+        // Increment token count (rough estimate: 1 token per 4 characters)
+        const estimatedTokens = Math.ceil((input.length + fullContent.length) / 4)
+        const newTokenCount = tokenCount + estimatedTokens
+        setTokenCount(newTokenCount)
+        
+        // Show upgrade message when approaching or exceeding limit
+        if (!isPro && newTokenCount >= FREE_TOKEN_LIMIT) {
+          setShowTokenLimitMessage(true)
+        }
       }
     } catch (error: any) {
       console.error("Chat error:", error)
@@ -1268,6 +1287,20 @@ export default function RebornAI() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Token Counter - Only show for free users */}
+            {!isPro && (
+              <button
+                onClick={() => tokenCount >= FREE_TOKEN_LIMIT ? setShowTokenLimitMessage(true) : setShowProModal(true)}
+                className={`hidden sm:flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium transition-all ${
+                  tokenCount >= FREE_TOKEN_LIMIT * 0.8
+                    ? "bg-orange-500/10 border border-orange-500/20 text-orange-500"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Zap className="h-3 w-3" />
+                {tokenCount}/{FREE_TOKEN_LIMIT}
+              </button>
+            )}
             {/* Music Player Button */}
             <Button
               variant="ghost"
@@ -1660,6 +1693,54 @@ export default function RebornAI() {
       </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+      {/* Token Limit Reached Modal */}
+      {showTokenLimitMessage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                <Zap className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Limite de Tokens Atingido</h2>
+              <p className="text-zinc-400 text-sm mb-6">
+                Usaste os teus {FREE_TOKEN_LIMIT} tokens gratuitos. Faz upgrade para o plano Basic para continuar a usar o Reborn AI sem limites.
+              </p>
+              
+              <div className="bg-white/5 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-zinc-400">Tokens usados</span>
+                  <span className="text-sm font-bold text-white">{tokenCount} / {FREE_TOKEN_LIMIT}</span>
+                </div>
+                <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full transition-all"
+                    style={{ width: `${Math.min((tokenCount / FREE_TOKEN_LIMIT) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <a
+                  href="https://buy.stripe.com/eVqdR93RbaHQ4ecbk95Rm00"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  Upgrade para Basic - 9.99 EUR/mes
+                </a>
+                <button
+                  onClick={() => setShowTokenLimitMessage(false)}
+                  className="w-full py-2.5 px-4 text-zinc-400 hover:text-white text-sm font-medium transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showProModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
