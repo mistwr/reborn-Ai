@@ -379,8 +379,8 @@ export default function RebornAI() {
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
   const [tokenCount, setTokenCount] = useState(0) // Track token usage
   const [showTokenLimitMessage, setShowTokenLimitMessage] = useState(false)
-  const FREE_TOKEN_LIMIT = 3000
-  const PRO_TOKEN_LIMIT = 10000 // Pro users get 10000 tokens per month
+  const FREE_TOKEN_LIMIT = 15000 // 5x more tokens - renews daily
+  const PRO_TOKEN_LIMIT = 50000 // Pro users get 50000 tokens per day
 
   const startLiveMode = () => {
     setLiveMode({
@@ -412,10 +412,21 @@ export default function RebornAI() {
     loadChatHistories()
     createNewChat() // Initialize with a new chat
     
-    // Load token count from localStorage
-    const savedTokens = localStorage.getItem("rebornai-tokens")
-    if (savedTokens) {
-      setTokenCount(parseInt(savedTokens, 10))
+    // Check if tokens should reset (daily reset)
+    const lastResetDate = localStorage.getItem("rebornai-token-reset-date")
+    const today = new Date().toDateString()
+    
+    if (lastResetDate !== today) {
+      // New day - reset tokens
+      setTokenCount(0)
+      localStorage.setItem("rebornai-tokens", "0")
+      localStorage.setItem("rebornai-token-reset-date", today)
+    } else {
+      // Same day - load saved tokens
+      const savedTokens = localStorage.getItem("rebornai-tokens")
+      if (savedTokens) {
+        setTokenCount(parseInt(savedTokens, 10))
+      }
     }
     
     // Load Pro status from localStorage
@@ -2065,14 +2076,14 @@ export default function RebornAI() {
                 <Zap className="h-8 w-8 text-white" />
               </div>
               <h2 className="text-xl font-bold text-white mb-2">
-                {isPro ? "Limite Mensal Atingido" : "Limite de Tokens Atingido"}
+                {isPro ? "Limite Diario Atingido" : "Limite de Tokens Atingido"}
               </h2>
               <p className="text-zinc-400 text-sm mb-6">
                 {isPro 
-                  ? "Usaste os teus 10.000 tokens mensais do plano Pro. Os tokens renovam no proximo mes."
+                  ? "Usaste os teus 50.000 tokens diarios do plano Pro. Os tokens renovam amanha!"
                   : !session 
-                    ? "Usaste os teus tokens gratuitos. Cria uma conta ou faz login para continuar a usar o Reborn AI."
-                    : "Usaste os teus tokens gratuitos. Faz upgrade para o plano Pro (9.99 EUR/mes) para teres 10.000 tokens mensais!"
+                    ? "Usaste os teus 15.000 tokens diarios. Cria uma conta ou faz login para continuar a usar o Reborn AI."
+                    : "Usaste os teus 15.000 tokens diarios. Faz upgrade para Pro (9.99 EUR/mes) para teres 50.000 tokens por dia!"
                 }
               </p>
               
@@ -2087,12 +2098,10 @@ export default function RebornAI() {
                     style={{ width: `${Math.min((tokenCount / (isPro ? PRO_TOKEN_LIMIT : FREE_TOKEN_LIMIT)) * 100, 100)}%` }}
                   />
                 </div>
-                {isPro && (
-                  <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-primary" />
-                    Plano Pro ativo - Renova mensalmente
-                  </p>
-                )}
+                <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  {isPro ? "Plano Pro ativo - Renova diariamente" : "Os tokens renovam todos os dias a meia-noite"}
+                </p>
               </div>
               
               <div className="space-y-3">
@@ -2101,7 +2110,7 @@ export default function RebornAI() {
                     onClick={() => setShowTokenLimitMessage(false)}
                     className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl transition-all"
                   >
-                    Aguardar Renovacao
+                    Voltar Amanha
                   </button>
                 ) : !session ? (
                   <>
@@ -2122,7 +2131,7 @@ export default function RebornAI() {
                     className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
                   >
                     <Sparkles className="h-5 w-5" />
-                    Upgrade para Pro - 9.99 EUR/mes (10.000 tokens)
+                    Upgrade para Pro - 9.99 EUR/mes (50.000 tokens/dia)
                   </a>
                 )}
                 <button
