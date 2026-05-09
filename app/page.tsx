@@ -100,6 +100,7 @@ import { WebCraftStudio } from "@/components/webcraft-studio"
 import { ClipperStudio } from "@/components/clipper-studio"
 import { ImageBank } from "@/components/image-bank"
 import { ImageEnhancer } from "@/components/image-enhancer"
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -2024,6 +2025,9 @@ export default function RebornAI() {
       </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
 
       {/* Token Limit Reached Modal */}
       {showTokenLimitMessage && (
