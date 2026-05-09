@@ -98,6 +98,7 @@ import { MessagingHub } from "@/components/messaging-hub"
 import { EbookStudio } from "@/components/ebook-studio"
 import { WebCraftStudio } from "@/components/webcraft-studio"
 import { ClipperStudio } from "@/components/clipper-studio"
+import { ImageBank } from "@/components/image-bank"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -915,6 +916,17 @@ export default function RebornAI() {
               >
                 <ImagePlus className="h-4 w-4" />
                 Gerar Imagens
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "imagebank" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("imagebank"); setSidebarOpen(false); }}
+              >
+                <ImageIcon className="h-4 w-4" />
+                Banco de Imagens
               </button>
               <button
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -1762,6 +1774,11 @@ export default function RebornAI() {
             {/* Images Tab */}
             <TabsContent value="images" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
               <ImageGenerator />
+            </TabsContent>
+
+            {/* Image Bank Tab */}
+            <TabsContent value="imagebank" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <ImageBank />
             </TabsContent>
 
             {/* WebCraft Tab */}
