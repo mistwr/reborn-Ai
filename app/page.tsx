@@ -84,6 +84,7 @@ import {
   SkipForward,
   Radio,
   Waves,
+  Wand2,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import * as XLSX from "xlsx"
