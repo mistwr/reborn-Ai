@@ -99,6 +99,8 @@ import { EbookStudio } from "@/components/ebook-studio"
 import { WebCraftStudio } from "@/components/webcraft-studio"
 import { ClipperStudio } from "@/components/clipper-studio"
 import { ImageBank } from "@/components/image-bank"
+import { ImageEnhancer } from "@/components/image-enhancer"
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 
 // Business categories for WebCraft
 const BUSINESS_CATEGORIES = [
@@ -927,6 +929,17 @@ export default function RebornAI() {
               >
                 <ImageIcon className="h-4 w-4" />
                 Banco de Imagens
+              </button>
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "imageenhancer" 
+                    ? "bg-white/10 text-white" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("imageenhancer"); setSidebarOpen(false); }}
+              >
+                <Wand2 className="h-4 w-4 text-violet-400" />
+                Melhorar Imagem
               </button>
               <button
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -1781,6 +1794,11 @@ export default function RebornAI() {
               <ImageBank />
             </TabsContent>
 
+            {/* Image Enhancer Tab */}
+            <TabsContent value="imageenhancer" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <ImageEnhancer />
+            </TabsContent>
+
             {/* WebCraft Tab */}
             <TabsContent value="webcraft" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
               <WebCraftStudio />
@@ -2007,6 +2025,9 @@ export default function RebornAI() {
       </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
 
       {/* Token Limit Reached Modal */}
       {showTokenLimitMessage && (
