@@ -378,7 +378,8 @@ export default function RebornAI() {
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
   const [tokenCount, setTokenCount] = useState(0) // Track token usage
   const [showTokenLimitMessage, setShowTokenLimitMessage] = useState(false)
-  const FREE_TOKEN_LIMIT = 1000
+  const FREE_TOKEN_LIMIT = 3000
+  const PRO_TOKEN_LIMIT = 10000 // Pro users get 10000 tokens per month
 
   const startLiveMode = () => {
     setLiveMode({
@@ -415,6 +416,25 @@ export default function RebornAI() {
     if (savedTokens) {
       setTokenCount(parseInt(savedTokens, 10))
     }
+    
+    // Load Pro status from localStorage
+    const proStatus = localStorage.getItem("rebornai-pro")
+    if (proStatus === "true") {
+      setIsPro(true)
+    }
+    
+    // Check URL for successful payment callback
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get("payment") === "success") {
+      setIsPro(true)
+      localStorage.setItem("rebornai-pro", "true")
+      localStorage.setItem("rebornai-pro-date", new Date().toISOString())
+      // Reset token count for Pro users
+      setTokenCount(0)
+      localStorage.setItem("rebornai-tokens", "0")
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname)
+    }
   }, [])
 
   // Give bonus tokens when user logs in
@@ -423,9 +443,9 @@ export default function RebornAI() {
       const bonusKey = `rebornai-bonus-${session.user.email}`
       const hasReceivedBonus = localStorage.getItem(bonusKey)
       if (!hasReceivedBonus) {
-        // Give 50 bonus tokens for creating account
+        // Give 150 bonus tokens for creating account
         setTokenCount(prev => {
-          const newCount = Math.max(0, prev - 50) // Subtract 50 (giving back tokens)
+          const newCount = Math.max(0, prev - 150) // Subtract 150 (giving back tokens)
           localStorage.setItem("rebornai-tokens", newCount.toString())
           return newCount
         })
@@ -653,8 +673,9 @@ export default function RebornAI() {
     e?.preventDefault()
     if ((!input.trim() && !selectedImage) || isLoading) return
 
-    // Check token limit for free users
-    if (!isPro && tokenCount >= FREE_TOKEN_LIMIT) {
+    // Check token limit based on user type
+    const currentLimit = isPro ? PRO_TOKEN_LIMIT : FREE_TOKEN_LIMIT
+    if (tokenCount >= currentLimit) {
       setShowTokenLimitMessage(true)
       return
     }
@@ -1609,8 +1630,13 @@ export default function RebornAI() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Token Counter - Only show for free users */}
-            {!isPro && (
+            {/* Token Counter */}
+            {isPro ? (
+              <div className="hidden sm:flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium bg-gradient-to-r from-primary/20 to-violet-500/20 border border-primary/30 text-primary">
+                <Sparkles className="h-3 w-3" />
+                PRO {tokenCount}/{PRO_TOKEN_LIMIT}
+              </div>
+            ) : (
               <button
                 onClick={() => tokenCount >= FREE_TOKEN_LIMIT ? setShowTokenLimitMessage(true) : setShowProModal(true)}
                 className={`hidden sm:flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium transition-all ${
@@ -2037,29 +2063,46 @@ export default function RebornAI() {
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
                 <Zap className="h-8 w-8 text-white" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Limite de Tokens Atingido</h2>
+              <h2 className="text-xl font-bold text-white mb-2">
+                {isPro ? "Limite Mensal Atingido" : "Limite de Tokens Atingido"}
+              </h2>
               <p className="text-zinc-400 text-sm mb-6">
-                {!session 
-                  ? "Usaste os teus tokens gratuitos. Cria uma conta ou faz login para continuar a usar o Reborn AI."
-                  : "Usaste os teus tokens gratuitos. Faz upgrade para o plano Basic para continuar a usar o Reborn AI sem limites."
+                {isPro 
+                  ? "Usaste os teus 10.000 tokens mensais do plano Pro. Os tokens renovam no proximo mes."
+                  : !session 
+                    ? "Usaste os teus tokens gratuitos. Cria uma conta ou faz login para continuar a usar o Reborn AI."
+                    : "Usaste os teus tokens gratuitos. Faz upgrade para o plano Pro (9.99 EUR/mes) para teres 10.000 tokens mensais!"
                 }
               </p>
               
               <div className="bg-white/5 rounded-xl p-4 mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-zinc-400">Tokens usados</span>
-                  <span className="text-sm font-bold text-white">{tokenCount} / {FREE_TOKEN_LIMIT}</span>
+                  <span className="text-sm font-bold text-white">{tokenCount} / {isPro ? PRO_TOKEN_LIMIT : FREE_TOKEN_LIMIT}</span>
                 </div>
                 <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full transition-all"
-                    style={{ width: `${Math.min((tokenCount / FREE_TOKEN_LIMIT) * 100, 100)}%` }}
+                    className={`h-full rounded-full transition-all ${isPro ? "bg-gradient-to-r from-primary to-violet-500" : "bg-gradient-to-r from-orange-500 to-red-500"}`}
+                    style={{ width: `${Math.min((tokenCount / (isPro ? PRO_TOKEN_LIMIT : FREE_TOKEN_LIMIT)) * 100, 100)}%` }}
                   />
                 </div>
+                {isPro && (
+                  <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    Plano Pro ativo - Renova mensalmente
+                  </p>
+                )}
               </div>
               
               <div className="space-y-3">
-                {!session ? (
+                {isPro ? (
+                  <button
+                    onClick={() => setShowTokenLimitMessage(false)}
+                    className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl transition-all"
+                  >
+                    Aguardar Renovacao
+                  </button>
+                ) : !session ? (
                   <>
                     <button
                       onClick={() => { setShowTokenLimitMessage(false); setShowAuthModal(true); }}
@@ -2068,7 +2111,7 @@ export default function RebornAI() {
                       <User className="h-5 w-5" />
                       Criar Conta / Entrar
                     </button>
-                    <p className="text-xs text-zinc-500">Ao criar conta, recebes +50 tokens gratis</p>
+                    <p className="text-xs text-zinc-500">Ao criar conta, recebes +150 tokens gratis</p>
                   </>
                 ) : (
                   <a
@@ -2078,7 +2121,7 @@ export default function RebornAI() {
                     className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
                   >
                     <Sparkles className="h-5 w-5" />
-                    Upgrade para Basic - 9.99 EUR/mes
+                    Upgrade para Pro - 9.99 EUR/mes (10.000 tokens)
                   </a>
                 )}
                 <button
