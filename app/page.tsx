@@ -378,7 +378,7 @@ export default function RebornAI() {
   const [isPro, setIsPro] = useState(false) // Assume not Pro initially, you'd likely fetch this from user data
   const [tokenCount, setTokenCount] = useState(0) // Track token usage
   const [showTokenLimitMessage, setShowTokenLimitMessage] = useState(false)
-  const FREE_TOKEN_LIMIT = 1000
+  const FREE_TOKEN_LIMIT = 3000
 
   const startLiveMode = () => {
     setLiveMode({
@@ -423,9 +423,9 @@ export default function RebornAI() {
       const bonusKey = `rebornai-bonus-${session.user.email}`
       const hasReceivedBonus = localStorage.getItem(bonusKey)
       if (!hasReceivedBonus) {
-        // Give 50 bonus tokens for creating account
+        // Give 150 bonus tokens for creating account
         setTokenCount(prev => {
-          const newCount = Math.max(0, prev - 50) // Subtract 50 (giving back tokens)
+          const newCount = Math.max(0, prev - 150) // Subtract 150 (giving back tokens)
           localStorage.setItem("rebornai-tokens", newCount.toString())
           return newCount
         })
@@ -2068,7 +2068,7 @@ export default function RebornAI() {
                       <User className="h-5 w-5" />
                       Criar Conta / Entrar
                     </button>
-                    <p className="text-xs text-zinc-500">Ao criar conta, recebes +50 tokens gratis</p>
+                    <p className="text-xs text-zinc-500">Ao criar conta, recebes +150 tokens gratis</p>
                   </>
                 ) : (
                   <a
