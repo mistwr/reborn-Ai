@@ -692,6 +692,43 @@ export default function RebornAI() {
       return
     }
 
+    // Navigation commands - detect if user wants to go to a specific feature
+    const navigationCommands: { keywords: string[], tab: string, response: string }[] = [
+      { keywords: ["abre o live", "modo live", "falar ao vivo", "camera", "video ao vivo"], tab: "live", response: "A abrir o Modo Live para conversares comigo em tempo real com camera e voz!" },
+      { keywords: ["gera imagem", "cria imagem", "criar imagem", "gerar imagem", "gerar uma imagem"], tab: "images", response: "A abrir o Gerador de Imagens! Descreve o que queres criar." },
+      { keywords: ["banco de imagens", "procura imagens", "busca imagens", "imagens gratis"], tab: "imagebank", response: "A abrir o Banco de Imagens com milhares de fotos gratuitas!" },
+      { keywords: ["melhora imagem", "melhorar imagem", "aumenta qualidade", "upscale"], tab: "imageenhancer", response: "A abrir o Melhorador de Imagem! Carrega a tua imagem para melhorar." },
+      { keywords: ["cria website", "criar site", "webcraft", "preciso de um site", "fazer website"], tab: "webcraft", response: "A abrir o WebCraft! Vamos criar o teu website." },
+      { keywords: ["cria apresentacao", "criar slides", "fazer slides", "apresentacao", "powerpoint"], tab: "presentations", response: "A abrir o criador de Apresentacoes! Qual e o tema?" },
+      { keywords: ["cria ebook", "criar ebook", "escreve um livro", "fazer ebook"], tab: "ebooks", response: "A abrir o criador de Ebooks! Sobre que tema queres escrever?" },
+      { keywords: ["clipper", "corta video", "clips", "tiktok", "reels", "shorts"], tab: "clipper", response: "A abrir o Clipper AI para cortar videos em clips virais!" },
+      { keywords: ["marketing", "cria post", "post instagram", "post facebook", "redes sociais"], tab: "marketing", response: "A abrir as ferramentas de Marketing Digital!" },
+      { keywords: ["sms", "enviar sms", "mensagens sms"], tab: "sms", response: "A abrir o SMS em Massa!" },
+      { keywords: ["whatsapp", "enviar whatsapp"], tab: "whatsapp-web", response: "A abrir o WhatsApp Web em Massa!" },
+      { keywords: ["facebook app", "ferramentas facebook"], tab: "facebook-app", response: "A abrir as ferramentas do Facebook!" },
+      { keywords: ["instagram app", "ferramentas instagram"], tab: "instagram-app", response: "A abrir as ferramentas do Instagram!" },
+      { keywords: ["youtube app", "ferramentas youtube"], tab: "youtube-app", response: "A abrir as ferramentas do YouTube!" },
+      { keywords: ["visao", "ocr", "extrair texto", "ler imagem"], tab: "vision", response: "A abrir a Visao OCR para analisar imagens!" },
+    ]
+
+    const inputLower = input.toLowerCase()
+    for (const cmd of navigationCommands) {
+      if (cmd.keywords.some(kw => inputLower.includes(kw))) {
+        // Navigate to the tab
+        setActiveTab(cmd.tab)
+        // Add assistant response
+        const navMessages: Message[] = [
+          ...messages,
+          { role: "user", content: input },
+          { role: "assistant", content: cmd.response }
+        ]
+        setMessages(navMessages)
+        setInput("")
+        saveCurrentChat(navMessages)
+        return
+      }
+    }
+
     const userMessage: Message = {
       role: "user",
       content: input,
