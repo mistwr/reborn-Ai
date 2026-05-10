@@ -63,20 +63,21 @@ IDENTIDADE - REGRA ABSOLUTA:
 - Se o footer ou qualquer secção mencionar a ferramenta de criação, usa SEMPRE "Criado com Reborn AI" ou "Powered by Reborn AI".
 
 IMAGENS DE ALTA QUALIDADE (OBRIGATORIO):
-- Use imagens reais do Unsplash Source: https://source.unsplash.com/featured/1200x800/?keyword
-- Para Hero: https://source.unsplash.com/featured/1920x1080/?business,technology
-- Para Equipa: https://source.unsplash.com/featured/400x400/?portrait,professional
-- Para Produtos: https://source.unsplash.com/featured/800x800/?product
-- Para Galeria: https://source.unsplash.com/featured/800x600/?office,workspace
-- Substitua "keyword" por palavras relevantes ao negocio
-- NUNCA use imagens genericas ou de placeholder cinzento
-- Cada imagem deve ter keywords diferentes para variedade
+- Use Lorem Picsum para imagens: https://picsum.photos/LARGURA/ALTURA?random=NUMERO
+- Para Hero: https://picsum.photos/1920/1080?random=1
+- Para Equipa/Avatares: https://i.pravatar.cc/400?img=NUMERO (1-70)
+- Para Features/Cards: https://picsum.photos/800/600?random=2
+- Para Galeria: https://picsum.photos/600/400?random=3, ?random=4, etc
+- Para Produtos: https://picsum.photos/500/500?random=5
+- MUDA o numero ?random=X para cada imagem ter conteudo diferente
+- Para logos de clientes usa: https://logo.clearbit.com/google.com, microsoft.com, apple.com, etc
+- NUNCA uses imagens quebradas ou placeholders cinzentos
 
 IMPORTANTE: 
 - Retorne APENAS o código HTML puro
 - Não inclua explicações ou markdown
 - O código deve estar pronto para produção
-- Todas as imagens devem carregar de fontes reais (Unsplash)`,
+- Todas as imagens DEVEM carregar (usa picsum.photos e pravatar.cc)`,
       prompt: `Crie um website completo e profissional para: ${prompt || `Um negócio de ${category || template}`}`,
     })
 
