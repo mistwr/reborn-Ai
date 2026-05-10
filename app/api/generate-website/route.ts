@@ -62,11 +62,21 @@ IDENTIDADE - REGRA ABSOLUTA:
 - Esta ferramenta chama-se REBORN AI. NUNCA menciones "Gemini", "Google", "GPT", "OpenAI", "Claude", "Anthropic", "Flash" ou qualquer outro modelo/empresa no conteúdo gerado.
 - Se o footer ou qualquer secção mencionar a ferramenta de criação, usa SEMPRE "Criado com Reborn AI" ou "Powered by Reborn AI".
 
+IMAGENS DE ALTA QUALIDADE (OBRIGATORIO):
+- Use imagens reais do Unsplash Source: https://source.unsplash.com/featured/1200x800/?keyword
+- Para Hero: https://source.unsplash.com/featured/1920x1080/?business,technology
+- Para Equipa: https://source.unsplash.com/featured/400x400/?portrait,professional
+- Para Produtos: https://source.unsplash.com/featured/800x800/?product
+- Para Galeria: https://source.unsplash.com/featured/800x600/?office,workspace
+- Substitua "keyword" por palavras relevantes ao negocio
+- NUNCA use imagens genericas ou de placeholder cinzento
+- Cada imagem deve ter keywords diferentes para variedade
+
 IMPORTANTE: 
-- Use imagens de placeholder de https://picsum.photos ou https://placehold.co
 - Retorne APENAS o código HTML puro
 - Não inclua explicações ou markdown
-- O código deve estar pronto para produção`,
+- O código deve estar pronto para produção
+- Todas as imagens devem carregar de fontes reais (Unsplash)`,
       prompt: `Crie um website completo e profissional para: ${prompt || `Um negócio de ${category || template}`}`,
     })
 
