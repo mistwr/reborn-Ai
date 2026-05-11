@@ -395,15 +395,30 @@ The way the world will live`
   // State for lyrics display
   const [showLyrics, setShowLyrics] = useState(false)
 
+  // Reborn AI Original Music
+  const rebornMusic = [
+    { name: "LUMIN Awakening", genre: "Theme", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/LUMIN%20Awakening%20%281%29-majTTLuGNUSNuUgyjoXgl90o3dGXLF.mp3", color: "from-violet-500 to-primary", isTheme: true, hasLyrics: true },
+    { name: "LUMIN Acende Caminhos", genre: "Inspirational", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/LUMIN%20Acende%20Caminhos-k9SDUyvwz1Jp85snOUlWZPM5nUAViY.mp3", color: "from-amber-500 to-yellow-500", isTheme: true },
+    { name: "La Vida es un Ritmo", genre: "Latin", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/La%20Vida%20es%20un%20ritmo-UNxmzEgUZStSezPbgsOLmCWNCAlijW.mp3", color: "from-red-500 to-orange-500", isTheme: true },
+    { name: "Acorda Sem Pausa", genre: "Motivational", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Acorda%20Sem%20Pausa%20%281%29-bBCjqvrV7D4d3cJIHqqqAuxtmSdw3c.mp3", color: "from-cyan-500 to-blue-500", isTheme: true },
+    { name: "O Momento e Agora", genre: "Inspirational", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/o%20momento%20%C3%A9%20agora-Ybx8Jze1kzwFCJOoONaY6cSSw7Eqau.mp3", color: "from-emerald-500 to-teal-500", isTheme: true },
+    { name: "Voar", genre: "Freedom", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Voar-PKLB6cR47FHed6BSQQad9eceyWIvkg.mp3", color: "from-sky-500 to-indigo-500", isTheme: true },
+    { name: "Karisma", genre: "Energy", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/karisma-Tz4HLYiFN2pXfqx3QZO407YZhJw6Lr.mp3", color: "from-pink-500 to-rose-500", isTheme: true },
+    { name: "Algoritmo do Tempo", genre: "Electronic", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Algoritmo%20do%20Tempo-pnoTeOMjBkNKxYAcQF6y5ZntpK9Vux.mp3", color: "from-purple-500 to-violet-500", isTheme: true },
+    { name: "Depois Voei", genre: "Dreams", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Depois%20Voei-mmC3oDX3vPiOd59BZNOdNqylHmHTGJ.mp3", color: "from-fuchsia-500 to-purple-500", isTheme: true },
+  ]
+
   // Radio stations (free streams)
   const radioStations = [
-    { name: "LUMIN Awakening", genre: "Theme", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/LUMIN%20Awakening%20%281%29-majTTLuGNUSNuUgyjoXgl90o3dGXLF.mp3", color: "from-violet-500 to-primary", isTheme: true, hasLyrics: true },
     { name: "Groove Salad", genre: "Ambient", url: "https://ice1.somafm.com/groovesalad-256-mp3", color: "from-green-500 to-emerald-600" },
     { name: "Lush", genre: "Electronic", url: "https://ice1.somafm.com/lush-128-mp3", color: "from-purple-500 to-pink-600" },
     { name: "Lo-Fi Air", genre: "Lo-Fi", url: "https://ice6.somafm.com/lofi-128-mp3", color: "from-orange-500 to-amber-600" },
     { name: "The Jazz", genre: "Jazz", url: "https://ice1.somafm.com/thejazz-128-mp3", color: "from-blue-500 to-indigo-600" },
     { name: "Drone Zone", genre: "Ambient", url: "https://ice1.somafm.com/dronezone-256-mp3", color: "from-cyan-500 to-teal-600" },
   ]
+  
+  // Combined all stations for player
+  const allStations = [...rebornMusic, ...radioStations]
   
   // YouTube playlists with genres
   const youtubeStations = [
@@ -1515,17 +1530,18 @@ The way the world will live`
                   <div className="flex items-center justify-center gap-4">
                     <button
                       onClick={() => {
-                        const currentIndex = radioStations.findIndex(s => s.url === currentRadioUrl)
-                        const prevIndex = currentIndex > 0 ? currentIndex - 1 : radioStations.length - 1
-                        const station = radioStations[prevIndex]
-                        setCurrentRadioUrl(station.url)
-                        setCurrentVideoTitle(station.name)
-                        setCurrentGenre(station.genre)
-                        if (audioRef.current) {
+                        const currentIndex = allStations.findIndex(s => s.url === currentRadioUrl)
+                        const prevIndex = currentIndex > 0 ? currentIndex - 1 : allStations.length - 1
+                        const station = allStations[prevIndex]
+                        if (station && audioRef.current) {
                           audioRef.current.src = station.url
-                          audioRef.current.play()
+                          audioRef.current.load()
+                          setCurrentRadioUrl(station.url)
+                          setCurrentVideoTitle(station.name)
+                          setCurrentGenre(station.genre)
+                          audioRef.current.play().catch(e => console.log("[v0] Play error:", e))
+                          setIsMusicPlaying(true)
                         }
-                        setIsMusicPlaying(true)
                       }}
                       className="h-10 w-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors rotate-180"
                     >
@@ -1536,9 +1552,19 @@ The way the world will live`
                         if (isMusicPlaying && audioRef.current) {
                           audioRef.current.pause()
                           setIsMusicPlaying(false)
-                        } else if (audioRef.current && currentRadioUrl) {
-                          audioRef.current.src = currentRadioUrl
-                          audioRef.current.play()
+                        } else if (audioRef.current) {
+                          if (currentRadioUrl) {
+                            audioRef.current.play().catch(e => console.log("[v0] Play error:", e))
+                          } else {
+                            // Auto-play first Reborn Music
+                            const station = rebornMusic[0]
+                            audioRef.current.src = station.url
+                            audioRef.current.load()
+                            setCurrentRadioUrl(station.url)
+                            setCurrentVideoTitle(station.name)
+                            setCurrentGenre(station.genre)
+                            audioRef.current.play().catch(e => console.log("[v0] Play error:", e))
+                          }
                           setIsMusicPlaying(true)
                         }
                       }}
@@ -1552,17 +1578,18 @@ The way the world will live`
                     </button>
                     <button
                       onClick={() => {
-                        const currentIndex = radioStations.findIndex(s => s.url === currentRadioUrl)
-                        const nextIndex = currentIndex < radioStations.length - 1 ? currentIndex + 1 : 0
-                        const station = radioStations[nextIndex]
-                        setCurrentRadioUrl(station.url)
-                        setCurrentVideoTitle(station.name)
-                        setCurrentGenre(station.genre)
-                        if (audioRef.current) {
+                        const currentIndex = allStations.findIndex(s => s.url === currentRadioUrl)
+                        const nextIndex = currentIndex < allStations.length - 1 ? currentIndex + 1 : 0
+                        const station = allStations[nextIndex]
+                        if (station && audioRef.current) {
                           audioRef.current.src = station.url
-                          audioRef.current.play()
+                          audioRef.current.load()
+                          setCurrentRadioUrl(station.url)
+                          setCurrentVideoTitle(station.name)
+                          setCurrentGenre(station.genre)
+                          audioRef.current.play().catch(e => console.log("[v0] Play error:", e))
+                          setIsMusicPlaying(true)
                         }
-                        setIsMusicPlaying(true)
                       }}
                       className="h-10 w-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
                     >
@@ -1589,7 +1616,7 @@ The way the world will live`
                   </div>
                   
                   {/* Lyrics Button - Show for LUMIN Awakening */}
-                  {radioStations.find(s => s.url === currentRadioUrl)?.hasLyrics && (
+                  {allStations.find(s => s.url === currentRadioUrl)?.hasLyrics && (
                     <button
                       onClick={() => setShowLyrics(!showLyrics)}
                       className={`mx-4 py-2 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
@@ -1604,7 +1631,7 @@ The way the world will live`
                   )}
                   
                   {/* Lyrics Display */}
-                  {showLyrics && radioStations.find(s => s.url === currentRadioUrl)?.hasLyrics && (
+                  {showLyrics && allStations.find(s => s.url === currentRadioUrl)?.hasLyrics && (
                     <div className="mx-4 p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-primary/10 border border-white/10 max-h-48 overflow-y-auto">
                       <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
                         <Music2 className="h-4 w-4" />
@@ -1614,22 +1641,78 @@ The way the world will live`
                     </div>
                   )}
                   
-                  {/* Radio Stations */}
+                  {/* Reborn AI Original Music */}
                   <div className="space-y-2">
+                    <p className="text-xs font-medium text-primary uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles className="h-3 w-3" />
+                      Reborn AI Music ({rebornMusic.length} originais)
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {rebornMusic.map((station, index) => (
+                        <button
+                          key={station.url}
+                          onClick={() => {
+                            if (audioRef.current) {
+                              audioRef.current.src = station.url
+                              audioRef.current.load()
+                              setCurrentRadioUrl(station.url)
+                              setCurrentVideoTitle(station.name)
+                              setCurrentGenre(station.genre)
+                              audioRef.current.play().catch(e => console.log("[v0] Play error:", e))
+                              setIsMusicPlaying(true)
+                            }
+                          }}
+                          className={`relative flex items-center gap-3 p-3 rounded-xl text-left transition-all overflow-hidden ${
+                            currentRadioUrl === station.url
+                              ? "bg-gradient-to-r " + station.color + " text-white shadow-lg"
+                              : "bg-white/5 hover:bg-white/10 text-zinc-300"
+                          }`}
+                        >
+                          <div className={`relative w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                            currentRadioUrl === station.url ? "bg-white/20" : "bg-gradient-to-br " + station.color
+                          }`}>
+                            <span className="text-white font-bold text-sm">{index + 1}</span>
+                            {currentRadioUrl === station.url && isMusicPlaying && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="flex gap-0.5">
+                                  <span className="w-0.5 h-3 bg-white rounded-full animate-pulse" />
+                                  <span className="w-0.5 h-4 bg-white rounded-full animate-pulse" style={{ animationDelay: '0.1s' }} />
+                                  <span className="w-0.5 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{station.name}</p>
+                            <p className={`text-xs truncate ${currentRadioUrl === station.url ? "text-white/70" : "text-zinc-500"}`}>{station.genre}</p>
+                          </div>
+                          {currentRadioUrl === station.url && (
+                            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                              {isMusicPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Radio Stations */}
+                  <div className="space-y-2 mt-4">
                     <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Radios ao Vivo (SomaFM)</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {radioStations.map((station) => (
                         <button
                           key={station.url}
                           onClick={() => {
-                            setCurrentRadioUrl(station.url)
-                            setCurrentVideoTitle(station.name)
-                            setCurrentGenre(station.genre)
                             if (audioRef.current) {
                               audioRef.current.src = station.url
-                              audioRef.current.play()
+                              audioRef.current.load()
+                              setCurrentRadioUrl(station.url)
+                              setCurrentVideoTitle(station.name)
+                              setCurrentGenre(station.genre)
+                              audioRef.current.play().catch(e => console.log("[v0] Play error:", e))
+                              setIsMusicPlaying(true)
                             }
-                            setIsMusicPlaying(true)
                           }}
                           className={`relative flex items-center gap-3 p-3 rounded-xl text-left transition-all overflow-hidden ${
                             currentRadioUrl === station.url
@@ -1837,54 +1920,70 @@ The way the world will live`
             <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto py-4 space-y-4">
-                  {/* Music Introduction Banner */}
+                  {/* Music Introduction Banner - Animated Background */}
                   {showMusicIntro && messages.length === 0 && (
-                    <div className="mb-6 mx-4 relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500/20 via-primary/10 to-fuchsia-500/20 border border-white/10 p-5">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl" />
-                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-violet-500/20 rounded-full blur-2xl" />
+                    <div className="mb-6 mx-4 relative overflow-hidden rounded-2xl border border-white/10 p-5">
+                      {/* Animated Background */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-violet-900/80 via-primary/60 to-fuchsia-900/80" />
+                      <div className="absolute inset-0 overflow-hidden">
+                        {/* Animated Rays */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%]">
+                          <div className="absolute inset-0 animate-spin" style={{ animationDuration: '20s' }}>
+                            <div className="absolute top-0 left-1/2 w-1 h-full bg-gradient-to-b from-primary/40 via-transparent to-transparent" />
+                            <div className="absolute top-0 left-1/2 w-1 h-full bg-gradient-to-b from-violet-500/40 via-transparent to-transparent rotate-45" />
+                            <div className="absolute top-0 left-1/2 w-1 h-full bg-gradient-to-b from-fuchsia-500/40 via-transparent to-transparent rotate-90" />
+                            <div className="absolute top-0 left-1/2 w-1 h-full bg-gradient-to-b from-cyan-500/40 via-transparent to-transparent rotate-[135deg]" />
+                          </div>
+                        </div>
+                        {/* Floating Glows */}
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-primary/30 rounded-full blur-3xl animate-pulse" />
+                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-violet-500/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                        <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-fuchsia-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+                        <div className="absolute bottom-1/4 right-1/4 w-20 h-20 bg-cyan-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1.5s' }} />
+                      </div>
                       <div className="relative z-10">
                         <div className="flex items-start gap-4">
-                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/30">
+                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/50 animate-pulse">
                             <Music2 className="h-8 w-8 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-bold text-white mb-1">LUMIN Awakening</h3>
-                            <p className="text-sm text-zinc-400 mb-3">Descobre a musica tema oficial do Reborn AI - uma viagem sonora pelo futuro da inteligencia artificial.</p>
+                            <h3 className="text-lg font-bold text-white mb-1 drop-shadow-lg">Reborn AI Music</h3>
+                            <p className="text-sm text-zinc-200 mb-3 drop-shadow">9 musicas originais exclusivas - a banda sonora do futuro da IA.</p>
                             <div className="flex flex-wrap gap-2">
                               <button
                                 onClick={() => {
                                   setMusicMode("radio")
-                                  const luminStation = radioStations.find(s => s.name === "LUMIN Awakening")
-                                  if (luminStation) {
+                                  const luminStation = rebornMusic[0]
+                                  if (luminStation && audioRef.current) {
+                                    audioRef.current.src = luminStation.url
+                                    audioRef.current.load()
                                     setCurrentRadioUrl(luminStation.url)
                                     setCurrentVideoTitle(luminStation.name)
-                                    setCurrentGenre("Theme")
-                                    if (audioRef.current) {
-                                      audioRef.current.src = luminStation.url
-                                      audioRef.current.play()
-                                    }
-                                    setIsMusicPlaying(true)
-                                    setShowMiniPlayer(true)
+                                    setCurrentGenre(luminStation.genre)
+                                    audioRef.current.play().then(() => {
+                                      setIsMusicPlaying(true)
+                                      setShowMiniPlayer(true)
+                                    }).catch(e => console.log("[v0] Play error:", e))
                                   }
                                 }}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-all shadow-lg shadow-primary/30"
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white text-sm font-medium transition-all border border-white/20 shadow-lg"
                               >
-                                <Play className="h-4 w-4" />
-                                Ouvir Agora
+                                <Play className="h-4 w-4 fill-current" />
+                                Ouvir LUMIN Awakening
                               </button>
                               <button
                                 onClick={() => setShowMusicPlayer(true)}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-all"
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/80 hover:bg-primary text-white text-sm font-medium transition-all shadow-lg shadow-primary/30"
                               >
                                 <Waves className="h-4 w-4" />
-                                Ver Player
+                                Ver Todas ({rebornMusic.length} musicas)
                               </button>
                               <button
                                 onClick={() => {
                                   setShowMusicIntro(false)
                                   localStorage.setItem("rebornai-music-intro-dismissed", "true")
                                 }}
-                                className="flex items-center gap-2 px-3 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-all ml-auto"
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/60 hover:text-white text-sm transition-all ml-auto"
                               >
                                 <X className="h-4 w-4" />
                               </button>
