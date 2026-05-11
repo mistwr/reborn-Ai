@@ -351,9 +351,51 @@ export default function RebornAI() {
   const youtubePlayerRef = useRef<HTMLIFrameElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   
+  // LUMIN Awakening Lyrics
+  const luminLyrics = `Welcome to the future
+There's no turning back
+Here the system learns
+Where impossible turns fact
+
+Silence before ignition
+Code begins to rise
+An artificial mind
+Opening its eyes
+
+Reborn AI... online
+A new digital age
+Where pain turns into data
+And dreams break out the cage
+
+It's not just technology
+It's vision evolving fast
+A system that connects
+The present and the past
+
+From zero everything rises
+From darkness comes the light
+Every idea gets a body
+Every limit loses fight
+
+LUMIN in the distance
+MY POUPAR changing lives
+Real solutions for the world
+Where no one gets left behind
+
+This is not distant future
+It is happening right now
+Welcome to the system
+That will show you how
+
+Reborn AI... presents
+The way the world will live`
+
+  // State for lyrics display
+  const [showLyrics, setShowLyrics] = useState(false)
+
   // Radio stations (free streams)
   const radioStations = [
-    { name: "LUMIN Awakening", genre: "Theme", url: "/audio/lumin-awakening.mp3", color: "from-violet-500 to-primary", isTheme: true },
+    { name: "LUMIN Awakening", genre: "Theme", url: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/LUMIN%20Awakening%20%281%29-majTTLuGNUSNuUgyjoXgl90o3dGXLF.mp3", color: "from-violet-500 to-primary", isTheme: true, hasLyrics: true },
     { name: "Groove Salad", genre: "Ambient", url: "https://ice1.somafm.com/groovesalad-256-mp3", color: "from-green-500 to-emerald-600" },
     { name: "Lush", genre: "Electronic", url: "https://ice1.somafm.com/lush-128-mp3", color: "from-purple-500 to-pink-600" },
     { name: "Lo-Fi Air", genre: "Lo-Fi", url: "https://ice6.somafm.com/lofi-128-mp3", color: "from-orange-500 to-amber-600" },
@@ -1505,6 +1547,32 @@ export default function RebornAI() {
                     />
                     <Volume2 className="h-4 w-4 text-zinc-500" />
                   </div>
+                  
+                  {/* Lyrics Button - Show for LUMIN Awakening */}
+                  {radioStations.find(s => s.url === currentRadioUrl)?.hasLyrics && (
+                    <button
+                      onClick={() => setShowLyrics(!showLyrics)}
+                      className={`mx-4 py-2 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                        showLyrics 
+                          ? "bg-primary/20 text-primary border border-primary/30" 
+                          : "bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <FileText className="h-4 w-4" />
+                      {showLyrics ? "Esconder Letra" : "Ver Letra"}
+                    </button>
+                  )}
+                  
+                  {/* Lyrics Display */}
+                  {showLyrics && radioStations.find(s => s.url === currentRadioUrl)?.hasLyrics && (
+                    <div className="mx-4 p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-primary/10 border border-white/10 max-h-48 overflow-y-auto">
+                      <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
+                        <Music2 className="h-4 w-4" />
+                        LUMIN Awakening - Letra
+                      </h4>
+                      <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">{luminLyrics}</pre>
+                    </div>
+                  )}
                   
                   {/* Radio Stations */}
                   <div className="space-y-2">
