@@ -53,7 +53,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt" suppressHydrationWarning className="bg-background">
+    <html lang="pt" suppressHydrationWarning className="bg-background" data-theme="dark">
       <head>
         {/* PWA Meta Tags */}
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
@@ -68,6 +68,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                var savedTheme = localStorage.getItem('rebornai-theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', savedTheme);
                 document.documentElement.classList.add('dark');
               })();
               
