@@ -333,7 +333,7 @@ export default function RebornAI() {
     enableSearch: true,
   })
   const [showSettings, setShowSettings] = useState(false)
-  const [currentTheme, setCurrentTheme] = useState("dark")
+  const [currentTheme, setCurrentTheme] = useState("light")
   const [showMusicIntro, setShowMusicIntro] = useState(true)
 
   // Live Mode state
@@ -1748,100 +1748,91 @@ The way the world will live`
         </div>
       )}
 
-      {/* Mini Player - Glassmorphism Floating */}
-      {showMiniPlayer && isMusicPlaying && !showMusicPlayer && (
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 p-2 pl-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 border border-white/10"
-             style={{ background: "rgba(10, 10, 15, 0.8)", backdropFilter: "blur(20px)" }}>
-          {/* Animated Visualizer Background */}
-          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-            <div className="absolute bottom-0 left-0 right-0 h-1 flex gap-0.5 px-2">
-              {[...Array(12)].map((_, i) => (
-                <div key={i} className="flex-1 bg-primary/30 rounded-t animate-pulse" 
-                     style={{ height: `${30 + Math.random() * 70}%`, animationDelay: `${i * 0.08}s` }} />
-              ))}
-            </div>
-          </div>
+      {/* Mini Player - Compact Floating */}
+      {showMiniPlayer && !showMusicPlayer && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 p-1.5 rounded-full shadow-2xl animate-in slide-in-from-bottom-4 border border-white/10"
+             style={{ background: "rgba(10, 10, 15, 0.9)", backdropFilter: "blur(20px)" }}>
           
-          <div className="flex items-center gap-3 relative z-10">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${youtubeStations.find(s => s.id === currentVideoId)?.color || radioStations.find(s => s.url === currentRadioUrl)?.color || "from-primary to-violet-500"} flex items-center justify-center`}>
-              {musicMode === "radio" ? <Radio className="h-5 w-5 text-white" /> : <Music2 className="h-5 w-5 text-white" />}
-            </div>
-            <div className="hidden sm:block max-w-36">
-              <p className="text-sm font-medium text-white truncate">{currentVideoTitle}</p>
-              <p className="text-[10px] text-zinc-500 flex items-center gap-1">
-                <span className={`px-1 py-0.5 rounded text-[8px] font-medium bg-gradient-to-r ${youtubeStations.find(s => s.id === currentVideoId)?.color || radioStations.find(s => s.url === currentRadioUrl)?.color || "from-primary to-violet-500"} text-white`}>
-                  {currentGenre}
-                </span>
-                <span>{musicMode === "radio" ? "Ao vivo" : "A tocar"}</span>
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-1 relative z-10">
+          <div className="flex items-center gap-2">
+            {/* Play/Pause Button */}
             <button
               onClick={() => {
-                if (musicMode === "radio" && audioRef.current) {
+                if (isMusicPlaying && audioRef.current) {
                   audioRef.current.pause()
+                  setIsMusicPlaying(false)
+                } else if (audioRef.current) {
+                  if (currentRadioUrl) {
+                    audioRef.current.play().catch(e => console.log("[v0] Mini play error:", e))
+                  } else {
+                    const station = rebornMusic[0]
+                    audioRef.current.src = station.url
+                    audioRef.current.load()
+                    setCurrentRadioUrl(station.url)
+                    setCurrentVideoTitle(station.name)
+                    setCurrentGenre(station.genre)
+                    audioRef.current.play().catch(e => console.log("[v0] Mini play error:", e))
+                  }
+                  setIsMusicPlaying(true)
                 }
-                setIsMusicPlaying(false)
               }}
-              className="h-9 w-9 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+              className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
+                isMusicPlaying 
+                  ? "bg-primary text-white shadow-lg shadow-primary/40" 
+                  : "bg-white/10 text-zinc-300 hover:bg-white/20"
+              }`}
             >
-              <Pause className="h-4 w-4" />
+              {isMusicPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
             </button>
+            
+            {/* Track Info - Only show when playing */}
+            {currentVideoTitle && (
+              <div className="hidden sm:block max-w-32 pr-1">
+                <p className="text-xs font-medium text-white truncate">{currentVideoTitle}</p>
+                <p className="text-[10px] text-zinc-500 truncate">{currentGenre}</p>
+              </div>
+            )}
+            
+            {/* Next Button */}
             <button
               onClick={() => {
-                if (musicMode === "radio") {
-                  const currentIndex = radioStations.findIndex(s => s.url === currentRadioUrl)
-                  const nextIndex = currentIndex < radioStations.length - 1 ? currentIndex + 1 : 0
-                  const station = radioStations[nextIndex]
+                const currentIndex = allStations.findIndex(s => s.url === currentRadioUrl)
+                const nextIndex = currentIndex < allStations.length - 1 ? currentIndex + 1 : 0
+                const station = allStations[nextIndex]
+                if (station && audioRef.current) {
+                  audioRef.current.src = station.url
+                  audioRef.current.load()
                   setCurrentRadioUrl(station.url)
                   setCurrentVideoTitle(station.name)
                   setCurrentGenre(station.genre)
-                  if (audioRef.current) {
-                    audioRef.current.src = station.url
-                    audioRef.current.play()
-                  }
-                } else {
-                  const currentIndex = youtubeStations.findIndex(s => s.id === currentVideoId)
-                  const nextIndex = currentIndex < youtubeStations.length - 1 ? currentIndex + 1 : 0
-                  const station = youtubeStations[nextIndex]
-                  setCurrentVideoId(station.id)
-                  setCurrentVideoTitle(station.name)
-                  setCurrentGenre(station.genre)
+                  audioRef.current.play().catch(e => console.log("[v0] Mini next error:", e))
+                  setIsMusicPlaying(true)
                 }
               }}
-              className="h-9 w-9 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <SkipForward className="h-4 w-4" />
+              <SkipForward className="h-3.5 w-3.5" />
             </button>
+            
+            {/* Expand Button */}
             <button
               onClick={() => setShowMusicPlayer(true)}
-              className="h-9 w-9 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <Maximize2 className="h-4 w-4" />
+              <Maximize2 className="h-3.5 w-3.5" />
             </button>
+            
+            {/* Close Button */}
             <button
               onClick={() => { 
                 setShowMiniPlayer(false)
                 setIsMusicPlaying(false)
                 if (audioRef.current) audioRef.current.pause()
               }}
-              className="h-9 w-9 rounded-full flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-white/10 transition-colors"
+              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-white/10 transition-colors"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          
-          {/* Hidden iframe for YouTube background play */}
-          {musicMode === "youtube" && (
-            <iframe
-              src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}&rel=0`}
-              className="absolute -top-[9999px] w-0 h-0"
-              title="Background Music"
-              allow="autoplay"
-            />
-          )}
         </div>
       )}
 
