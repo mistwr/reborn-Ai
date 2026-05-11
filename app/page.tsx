@@ -333,7 +333,7 @@ export default function RebornAI() {
     enableSearch: true,
   })
   const [showSettings, setShowSettings] = useState(false)
-  const [currentTheme, setCurrentTheme] = useState("dark")
+  const [currentTheme, setCurrentTheme] = useState("light")
   const [showMusicIntro, setShowMusicIntro] = useState(true)
 
   // Live Mode state
