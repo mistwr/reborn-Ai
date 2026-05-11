@@ -333,6 +333,8 @@ export default function RebornAI() {
     enableSearch: true,
   })
   const [showSettings, setShowSettings] = useState(false)
+  const [currentTheme, setCurrentTheme] = useState("dark")
+  const [showMusicIntro, setShowMusicIntro] = useState(true)
 
   // Live Mode state
   const [liveMode, setLiveMode] = useState<LiveModeState | null>(null) // Initialize as null
@@ -476,6 +478,17 @@ The way the world will live`
     const proStatus = localStorage.getItem("rebornai-pro")
     if (proStatus === "true") {
       setIsPro(true)
+    }
+    
+    // Load theme from localStorage
+    const savedTheme = localStorage.getItem("rebornai-theme") || "dark"
+    setCurrentTheme(savedTheme)
+    document.documentElement.setAttribute("data-theme", savedTheme)
+    
+    // Check if music intro was dismissed
+    const musicIntroDismissed = localStorage.getItem("rebornai-music-intro-dismissed")
+    if (musicIntroDismissed) {
+      setShowMusicIntro(false)
     }
     
     // Check URL for successful payment callback
@@ -1236,6 +1249,33 @@ The way the world will live`
           </div>
         </div>
 
+        {/* Theme Selector */}
+        <div className="px-3 py-2 border-t border-white/5">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 px-3">Tema</p>
+          <div className="grid grid-cols-5 gap-1.5 px-2">
+            {[
+              { id: "dark", name: "Dark", color: "bg-zinc-900" },
+              { id: "light", name: "Light", color: "bg-zinc-100" },
+              { id: "midnight", name: "Midnight", color: "bg-blue-900" },
+              { id: "sunset", name: "Sunset", color: "bg-orange-900" },
+              { id: "forest", name: "Forest", color: "bg-green-900" },
+            ].map((theme) => (
+              <button
+                key={theme.id}
+                onClick={() => {
+                  setCurrentTheme(theme.id)
+                  document.documentElement.setAttribute("data-theme", theme.id)
+                  localStorage.setItem("rebornai-theme", theme.id)
+                }}
+                className={`w-full aspect-square rounded-lg ${theme.color} border-2 transition-all ${
+                  currentTheme === theme.id ? "border-primary ring-2 ring-primary/30" : "border-transparent hover:border-white/20"
+                }`}
+                title={theme.name}
+              />
+            ))}
+          </div>
+        </div>
+
         {/* Music Player Toggle */}
         <div className="px-3 py-2 border-t border-white/5">
           <button
@@ -1797,6 +1837,64 @@ The way the world will live`
             <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <ScrollArea className="flex-1">
                 <div className="max-w-3xl mx-auto py-4 space-y-4">
+                  {/* Music Introduction Banner */}
+                  {showMusicIntro && messages.length === 0 && (
+                    <div className="mb-6 mx-4 relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500/20 via-primary/10 to-fuchsia-500/20 border border-white/10 p-5">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-violet-500/20 rounded-full blur-2xl" />
+                      <div className="relative z-10">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/30">
+                            <Music2 className="h-8 w-8 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg font-bold text-white mb-1">LUMIN Awakening</h3>
+                            <p className="text-sm text-zinc-400 mb-3">Descobre a musica tema oficial do Reborn AI - uma viagem sonora pelo futuro da inteligencia artificial.</p>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => {
+                                  setMusicMode("radio")
+                                  const luminStation = radioStations.find(s => s.name === "LUMIN Awakening")
+                                  if (luminStation) {
+                                    setCurrentRadioUrl(luminStation.url)
+                                    setCurrentVideoTitle(luminStation.name)
+                                    setCurrentGenre("Theme")
+                                    if (audioRef.current) {
+                                      audioRef.current.src = luminStation.url
+                                      audioRef.current.play()
+                                    }
+                                    setIsMusicPlaying(true)
+                                    setShowMiniPlayer(true)
+                                  }
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-all shadow-lg shadow-primary/30"
+                              >
+                                <Play className="h-4 w-4" />
+                                Ouvir Agora
+                              </button>
+                              <button
+                                onClick={() => setShowMusicPlayer(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-all"
+                              >
+                                <Waves className="h-4 w-4" />
+                                Ver Player
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowMusicIntro(false)
+                                  localStorage.setItem("rebornai-music-intro-dismissed", "true")
+                                }}
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-all ml-auto"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {messages.length === 0 && (
                     <ChatWelcome onTabChange={setActiveTab} />
                   )}
