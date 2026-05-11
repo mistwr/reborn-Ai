@@ -353,6 +353,7 @@ export default function RebornAI() {
   
   // Radio stations (free streams)
   const radioStations = [
+    { name: "LUMIN Awakening", genre: "Theme", url: "/audio/lumin-awakening.mp3", color: "from-violet-500 to-primary", isTheme: true },
     { name: "Groove Salad", genre: "Ambient", url: "https://ice1.somafm.com/groovesalad-256-mp3", color: "from-green-500 to-emerald-600" },
     { name: "Lush", genre: "Electronic", url: "https://ice1.somafm.com/lush-128-mp3", color: "from-purple-500 to-pink-600" },
     { name: "Lo-Fi Air", genre: "Lo-Fi", url: "https://ice6.somafm.com/lofi-128-mp3", color: "from-orange-500 to-amber-600" },
