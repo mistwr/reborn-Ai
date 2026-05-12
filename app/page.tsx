@@ -1740,13 +1740,14 @@ The way the world will live`
                   </div>
                 </div>
                 
-                {/* Hidden Audio Element */}
-                <audio ref={audioRef} />
               </>
             )}
           </div>
         </div>
       )}
+
+      {/* Global Audio Element - Always in DOM */}
+      <audio ref={audioRef} className="hidden" preload="auto" />
 
       {/* Mini Player - Compact Floating */}
       {showMiniPlayer && !showMusicPlayer && (
@@ -1760,19 +1761,34 @@ The way the world will live`
                 if (isMusicPlaying && audioRef.current) {
                   audioRef.current.pause()
                   setIsMusicPlaying(false)
-                } else if (audioRef.current) {
-                  if (currentRadioUrl) {
-                    audioRef.current.play().catch(e => console.log("[v0] Mini play error:", e))
-                  } else {
-                    const station = rebornMusic[0]
-                    audioRef.current.src = station.url
-                    audioRef.current.load()
-                    setCurrentRadioUrl(station.url)
-                    setCurrentVideoTitle(station.name)
-                    setCurrentGenre(station.genre)
-                    audioRef.current.play().catch(e => console.log("[v0] Mini play error:", e))
+                } else {
+                  const playMusic = () => {
+                    if (!audioRef.current) return
+                    
+                    if (currentRadioUrl) {
+                      // Resume current track
+                      audioRef.current.play()
+                        .then(() => setIsMusicPlaying(true))
+                        .catch(() => {
+                          // If failed, reload and try again
+                          audioRef.current!.src = currentRadioUrl
+                          audioRef.current!.load()
+                          audioRef.current!.play().then(() => setIsMusicPlaying(true)).catch(() => {})
+                        })
+                    } else {
+                      // Start first track
+                      const station = rebornMusic[0]
+                      setCurrentRadioUrl(station.url)
+                      setCurrentVideoTitle(station.name)
+                      setCurrentGenre(station.genre)
+                      audioRef.current.src = station.url
+                      audioRef.current.load()
+                      audioRef.current.play()
+                        .then(() => setIsMusicPlaying(true))
+                        .catch(() => setIsMusicPlaying(true))
+                    }
                   }
-                  setIsMusicPlaying(true)
+                  playMusic()
                 }
               }}
               className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
@@ -1943,18 +1959,31 @@ The way the world will live`
                             <div className="flex flex-wrap gap-2">
                               <button
                                 onClick={() => {
-                                  setMusicMode("radio")
                                   const luminStation = rebornMusic[0]
-                                  if (luminStation && audioRef.current) {
-                                    audioRef.current.src = luminStation.url
-                                    audioRef.current.load()
+                                  if (luminStation) {
+                                    setMusicMode("radio")
                                     setCurrentRadioUrl(luminStation.url)
                                     setCurrentVideoTitle(luminStation.name)
                                     setCurrentGenre(luminStation.genre)
-                                    audioRef.current.play().then(() => {
-                                      setIsMusicPlaying(true)
-                                      setShowMiniPlayer(true)
-                                    }).catch(e => console.log("[v0] Play error:", e))
+                                    setShowMiniPlayer(true)
+                                    
+                                    // Small delay to ensure audio element is ready
+                                    setTimeout(() => {
+                                      if (audioRef.current) {
+                                        audioRef.current.src = luminStation.url
+                                        audioRef.current.load()
+                                        audioRef.current.play()
+                                          .then(() => setIsMusicPlaying(true))
+                                          .catch(e => {
+                                            console.log("[v0] Play error, retrying:", e)
+                                            // Retry once
+                                            setTimeout(() => {
+                                              audioRef.current?.play().catch(() => {})
+                                              setIsMusicPlaying(true)
+                                            }, 100)
+                                          })
+                                      }
+                                    }, 50)
                                   }
                                 }}
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white text-sm font-medium transition-all border border-white/20 shadow-lg"
