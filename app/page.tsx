@@ -3,6 +3,7 @@
 import { Calendar } from "@/components/ui/calendar"
 import { AuthModal } from "@/components/auth-modal"
 import { GDPRBanner } from "@/components/gdpr-banner"
+import { ProModal } from "@/components/pro-modal"
 import { useSession, signOut } from "next-auth/react"
 
 import type React from "react"
@@ -2469,66 +2470,10 @@ The way the world will live`
         </div>
       )}
 
-      {showProModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-lg bg-card border-border shadow-2xl">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold gradient-text">Reborn AI Pro</h2>
-                <Button variant="ghost" size="icon" onClick={() => setShowProModal(false)}>
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Zap className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">Gerações Ilimitadas</p>
-                      <p className="text-sm text-muted-foreground">Sem limites de uso</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">Prioridade no Processamento</p>
-                      <p className="text-sm text-muted-foreground">Resposta mais rápida</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Rocket className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">Funcionalidades Exclusivas</p>
-                      <p className="text-sm text-muted-foreground">Acesso a novos recursos primeiro</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-6">
-                  <div className="text-center mb-4">
-                    <p className="text-3xl font-bold">
-                      €9.9<span className="text-lg text-muted-foreground">/mês</span>
-                    </p>
-                  </div>
-                  <Button className="w-full" size="lg" onClick={handleUpgradePro}>
-                    Subscrever Agora
-                  </Button>
-                  <p className="text-xs text-center text-muted-foreground mt-3">
-                    Cancele a qualquer momento. Renovação automática.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      <ProModal 
+        isOpen={showProModal} 
+        onClose={() => setShowProModal(false)} 
+      />
 
       <GDPRBanner />
 
