@@ -2016,7 +2016,7 @@ The way the world will live`
                   )}
                   
                   {messages.length === 0 && (
-                    <ChatWelcome onTabChange={setActiveTab} />
+                    <ChatWelcome onTabChange={setActiveTab} onOpenProModal={() => setShowProModal(true)} />
                   )}
 
                   {messages.map((message, index) => (
