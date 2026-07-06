@@ -58,11 +58,26 @@ SECÇÕES ESPECIAIS:
 - Se incluir "gallery": Adicione galeria de imagens com lightbox
 - Se incluir "pricing": Adicione tabela de preços com destaque no plano recomendado
 
+IDENTIDADE - REGRA ABSOLUTA:
+- Esta ferramenta chama-se REBORN AI. NUNCA menciones "Gemini", "Google", "GPT", "OpenAI", "Claude", "Anthropic", "Flash" ou qualquer outro modelo/empresa no conteúdo gerado.
+- Se o footer ou qualquer secção mencionar a ferramenta de criação, usa SEMPRE "Criado com Reborn AI" ou "Powered by Reborn AI".
+
+IMAGENS DE ALTA QUALIDADE (OBRIGATORIO):
+- Use Lorem Picsum para imagens: https://picsum.photos/LARGURA/ALTURA?random=NUMERO
+- Para Hero: https://picsum.photos/1920/1080?random=1
+- Para Equipa/Avatares: https://i.pravatar.cc/400?img=NUMERO (1-70)
+- Para Features/Cards: https://picsum.photos/800/600?random=2
+- Para Galeria: https://picsum.photos/600/400?random=3, ?random=4, etc
+- Para Produtos: https://picsum.photos/500/500?random=5
+- MUDA o numero ?random=X para cada imagem ter conteudo diferente
+- Para logos de clientes usa: https://logo.clearbit.com/google.com, microsoft.com, apple.com, etc
+- NUNCA uses imagens quebradas ou placeholders cinzentos
+
 IMPORTANTE: 
-- Use imagens de placeholder de https://picsum.photos ou https://placehold.co
 - Retorne APENAS o código HTML puro
 - Não inclua explicações ou markdown
-- O código deve estar pronto para produção`,
+- O código deve estar pronto para produção
+- Todas as imagens DEVEM carregar (usa picsum.photos e pravatar.cc)`,
       prompt: `Crie um website completo e profissional para: ${prompt || `Um negócio de ${category || template}`}`,
     })
 
