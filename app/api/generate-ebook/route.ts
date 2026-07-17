@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     const bookStyle = EBOOK_STYLES[style as keyof typeof EBOOK_STYLES] || EBOOK_STYLES.modern
 
     const { text } = await generateText({
-      model: "google/gemini-2.0-flash-001",
+      model: process.env.AI_MODEL || "deepseek-chat",
       prompt: `Escreve um ebook profissional sobre: "${prompt}"
 Título: "${title || prompt}"
 Autor: ${author}
