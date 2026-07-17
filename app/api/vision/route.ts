@@ -147,7 +147,7 @@ Usas formatacao Markdown para organizar as respostas de forma clara e legivel.`
     }
 
     const result = streamText({
-      model: "google/gemini-2.0-flash-001" as any,
+      model: process.env.AI_VISION_MODEL || "gpt-4-vision-preview",
       system: systemPrompt,
       messages: [
         {
@@ -155,7 +155,7 @@ Usas formatacao Markdown para organizar as respostas de forma clara e legivel.`
           content: contentParts,
         },
       ],
-      maxOutputTokens: 4096,
+      maxTokens: 2048,
     })
 
     return result.toTextStreamResponse()

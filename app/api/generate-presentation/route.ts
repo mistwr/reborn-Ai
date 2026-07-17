@@ -447,7 +447,7 @@ export async function POST(req: Request) {
     const t = TEMPLATES[template] ?? TEMPLATES.modern
 
     const { text } = await generateText({
-      model: "google/gemini-2.0-flash-001" as any,
+      model: process.env.AI_MODEL || "deepseek-chat",
       prompt: `Create a professional presentation about: "${prompt}"
 
 Generate exactly ${slideCount} slides as a JSON array.

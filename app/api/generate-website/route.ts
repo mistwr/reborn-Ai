@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       : ""
 
     const result = streamText({
-      model: "google/gemini-2.0-flash-001" as any,
+      model: process.env.AI_MODEL || "deepseek-chat",
       system: `Você é um expert web developer especializado em criar websites profissionais e modernos.
 
 REQUISITOS OBRIGATÓRIOS:

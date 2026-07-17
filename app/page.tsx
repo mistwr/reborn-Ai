@@ -16,6 +16,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { WebCraftProTab } from "@/components/pro/webcraft-pro-tab"
+import { ImageGeneratorProTab } from "@/components/pro/image-generator-pro-tab"
+import { CliperAITab } from "@/components/pro/clipper-ai-tab"
+import { GlobalExportTab } from "@/components/pro/global-export-tab"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
@@ -51,6 +55,7 @@ import {
   MessageCircleIcon,
   Scissors,
   Megaphone,
+  Crown,
   Instagram,
   Twitter,
   Facebook,
@@ -1142,6 +1147,23 @@ The way the world will live`
               >
                 <Scissors className="h-4 w-4" />
                 Video Clipper
+              </button>
+            </div>
+
+            <div className="my-3 border-t border-white/5" />
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Pro</p>
+
+            <div className="flex flex-col gap-0.5">
+              <button
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "pro"
+                    ? "bg-white/10 text-white"
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}
+                onClick={() => { setActiveTab("pro"); setSidebarOpen(false); }}
+              >
+                <Crown className="h-4 w-4 text-amber-500" />
+                Modo Pro
               </button>
             </div>
 
@@ -2380,6 +2402,38 @@ The way the world will live`
                   />
                 </div>
               </div>
+            </TabsContent>
+
+            {/* Pro Tab - Integrates all Pro features */}
+            <TabsContent value="pro" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              <ScrollArea className="flex-1">
+                <div className="max-w-6xl mx-auto py-4 px-4">
+                  <Tabs defaultValue="webcraft" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4 mb-6">
+                      <TabsTrigger value="webcraft">WebCraft</TabsTrigger>
+                      <TabsTrigger value="images">Images</TabsTrigger>
+                      <TabsTrigger value="clipper">Clipper</TabsTrigger>
+                      <TabsTrigger value="export">Export</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="webcraft" className="space-y-4">
+                      <WebCraftProTab />
+                    </TabsContent>
+
+                    <TabsContent value="images" className="space-y-4">
+                      <ImageGeneratorProTab />
+                    </TabsContent>
+
+                    <TabsContent value="clipper" className="space-y-4">
+                      <CliperAITab />
+                    </TabsContent>
+
+                    <TabsContent value="export" className="space-y-4">
+                      <GlobalExportTab />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </ScrollArea>
             </TabsContent>
           </Tabs>
         </main>

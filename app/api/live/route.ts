@@ -79,11 +79,11 @@ CONTEXTO ATUAL:
 Responde SEMPRE em portugues de Portugal (PT-PT, nao brasileiro).`
 
     const result = streamText({
-      model: "google/gemini-2.0-flash-001" as any,
+      model: process.env.AI_MODEL || "deepseek-chat",
       system: systemPrompt,
       messages: modelMessages,
-      temperature: 0.85, // Higher for more natural variation
-      maxTokens: 250, // Keep responses short for voice
+      temperature: 0.85,
+      maxTokens: 250,
     })
 
     return result.toTextStreamResponse()
