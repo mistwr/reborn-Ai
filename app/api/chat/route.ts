@@ -336,7 +336,7 @@ Usa estas informacoes para enriquecer a resposta, citando as fontes quando relev
 Fornece respostas completas, precisas e uteis. Quando o utilizador perguntar sobre a app, explica detalhadamente como usar cada funcionalidade.`
 
     const result = streamText({
-      model: "google/gemini-2.0-flash-001" as any,
+      model: process.env.AI_MODEL || "deepseek-chat",
       system: systemPrompt,
       messages: formattedMessages,
     })
