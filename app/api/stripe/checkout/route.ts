@@ -2,6 +2,12 @@ import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
+const META_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid"] as const
+
+function safeMeta(value: unknown) {
+  return typeof value === "string" ? value.trim().slice(0, 200) : ""
+}
+
 export async function POST(req: Request) {
   try {
     const secretKey = process.env.STRIPE_SECRET_KEY
@@ -19,6 +25,7 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}))
     const email = typeof body?.email === "string" ? body.email.trim() : ""
+    const attribution = body?.attribution && typeof body.attribution === "object" ? body.attribution : {}
     const origin = req.headers.get("origin") || process.env.NEXTAUTH_URL || "http://localhost:3000"
 
     const params = new URLSearchParams()
@@ -30,6 +37,11 @@ export async function POST(req: Request) {
     params.set("allow_promotion_codes", "true")
     if (email) params.set("customer_email", email)
     params.set("metadata[product]", "reborn-ai-pro")
+
+    for (const key of META_KEYS) {
+      const value = safeMeta(attribution[key])
+      if (value) params.set(`metadata[${key}]`, value)
+    }
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
