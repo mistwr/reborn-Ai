@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { X, Sparkles, Zap, Target, Crown, Check, Loader2, MessageCircle, Shield, Calendar, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { trackEvent } from "@/lib/analytics"
@@ -15,13 +15,18 @@ interface ProModalProps {
 export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const supportWhatsApp = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").replace(/\D/g, "")
+
+  useEffect(() => {
+    if (isOpen) trackEvent("paywall_opened", { source: "pro_modal" })
+  }, [isOpen])
 
   if (!isOpen) return null
 
   const handleCheckout = async () => {
     setIsLoading(true)
     setError(null)
-    trackEvent("checkout_started")
+    trackEvent("checkout_started", { plan: "pro", price_cents: PRO_PLAN.priceInCents })
 
     try {
       const response = await fetch("/api/stripe/checkout", {
@@ -34,15 +39,20 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
       else throw new Error(data.error || "Erro ao criar sessao de pagamento")
     } catch (err) {
       console.error("[ProModal] Checkout error:", err)
-      trackEvent("checkout_error", { error: String(err) })
-      setError("Nao foi possivel abrir o pagamento. Tenta novamente ou fala connosco no WhatsApp.")
+      trackEvent("checkout_error", { error: String(err), plan: "pro" })
+      setError("Nao foi possivel abrir o pagamento. Tenta novamente.")
       setIsLoading(false)
     }
   }
 
   const handleWhatsApp = () => {
+    if (!supportWhatsApp) return
     trackEvent("whatsapp_clicked", { context: "pro_modal" })
-    window.open("https://wa.me/351931184023?text=Quero%20saber%20mais%20sobre%20o%20Reborn%20AI%20Pro", "_blank")
+    window.open(
+      `https://wa.me/${supportWhatsApp}?text=${encodeURIComponent("Quero saber mais sobre o Reborn AI Pro")}`,
+      "_blank",
+      "noopener,noreferrer",
+    )
   }
 
   const benefits = [
@@ -100,10 +110,12 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
             {isLoading ? "A abrir pagamento..." : "Ativar Reborn AI Pro"}
           </Button>
 
-          <Button variant="outline" className="w-full gap-2" onClick={handleWhatsApp}>
-            <MessageCircle className="w-4 h-4" />
-            Falar no WhatsApp
-          </Button>
+          {supportWhatsApp && (
+            <Button variant="outline" className="w-full gap-2" onClick={handleWhatsApp}>
+              <MessageCircle className="w-4 h-4" />
+              Falar no WhatsApp
+            </Button>
+          )}
 
           <div className="flex flex-wrap justify-center gap-3 pt-1">
             {trustBadges.map(([Icon, text]) => <span key={text} className="flex items-center gap-1 text-[11px] text-muted-foreground"><Icon className="w-3 h-3" />{text}</span>)}
