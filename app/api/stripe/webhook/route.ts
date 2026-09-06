@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHash, createHmac, timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import {
   createSubscription,
@@ -99,6 +99,69 @@ async function persistStripeSubscription(subscription: any, secretKey: string, e
   })
 }
 
+function sha256(value: string) {
+  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex")
+}
+
+async function sendMetaPurchase(session: any) {
+  const pixelId = process.env.META_PIXEL_ID?.trim()
+  const accessToken = process.env.META_CAPI_ACCESS_TOKEN?.trim()
+  if (!pixelId || !accessToken || session?.payment_status !== "paid") return
+
+  const email = String(session?.customer_details?.email || session?.customer_email || "").trim().toLowerCase()
+  if (!email) return
+
+  const eventTime = Math.floor(Date.now() / 1000)
+  const metadata = session?.metadata || {}
+  const fbclid = typeof metadata.fbclid === "string" ? metadata.fbclid.trim() : ""
+  const value = Number(session?.amount_total || 0) / 100
+  const currency = String(session?.currency || "eur").toUpperCase()
+  const eventSourceUrl = `${process.env.NEXTAUTH_URL || ""}/billing/success`.replace(/^\//, "")
+
+  const userData: Record<string, unknown> = { em: [sha256(email)] }
+  if (fbclid) userData.fbc = `fb.1.${eventTime}.${fbclid}`
+
+  const body = {
+    data: [
+      {
+        event_name: "Purchase",
+        event_time: eventTime,
+        event_id: String(session?.id || `reborn-${eventTime}`),
+        action_source: "website",
+        event_source_url: eventSourceUrl || undefined,
+        user_data: userData,
+        custom_data: {
+          currency,
+          value,
+          content_name: "Reborn AI Pro",
+          content_type: "product",
+          utm_source: metadata.utm_source || undefined,
+          utm_medium: metadata.utm_medium || undefined,
+          utm_campaign: metadata.utm_campaign || undefined,
+          utm_content: metadata.utm_content || undefined,
+          utm_term: metadata.utm_term || undefined,
+        },
+      },
+    ],
+  }
+
+  const apiVersion = process.env.META_GRAPH_API_VERSION?.trim() || "v23.0"
+  const response = await fetch(
+    `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(pixelId)}/events?access_token=${encodeURIComponent(accessToken)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+  )
+
+  if (!response.ok) {
+    const text = await response.text()
+    console.error(`[Reborn Meta] CAPI Purchase failed (${response.status})`, text)
+  }
+}
+
 export async function POST(req: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
   const secretKey = process.env.STRIPE_SECRET_KEY
@@ -126,6 +189,13 @@ export async function POST(req: Request) {
         if (subscriptionId) {
           const subscription = await stripeGet(`subscriptions/${encodeURIComponent(subscriptionId)}`, secretKey)
           await persistStripeSubscription(subscription, secretKey, email)
+        }
+
+        // Conversion tracking is best-effort and must never block subscription activation.
+        try {
+          await sendMetaPurchase(session)
+        } catch (metaError) {
+          console.error("[Reborn Meta] unexpected CAPI error", metaError)
         }
         break
       }
