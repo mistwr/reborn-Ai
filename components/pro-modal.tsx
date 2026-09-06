@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { X, Sparkles, Zap, Target, Crown, Check, Loader2, MessageCircle, Shield, Calendar, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { trackEvent } from "@/lib/analytics"
+import { getStoredAttribution, trackMetaEvent } from "@/components/growth-tracking"
 import { PRO_PLAN, formatPrice } from "@/lib/plans"
 
 interface ProModalProps {
@@ -26,13 +27,24 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
   const handleCheckout = async () => {
     setIsLoading(true)
     setError(null)
-    trackEvent("checkout_started", { plan: "pro", price_cents: PRO_PLAN.priceInCents })
+    const attribution = getStoredAttribution()
+    trackEvent("checkout_started", {
+      plan: "pro",
+      price_cents: PRO_PLAN.priceInCents,
+      source: attribution.utm_source || "direct",
+      campaign: attribution.utm_campaign,
+    })
+    trackMetaEvent("InitiateCheckout", {
+      value: PRO_PLAN.priceInCents / 100,
+      currency: PRO_PLAN.currency,
+      content_name: "Reborn AI Pro",
+    })
 
     try {
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail }),
+        body: JSON.stringify({ email: userEmail, attribution }),
       })
       const data = await response.json()
       if (data.url) window.location.href = data.url
