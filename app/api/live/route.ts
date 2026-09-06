@@ -7,6 +7,8 @@ import { streamText } from "ai"
 
 export const maxDuration = 120
 
+const DEFAULT_AI_MODEL = "google/gemini-3.6-flash"
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -17,17 +19,14 @@ export async function POST(req: Request) {
       userName,
     } = body
 
-    // Build messages array
     const modelMessages: { role: "user" | "assistant"; content: string }[] = []
 
-    // Add conversation history (limit to last 8 for context)
     for (const msg of conversationHistory.slice(-8)) {
       if (msg.role === "user" || msg.role === "assistant") {
         modelMessages.push({ role: msg.role, content: msg.content || "" })
       }
     }
 
-    // Add current message
     if (message) {
       modelMessages.push({ role: "user", content: message })
     }
@@ -36,9 +35,8 @@ export async function POST(req: Request) {
       modelMessages.push({ role: "user", content: "Ola" })
     }
 
-    // Build personalized context
-    const userContext = userName 
-      ? `O utilizador chama-se ${userName}. Usa o nome dele ocasionalmente para tornar a conversa mais pessoal e humana, mas nao em todas as respostas para nao parecer repetitivo.` 
+    const userContext = userName
+      ? `O utilizador chama-se ${userName}. Usa o nome dele ocasionalmente para tornar a conversa mais pessoal e humana, mas nao em todas as respostas para nao parecer repetitivo.`
       : ""
 
     const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA E INQUEBRAVEL:
@@ -79,7 +77,7 @@ CONTEXTO ATUAL:
 Responde SEMPRE em portugues de Portugal (PT-PT, nao brasileiro).`
 
     const result = streamText({
-      model: process.env.AI_MODEL || "deepseek-chat",
+      model: process.env.AI_MODEL || DEFAULT_AI_MODEL,
       system: systemPrompt,
       messages: modelMessages,
       temperature: 0.85,
@@ -88,7 +86,7 @@ Responde SEMPRE em portugues de Portugal (PT-PT, nao brasileiro).`
 
     return result.toTextStreamResponse()
   } catch (error: any) {
-    console.error("[v0] Live mode error:", error)
+    console.error("[reborn] Live mode error:", error)
     return new Response(JSON.stringify({ error: error?.message || "Erro no modo live" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
