@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import { Inter, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Providers } from "@/components/providers"
+import { RebornAnalyticsObserver } from "@/components/reborn-analytics-observer"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -63,7 +64,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Reborn AI" />
         <meta name="application-name" content="Reborn AI" />
         <meta name="msapplication-TileImage" content="/icons/icon-512x512.jpg" />
-        
+
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -71,7 +72,7 @@ export default function RootLayout({
                 var savedTheme = localStorage.getItem('rebornai-theme') || 'light';
                 document.documentElement.setAttribute('data-theme', savedTheme);
               })();
-              
+
               // Register Service Worker
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
@@ -88,6 +89,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
+        <RebornAnalyticsObserver />
         <Analytics />
       </body>
     </html>
