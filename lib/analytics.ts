@@ -1,9 +1,4 @@
-/**
- * Simple Analytics Tracking
- *
- * TODO: Connect to Vercel Analytics or PostHog for production
- * Currently logs to console for development
- */
+import { track } from "@vercel/analytics"
 
 type EventName =
   | "paywall_opened"
@@ -16,21 +11,27 @@ type EventName =
   | "payment_cancel_viewed"
   | "subscription_created"
   | "subscription_cancelled"
+  | "account_viewed"
+  | "feature_used"
+  | "signup_started"
+  | "signup_completed"
 
-interface EventPayload {
+export interface EventPayload {
   [key: string]: string | number | boolean | undefined
 }
 
-export function trackEvent(eventName: EventName, payload?: EventPayload): void {
-  if (typeof window !== "undefined") {
-    console.log(`[Analytics] ${eventName}`, payload || {})
+export function trackEvent(eventName: EventName, payload: EventPayload = {}): void {
+  if (typeof window === "undefined") return
 
-    if (typeof (window as unknown as { va?: (event: string, data?: EventPayload) => void }).va === "function") {
-      (window as unknown as { va: (event: string, data?: EventPayload) => void }).va(eventName, payload)
+  try {
+    track(eventName, payload)
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.debug(`[Analytics] ${eventName}`, payload, error)
     }
   }
 }
 
 export function trackPageView(path: string): void {
-  console.log(`[Analytics] Page View: ${path}`)
+  trackEvent("feature_used", { feature: "page_view", path })
 }
