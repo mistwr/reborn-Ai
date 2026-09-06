@@ -1,9 +1,11 @@
 import type React from "react"
+import { Suspense } from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Providers } from "@/components/providers"
 import { RebornAnalyticsObserver } from "@/components/reborn-analytics-observer"
+import { GrowthTracking } from "@/components/growth-tracking"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -56,7 +58,6 @@ export default function RootLayout({
   return (
     <html lang="pt" suppressHydrationWarning className="bg-background" data-theme="light">
       <head>
-        {/* PWA Meta Tags */}
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
         <link rel="apple-touch-icon" href="/icons/icon-512x512.jpg" />
@@ -73,7 +74,6 @@ export default function RootLayout({
                 document.documentElement.setAttribute('data-theme', savedTheme);
               })();
 
-              // Register Service Worker
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(registration) {
@@ -90,6 +90,9 @@ export default function RootLayout({
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
         <RebornAnalyticsObserver />
+        <Suspense fallback={null}>
+          <GrowthTracking />
+        </Suspense>
         <Analytics />
       </body>
     </html>
