@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { isUserPro } from "@/lib/billing/store"
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim()
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
@@ -61,9 +62,29 @@ export const authOptions = {
   },
   callbacks: {
     async jwt({ token, user }: any) {
-      const email = (user?.email || token?.email || "").toLowerCase()
-      token.role = ownerEmails.has(email) ? "owner" : "user"
-      token.isFounder = token.role === "owner"
+      const email = (user?.email || token?.email || "").trim().toLowerCase()
+      const isFounder = ownerEmails.has(email)
+
+      token.role = isFounder ? "owner" : "user"
+      token.isFounder = isFounder
+
+      if (isFounder) {
+        token.plan = "pro"
+        token.isPro = true
+      } else if (email) {
+        try {
+          token.isPro = await isUserPro(email)
+          token.plan = token.isPro ? "pro" : "free"
+        } catch (error) {
+          console.error("[Reborn Auth] could not resolve billing plan", error)
+          token.isPro = false
+          token.plan = "free"
+        }
+      } else {
+        token.isPro = false
+        token.plan = "free"
+      }
+
       return token
     },
     async session({ session, token }: any) {
@@ -71,6 +92,8 @@ export const authOptions = {
         session.user.id = token.sub
         session.user.role = token.role || "user"
         session.user.isFounder = Boolean(token.isFounder)
+        session.user.plan = token.plan || "free"
+        session.user.isPro = Boolean(token.isPro)
       }
       return session
     },
