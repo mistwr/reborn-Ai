@@ -2,6 +2,8 @@ import { streamText } from "ai"
 
 export const maxDuration = 60
 
+const DEFAULT_AI_MODEL = "google/gemini-3.6-flash"
+
 export async function POST(req: Request) {
   try {
     const { prompt, template, category, palette, features, businessName, businessPhone, businessEmail } =
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
       : ""
 
     const result = streamText({
-      model: process.env.AI_MODEL || "deepseek-chat",
+      model: process.env.AI_MODEL || DEFAULT_AI_MODEL,
       system: `Você é um expert web developer especializado em criar websites profissionais e modernos.
 
 REQUISITOS OBRIGATÓRIOS:
@@ -83,7 +85,7 @@ IMPORTANTE:
 
     return result.toTextStreamResponse()
   } catch (error: any) {
-    console.error("[v0] Website error:", error)
+    console.error("[reborn] Website error:", error)
     return Response.json({ error: "Erro ao gerar website" }, { status: 500 })
   }
 }
