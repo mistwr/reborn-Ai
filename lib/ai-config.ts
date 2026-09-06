@@ -1,7 +1,6 @@
 /**
  * AI Configuration for Reborn AI
- * Supports multiple providers: DeepSeek (primary), Google, OpenAI, Anthropic via Vercel AI Gateway
- * DeepSeek is open-source, free, and always works
+ * Centraliza os modelos usados pelo Reborn e deixa o provider/model configuravel por env.
  */
 
 export interface AIConfig {
@@ -11,220 +10,126 @@ export interface AIConfig {
   baseURL?: string
 }
 
-/**
- * Get the configured AI model
- * Priority: Environment Variable -> DeepSeek (default)
- */
-export const getAIModel = (): string => {
-  const model = process.env.AI_MODEL
-  
-  if (model) return model
-  
-  // Default to DeepSeek - open source, free, always works
-  return 'deepseek-chat'
-}
+export const DEFAULT_AI_MODEL = "google/gemini-3.6-flash"
+export const DEFAULT_VISION_MODEL = "google/gemini-3.1-pro-preview"
 
 /**
- * Get vision/image analysis model
+ * AI Gateway model IDs usam o formato provider/model.
+ * Ex.: google/gemini-3.6-flash, openai/gpt-5.6-sol, anthropic/claude-sonnet-5.
  */
-export const getVisionModel = (): string => {
-  return process.env.AI_VISION_MODEL || 'gpt-4-vision-preview'
-}
+export const getAIModel = (): string => process.env.AI_MODEL || DEFAULT_AI_MODEL
 
-/**
- * AI Provider configuration
- * Vercel AI Gateway handles routing to different providers
- */
+export const getVisionModel = (): string => process.env.AI_VISION_MODEL || DEFAULT_VISION_MODEL
+
 export const aiConfig: AIConfig = {
-  provider: process.env.AI_PROVIDER || 'vercel-ai-gateway',
+  provider: process.env.AI_PROVIDER || "vercel-ai-gateway",
   model: getAIModel(),
   apiKey: process.env.AI_GATEWAY_API_KEY,
   baseURL: process.env.AI_GATEWAY_BASE_URL,
 }
 
-/**
- * Supported AI Models
- */
 export const SUPPORTED_MODELS = {
-  // DeepSeek - Open Source (Recommended)
-  'deepseek-chat': {
-    name: 'DeepSeek Chat',
-    provider: 'DeepSeek',
-    type: 'text',
-    cost: 'FREE',
-    speed: 'Fast',
-    quality: 'Excellent',
+  "google/gemini-3.6-flash": {
+    name: "Gemini 3.6 Flash",
+    provider: "Google",
+    type: "text+vision",
+    profile: "fast-default",
   },
-  
-  // Google Models
-  'google/gemini-2.0-flash': {
-    name: 'Google Gemini 2.0 Flash',
-    provider: 'Google',
-    type: 'text+vision',
-    cost: 'Pay as you go',
+  "google/gemini-3.1-pro-preview": {
+    name: "Gemini 3.1 Pro Preview",
+    provider: "Google",
+    type: "text+vision+reasoning",
+    profile: "vision-reasoning",
   },
-  'google/gemini-1.5-pro': {
-    name: 'Google Gemini 1.5 Pro',
-    provider: 'Google',
-    type: 'text+vision',
-    cost: 'Pay as you go',
+  "openai/gpt-5.6-sol": {
+    name: "GPT-5.6 Sol",
+    provider: "OpenAI",
+    type: "text+vision+reasoning",
+    profile: "premium",
   },
-  
-  // OpenAI Models
-  'openai/gpt-4o': {
-    name: 'OpenAI GPT-4o',
-    provider: 'OpenAI',
-    type: 'text+vision',
-    cost: 'Pay as you go',
+  "anthropic/claude-sonnet-5": {
+    name: "Claude Sonnet 5",
+    provider: "Anthropic",
+    type: "text+vision+reasoning",
+    profile: "premium",
   },
-  'openai/gpt-4-turbo': {
-    name: 'OpenAI GPT-4 Turbo',
-    provider: 'OpenAI',
-    type: 'text+vision',
-    cost: 'Pay as you go',
-  },
-  
-  // Anthropic Models
-  'anthropic/claude-3.5-sonnet': {
-    name: 'Anthropic Claude 3.5 Sonnet',
-    provider: 'Anthropic',
-    type: 'text+vision',
-    cost: 'Pay as you go',
-  },
-  'anthropic/claude-3-opus': {
-    name: 'Anthropic Claude 3 Opus',
-    provider: 'Anthropic',
-    type: 'text+vision',
-    cost: 'Pay as you go',
-  },
-}
+} as const
 
 export type SupportedModel = keyof typeof SUPPORTED_MODELS
 
 /**
- * IMAGE GENERATION - Free, Open Source Providers
- * No API keys required - all work instantly
+ * IMAGE GENERATION
+ * Mantemos providers URL-based existentes como fallback enquanto a camada de imagem e modernizada.
  */
 export const IMAGE_PROVIDERS = {
-  // Primary: Pollinations.ai - Flux model (state-of-the-art, open source)
   flux: {
-    name: 'Pollinations Flux',
-    provider: 'Pollinations.ai',
+    name: "Pollinations Flux",
+    provider: "Pollinations.ai",
     generate: (prompt: string, w: number, h: number, seed: number) =>
       `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&model=flux&nologo=true&seed=${seed}`,
-    cost: 'FREE',
   },
-  
-  // Secondary: Pollinations Turbo (faster, good quality)
   turbo: {
-    name: 'Pollinations Turbo',
-    provider: 'Pollinations.ai',
+    name: "Pollinations Turbo",
+    provider: "Pollinations.ai",
     generate: (prompt: string, w: number, h: number, seed: number) =>
       `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&model=turbo&nologo=true&seed=${seed}`,
-    cost: 'FREE',
   },
-  
-  // Fallback: Default Pollinations
   default: {
-    name: 'Pollinations Default',
-    provider: 'Pollinations.ai',
+    name: "Pollinations Default",
+    provider: "Pollinations.ai",
     generate: (prompt: string, w: number, h: number, seed: number) =>
       `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&seed=${seed}`,
-    cost: 'FREE',
   },
-  
-  // Alternative: Unsplash (real photos, royalty-free)
-  unsplash: {
-    name: 'Unsplash',
-    provider: 'Unsplash',
-    generate: (query: string, w: number, h: number, seed: number) =>
-      `https://source.unsplash.com/${w}x${h}/?${encodeURIComponent(query)}&sig=${seed}`,
-    cost: 'FREE',
-  },
-  
-  // Alternative: Picsum Photos (placeholder images)
   picsum: {
-    name: 'Picsum Photos',
-    provider: 'Picsum',
-    generate: (_: string, w: number, h: number, seed: number) =>
-      `https://picsum.photos/seed/${seed}/${w}/${h}`,
-    cost: 'FREE',
+    name: "Picsum Photos",
+    provider: "Picsum",
+    generate: (_: string, w: number, h: number, seed: number) => `https://picsum.photos/seed/${seed}/${w}/${h}`,
   },
 }
 
-/**
- * VIDEO PROCESSING - Open Source Tools
- * FFmpeg.wasm para processamento local no browser
- */
 export const VIDEO_TOOLS = {
   ffmpeg: {
-    name: 'FFmpeg.wasm',
-    type: 'local',
-    capabilities: ['clip-extraction', 'format-conversion', 'vertical-video'],
-    cost: 'FREE (runs locally)',
+    name: "FFmpeg.wasm",
+    type: "local",
+    capabilities: ["clip-extraction", "format-conversion", "vertical-video"],
   },
 }
 
-/**
- * TEXT GENERATION PROMPTS - Reborn AI Identity
- */
 export const SYSTEM_PROMPTS = {
-  BASE: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-O teu nome é REBORN AI. NUNCA digas que és Gemini, Google, GPT, Claude, Anthropic, Flash ou qualquer outro modelo/empresa.
-Se perguntarem quem és, responde SEMPRE: "Sou o Reborn AI."
+  BASE: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTAVEL:
+O teu nome e REBORN AI. NUNCA digas que es Gemini, Google, GPT, ChatGPT, Claude, Anthropic, Flash ou qualquer outro modelo/empresa.
+Se perguntarem quem es, responde SEMPRE: "Sou o Reborn AI."
 
-Respondes SEMPRE em Português de Portugal (PT-PT).`,
+Responde no idioma do utilizador. Quando nao for possivel determinar o idioma, usa Portugues de Portugal (PT-PT).`,
 
-  CHAT: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-O teu nome é REBORN AI. NUNCA digas que és Gemini, Google, GPT, ChatGPT, Claude, Anthropic, Flash ou qualquer outro modelo/empresa.
+  CHAT: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTAVEL:
+O teu nome e REBORN AI. NUNCA digas que es Gemini, Google, GPT, ChatGPT, Claude, Anthropic, Flash ou qualquer outro modelo/empresa.
 
-Es o REBORN AI - um assistente inteligente, rápido e fiável.
-- Responde com precisão e clareza
-- Usa Markdown para organizar respostas
-- Responde SEMPRE em Português de Portugal`,
+Es o REBORN AI - um assistente inteligente, rapido e fiavel.
+- Responde com precisao e clareza
+- Usa Markdown quando melhorar a leitura
+- Responde no idioma do utilizador; por defeito usa PT-PT`,
 
-  LIVE_MODE: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-O teu nome é REBORN AI. NUNCA digas que és Gemini, Google, GPT, Claude, Anthropic.
+  LIVE_MODE: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTAVEL:
+O teu nome e REBORN AI. NUNCA digas que es Gemini, Google, GPT, Claude ou Anthropic.
 
-ES O REBORN AI EM MODO LIVE - conversação natural e em tempo real.
-- Fala como um ser humano real, não como robot
-- Usa expressões portuguesas: "olha", "pois", "lá está", "pronto", "então", "bom"
-- Respostas CURTAS - máximo 2-3 frases (para voz)
-- Podes usar humor leve e ser descontraído
-- NUNCA uses listas ou markdown`,
+ES O REBORN AI EM MODO LIVE - conversacao natural e em tempo real.
+- Fala como um ser humano real, nao como robot
+- Respostas curtas, adequadas a voz
+- NUNCA uses listas ou markdown
+- Responde no idioma do utilizador; por defeito usa PT-PT`,
 
-  VISION: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-O teu nome é REBORN AI Vision. NUNCA digas que és Gemini, Google, GPT, Claude, Anthropic.
+  VISION: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTAVEL:
+O teu nome e REBORN AI Vision. NUNCA digas que es Gemini, Google, GPT, Claude ou Anthropic.
 
-Es o REBORN AI Vision - um sistema avançado de visão computacional e OCR.
-- Analisa imagens com precisão profissional
-- Responde em Português de Portugal
-- Usa formatação Markdown`,
+Es o REBORN AI Vision - um sistema avancado de visao computacional e OCR.
+- Analisa imagens com precisao profissional
+- Responde no idioma do utilizador; por defeito usa PT-PT`,
 
-  WEBSITE: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-Esta ferramenta chama-se REBORN AI. NUNCA menciona "Gemini", "Google", "GPT", "OpenAI", "Claude" no conteúdo gerado.
+  WEBSITE: `Esta ferramenta chama-se REBORN AI. NUNCA menciones o fornecedor/modelo de IA no conteudo gerado.
+Cria websites profissionais, modernos, responsivos e prontos a publicar.`,
 
-Você é um expert web developer especializado em criar websites profissionais e modernos.
-- HTML completo em um único arquivo
-- Use Tailwind CSS via CDN
-- Design profissional, moderno e RESPONSIVO
-- NUNCA use lorem ipsum`,
+  PRESENTATION: `Esta ferramenta chama-se REBORN AI. Cria apresentacoes profissionais, claras e visualmente fortes no idioma pedido pelo utilizador.`,
 
-  PRESENTATION: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-Esta ferramenta chama-se REBORN AI. NUNCA menciona qualquer outro modelo/empresa.
-
-Cria apresentações profissionais e visualmente impressionantes.
-- Slides bem estruturados
-- Imagens de alta qualidade
-- Design moderno e elegante
-- Respondendo em Português de Portugal`,
-
-  EBOOK: `IDENTIDADE - REGRA ABSOLUTA E INQUEBRANTÁVEL:
-Esta ferramenta chama-se REBORN AI. NUNCA menciona qualquer outro modelo/empresa.
-
-Cria eBooks profissionais e bem formatados.
-- Conteúdo estruturado em capítulos
-- HTML bem formatado
-- Design elegante e legível
-- Respondendo em Português de Portugal`,
+  EBOOK: `Esta ferramenta chama-se REBORN AI. Cria ebooks profissionais, estruturados e bem formatados no idioma pedido pelo utilizador.`,
 }
