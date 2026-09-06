@@ -1,10 +1,4 @@
-/**
- * Billing Store - Temporary in-memory storage
- *
- * TODO: Replace with Supabase/PostgreSQL for production
- * This is a placeholder that stores subscription data in memory.
- * Data will be lost on server restart - only for development/demo.
- */
+export type SubscriptionStatus = "active" | "canceled" | "past_due" | "incomplete" | "trialing"
 
 export interface Subscription {
   id: string
@@ -12,7 +6,7 @@ export interface Subscription {
   stripeCustomerId: string
   stripeSubscriptionId: string
   stripePriceId: string
-  status: "active" | "canceled" | "past_due" | "incomplete" | "trialing"
+  status: SubscriptionStatus
   plan: "free" | "pro"
   currentPeriodStart: Date
   currentPeriodEnd: Date
@@ -21,68 +15,172 @@ export interface Subscription {
   updatedAt: Date
 }
 
-const subscriptions = new Map<string, Subscription>()
+type SubscriptionInput = Omit<Subscription, "id" | "createdAt" | "updatedAt">
+
+const memoryStore = new Map<string, Subscription>()
+
+function supabaseConfig() {
+  const url = process.env.REBORN_SUPABASE_URL?.replace(/\/$/, "")
+  const serviceRoleKey = process.env.REBORN_SUPABASE_SERVICE_ROLE_KEY
+  return url && serviceRoleKey ? { url, serviceRoleKey } : null
+}
+
+function fromRow(row: any): Subscription {
+  return {
+    id: row.id,
+    email: row.email,
+    stripeCustomerId: row.stripe_customer_id,
+    stripeSubscriptionId: row.stripe_subscription_id,
+    stripePriceId: row.stripe_price_id,
+    status: row.status,
+    plan: row.plan,
+    currentPeriodStart: new Date(row.current_period_start),
+    currentPeriodEnd: new Date(row.current_period_end),
+    tokensPerDay: row.tokens_per_day,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  }
+}
+
+function toRow(data: SubscriptionInput) {
+  return {
+    email: data.email.toLowerCase(),
+    stripe_customer_id: data.stripeCustomerId,
+    stripe_subscription_id: data.stripeSubscriptionId,
+    stripe_price_id: data.stripePriceId,
+    status: data.status,
+    plan: data.plan,
+    current_period_start: data.currentPeriodStart.toISOString(),
+    current_period_end: data.currentPeriodEnd.toISOString(),
+    tokens_per_day: data.tokensPerDay,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+async function supabaseRequest(path: string, init?: RequestInit) {
+  const config = supabaseConfig()
+  if (!config) return null
+
+  const response = await fetch(`${config.url}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: config.serviceRoleKey,
+      Authorization: `Bearer ${config.serviceRoleKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+      ...(init?.headers || {}),
+    },
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Reborn billing storage error (${response.status}): ${text}`)
+  }
+
+  if (response.status === 204) return []
+  return response.json()
+}
+
+export function isPersistentBillingConfigured() {
+  return Boolean(supabaseConfig())
+}
 
 export async function getSubscriptionByEmail(email: string): Promise<Subscription | null> {
-  for (const sub of subscriptions.values()) {
-    if (sub.email === email) return sub
+  const config = supabaseConfig()
+  if (!config) {
+    return Array.from(memoryStore.values()).find((s) => s.email.toLowerCase() === email.toLowerCase()) || null
   }
-  return null
+
+  const rows = await supabaseRequest(`reborn_subscriptions?email=eq.${encodeURIComponent(email.toLowerCase())}&limit=1`)
+  return rows?.[0] ? fromRow(rows[0]) : null
 }
 
 export async function getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null> {
-  for (const sub of subscriptions.values()) {
-    if (sub.stripeCustomerId === customerId) return sub
+  const config = supabaseConfig()
+  if (!config) {
+    return Array.from(memoryStore.values()).find((s) => s.stripeCustomerId === customerId) || null
   }
-  return null
+
+  const rows = await supabaseRequest(`reborn_subscriptions?stripe_customer_id=eq.${encodeURIComponent(customerId)}&limit=1`)
+  return rows?.[0] ? fromRow(rows[0]) : null
 }
 
 export async function getSubscriptionByStripeSubId(subId: string): Promise<Subscription | null> {
-  return subscriptions.get(subId) || null
+  const config = supabaseConfig()
+  if (!config) return memoryStore.get(subId) || null
+
+  const rows = await supabaseRequest(`reborn_subscriptions?stripe_subscription_id=eq.${encodeURIComponent(subId)}&limit=1`)
+  return rows?.[0] ? fromRow(rows[0]) : null
 }
 
-export async function createSubscription(data: Omit<Subscription, "id" | "createdAt" | "updatedAt">): Promise<Subscription> {
-  const subscription: Subscription = {
-    ...data,
-    id: `sub_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+export async function createSubscription(data: SubscriptionInput): Promise<Subscription> {
+  const config = supabaseConfig()
+  if (!config) {
+    const now = new Date()
+    const subscription: Subscription = {
+      ...data,
+      id: `sub_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      createdAt: now,
+      updatedAt: now,
+    }
+    memoryStore.set(data.stripeSubscriptionId, subscription)
+    return subscription
   }
-  subscriptions.set(data.stripeSubscriptionId, subscription)
-  console.log("[Billing] Created subscription:", subscription.email, subscription.plan)
-  return subscription
+
+  const rows = await supabaseRequest("reborn_subscriptions?on_conflict=stripe_subscription_id", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify(toRow(data)),
+  })
+  return fromRow(rows[0])
 }
 
 export async function updateSubscription(
   stripeSubscriptionId: string,
-  data: Partial<Subscription>
+  data: Partial<Subscription>,
 ): Promise<Subscription | null> {
-  const existing = subscriptions.get(stripeSubscriptionId)
+  const existing = await getSubscriptionByStripeSubId(stripeSubscriptionId)
   if (!existing) return null
 
-  const updated = { ...existing, ...data, updatedAt: new Date() }
-  subscriptions.set(stripeSubscriptionId, updated)
-  console.log("[Billing] Updated subscription:", updated.email, updated.status)
-  return updated
+  const merged: SubscriptionInput = {
+    email: data.email ?? existing.email,
+    stripeCustomerId: data.stripeCustomerId ?? existing.stripeCustomerId,
+    stripeSubscriptionId,
+    stripePriceId: data.stripePriceId ?? existing.stripePriceId,
+    status: data.status ?? existing.status,
+    plan: data.plan ?? existing.plan,
+    currentPeriodStart: data.currentPeriodStart ?? existing.currentPeriodStart,
+    currentPeriodEnd: data.currentPeriodEnd ?? existing.currentPeriodEnd,
+    tokensPerDay: data.tokensPerDay ?? existing.tokensPerDay,
+  }
+
+  if (!supabaseConfig()) {
+    const updated = { ...existing, ...merged, updatedAt: new Date() }
+    memoryStore.set(stripeSubscriptionId, updated)
+    return updated
+  }
+
+  const rows = await supabaseRequest(
+    `reborn_subscriptions?stripe_subscription_id=eq.${encodeURIComponent(stripeSubscriptionId)}`,
+    { method: "PATCH", body: JSON.stringify(toRow(merged)) },
+  )
+  return rows?.[0] ? fromRow(rows[0]) : null
 }
 
 export async function cancelSubscription(stripeSubscriptionId: string): Promise<boolean> {
-  const existing = subscriptions.get(stripeSubscriptionId)
-  if (!existing) return false
-
-  existing.status = "canceled"
-  existing.updatedAt = new Date()
-  subscriptions.set(stripeSubscriptionId, existing)
-  console.log("[Billing] Cancelled subscription:", existing.email)
-  return true
+  const updated = await updateSubscription(stripeSubscriptionId, { status: "canceled", plan: "free", tokensPerDay: 15000 })
+  return Boolean(updated)
 }
 
 export async function isUserPro(email: string): Promise<boolean> {
   const sub = await getSubscriptionByEmail(email)
   if (!sub) return false
-  return sub.status === "active" && sub.plan === "pro"
+  return ["active", "trialing"].includes(sub.status) && sub.plan === "pro"
 }
 
-export function getAllSubscriptions(): Subscription[] {
-  return Array.from(subscriptions.values())
+export async function getAllSubscriptions(): Promise<Subscription[]> {
+  if (!supabaseConfig()) return Array.from(memoryStore.values())
+  const rows = await supabaseRequest("reborn_subscriptions?order=created_at.desc")
+  return (rows || []).map(fromRow)
 }
