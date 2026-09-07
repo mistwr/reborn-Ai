@@ -10,12 +10,12 @@ export interface AIConfig {
   baseURL?: string
 }
 
-export const DEFAULT_AI_MODEL = "google/gemini-3.6-flash"
+export const DEFAULT_AI_MODEL = "google/gemini-2.5-flash-lite"
 export const DEFAULT_VISION_MODEL = "google/gemini-3.1-pro-preview"
 
 /**
  * AI Gateway model IDs usam o formato provider/model.
- * Ex.: google/gemini-3.6-flash, openai/gpt-5.6-sol, anthropic/claude-sonnet-5.
+ * O default foi validado no preview da Vercel em 2026-09-07.
  */
 export const getAIModel = (): string => process.env.AI_MODEL || DEFAULT_AI_MODEL
 
@@ -29,11 +29,17 @@ export const aiConfig: AIConfig = {
 }
 
 export const SUPPORTED_MODELS = {
+  "google/gemini-2.5-flash-lite": {
+    name: "Gemini 2.5 Flash Lite",
+    provider: "Google",
+    type: "text+vision",
+    profile: "free-tier-default",
+  },
   "google/gemini-3.6-flash": {
     name: "Gemini 3.6 Flash",
     provider: "Google",
     type: "text+vision",
-    profile: "fast-default",
+    profile: "paid-fast",
   },
   "google/gemini-3.1-pro-preview": {
     name: "Gemini 3.1 Pro Preview",
