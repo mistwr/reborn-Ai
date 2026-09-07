@@ -11,7 +11,7 @@ export interface AIConfig {
 }
 
 export const DEFAULT_AI_MODEL = "google/gemini-2.5-flash-lite"
-export const DEFAULT_VISION_MODEL = "google/gemini-3.1-pro-preview"
+export const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash-lite"
 
 /**
  * AI Gateway model IDs usam o formato provider/model.
