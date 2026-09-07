@@ -71,17 +71,23 @@ async function persistStripeSubscription(subscription: any, secretKey: string, e
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id
   const subscriptionId = subscription.id
   const item = subscription.items?.data?.[0]
-  const priceId = item?.price?.id || process.env.STRIPE_PRICE_ID || ""
+  const priceId = item?.price?.id || ""
+  const configuredProPriceId = process.env.STRIPE_PRICE_ID?.trim() || ""
 
   if (!customerId || !subscriptionId || !priceId) {
     throw new Error("Stripe subscription is missing customer, subscription, or price id")
+  }
+
+  if (!configuredProPriceId) {
+    throw new Error("STRIPE_PRICE_ID is not configured")
   }
 
   const email = (emailHint || (await resolveCustomerEmail(customerId, secretKey))).trim().toLowerCase()
   if (!email) throw new Error("Could not resolve customer email for Reborn subscription")
 
   const status = normalizeStatus(subscription.status)
-  const isPro = status === "active" || status === "trialing"
+  const matchesRebornProPrice = priceId === configuredProPriceId
+  const isPro = matchesRebornProPrice && (status === "active" || status === "trialing")
 
   const periodStart = Number(subscription.current_period_start || Math.floor(Date.now() / 1000))
   const periodEnd = Number(subscription.current_period_end || periodStart + 30 * 24 * 60 * 60)
@@ -103,6 +109,22 @@ function sha256(value: string) {
   return createHash("sha256").update(value.trim().toLowerCase()).digest("hex")
 }
 
+function getEventSourceUrl() {
+  const raw = process.env.NEXTAUTH_URL?.trim()
+  if (!raw) return undefined
+
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined
+    url.pathname = "/billing/success"
+    url.search = ""
+    url.hash = ""
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
 async function sendMetaPurchase(session: any) {
   const pixelId = process.env.META_PIXEL_ID?.trim()
   const accessToken = process.env.META_CAPI_ACCESS_TOKEN?.trim()
@@ -116,34 +138,33 @@ async function sendMetaPurchase(session: any) {
   const fbclid = typeof metadata.fbclid === "string" ? metadata.fbclid.trim() : ""
   const value = Number(session?.amount_total || 0) / 100
   const currency = String(session?.currency || "eur").toUpperCase()
-  const eventSourceUrl = `${process.env.NEXTAUTH_URL || ""}/billing/success`.replace(/^\//, "")
+  const eventSourceUrl = getEventSourceUrl()
 
   const userData: Record<string, unknown> = { em: [sha256(email)] }
   if (fbclid) userData.fbc = `fb.1.${eventTime}.${fbclid}`
 
-  const body = {
-    data: [
-      {
-        event_name: "Purchase",
-        event_time: eventTime,
-        event_id: String(session?.id || `reborn-${eventTime}`),
-        action_source: "website",
-        event_source_url: eventSourceUrl || undefined,
-        user_data: userData,
-        custom_data: {
-          currency,
-          value,
-          content_name: "Reborn AI Pro",
-          content_type: "product",
-          utm_source: metadata.utm_source || undefined,
-          utm_medium: metadata.utm_medium || undefined,
-          utm_campaign: metadata.utm_campaign || undefined,
-          utm_content: metadata.utm_content || undefined,
-          utm_term: metadata.utm_term || undefined,
-        },
-      },
-    ],
+  const event: Record<string, unknown> = {
+    event_name: "Purchase",
+    event_time: eventTime,
+    event_id: String(session?.id || `reborn-${eventTime}`),
+    action_source: "website",
+    user_data: userData,
+    custom_data: {
+      currency,
+      value,
+      content_name: "Reborn AI Pro",
+      content_type: "product",
+      utm_source: metadata.utm_source || undefined,
+      utm_medium: metadata.utm_medium || undefined,
+      utm_campaign: metadata.utm_campaign || undefined,
+      utm_content: metadata.utm_content || undefined,
+      utm_term: metadata.utm_term || undefined,
+    },
   }
+
+  if (eventSourceUrl) event.event_source_url = eventSourceUrl
+
+  const body = { data: [event] }
 
   const apiVersion = process.env.META_GRAPH_API_VERSION?.trim() || "v23.0"
   const response = await fetch(
