@@ -4,12 +4,20 @@ import { getAIModel } from "@/lib/ai-config"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+const ALLOWED_MODELS = new Set([
+  "google/gemini-3.6-flash",
+  "google/gemini-3.1-flash-lite",
+  "google/gemini-2.5-flash-lite",
+  "openai/gpt-5",
+])
+
+export async function GET(req: Request) {
   if (process.env.VERCEL_ENV === "production") {
     return Response.json({ error: "Not available in production" }, { status: 404 })
   }
 
-  const model = getAIModel()
+  const requested = new URL(req.url).searchParams.get("model")?.trim()
+  const model = requested && ALLOWED_MODELS.has(requested) ? requested : getAIModel()
 
   try {
     const result = await generateText({
