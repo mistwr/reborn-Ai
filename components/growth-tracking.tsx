@@ -38,7 +38,6 @@ function initMetaPixel(pixelId: string) {
   document.head.appendChild(script)
 
   f("init", pixelId)
-  f("track", "PageView")
 }
 
 export function GrowthTracking() {
