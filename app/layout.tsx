@@ -72,6 +72,16 @@ export default function RootLayout({
               (function() {
                 var savedTheme = localStorage.getItem('rebornai-theme') || 'light';
                 document.documentElement.setAttribute('data-theme', savedTheme);
+
+                // One-time resurrection repair: an old client-side token counter could
+                // block the chat before /api/chat was called. Clear that stale state
+                // once; authoritative usage enforcement belongs on the server.
+                var repairKey = 'rebornai-chat-guard-repair-v1';
+                if (!localStorage.getItem(repairKey)) {
+                  localStorage.setItem('rebornai-tokens', '0');
+                  localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
+                  localStorage.setItem(repairKey, '1');
+                }
               })();
 
               if ('serviceWorker' in navigator) {
