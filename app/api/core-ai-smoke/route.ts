@@ -20,8 +20,8 @@ export async function GET() {
     return Response.json({ error: "Not available in production" }, { status: 404 })
   }
 
-  const tinyPng =
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl9ZQAAAABJRU5ErkJggg=="
+  const visionFixture =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAAA8CAIAAABuCSZCAAADQUlEQVR4nO3bv0vjYBzH8dgeSkSpFLooOLhYFMEmgo1p09RWNwcF3fwHBP+O4iKuXfwxKChuithqDYVWnEQymMXRKhSkouKPgnluCBd61qYtd8fBt5/XFJ+Gr094J1EE2xhjHNDl+t8bgH8LgYlDYOIQmDgEJg6BiUNg4hCYOAQmDoGJQ2DiEJg4BCYOgYlDYOIQmDgEJg6BiUNg4hCYOAQmrn7gzs5OVVUjkYggCNls1l6xrK6uVp4TCAQODg44jtvY2BBFUZIkURS3trZqjeJ5PhqN2t+rp6enegNHR0c8z1vH6+vr4XB4dHQ0nU7/4ZW3ClaPx+OxDnRdHxkZqVypPufq6qq/v//4+FiW5VKpxBgrlUqyLJ+cnNQaFQqFNE37Msf29PQkSVJ3dzdjrFgsKory+flpGIbf76+7c2CMNRHYNE2v18scA5umOTAwEIvFzs/P7U/z+Xw8Hq81KpPJKIryZY5taWlpd3fXWjcMY29vjzH28vLi8/kavMIW18TP4HQ6PTk56XzO2dnZ2tqaYRiBQMBeFATh+vq61ijrQNO06mm5XO7u7m5hYcH60u/3z8/Pcxy3v78/MzPT+M5bWt1bgOf5SCQyMTHh9Xrv7+/tFYv1pForwWDQ7XZPTU319va+vb3ZE15fX/v6+r4dZT2amqaFw2H2+xP8/v4+Pj5eKBS+rN/c3AwPDxeLxb9xf9PXxCt6ZWUlkUgwx1e0rusejycej+fzefvTXC43PT3tPEpV1UwmUzl5e3t7aGjIuo3cbvfi4iJj7Pn5WRTFi4uL5q6yhTUR+PLycnZ2ljkGLhQKgiCkUilZlh8fH9mvX7JOT0+dR2Wz2VAoVD25cr5pmnNzczs7Ow1eGzDGfjT+Mh8cHNR13TTNcrmsqqq1KElSIpGwVlwuF8dxyWRybGzs9vY2Go12dHSUy+Xl5eVYLPbtKHtFUZT29vaPjw+HDWxubqZSqYeHh2Qy2dXVdXh42PjmW1Ybw38Xkoa/ZBGHwMQhMHEITBwCE4fAxCEwcQhMHAITh8DEITBxCEwcAhOHwMQhMHEITBwCE4fAxCEwcQhMHAITh8DEITBxCEwcAhOHwMQhMHEITBwCE/cT+fLRVqKtFUIAAAAASUVORK5CYII="
 
   const [live, vision, website] = await Promise.all([
     livePost(
@@ -40,9 +40,9 @@ export async function GET() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          files: [{ dataUrl: tinyPng, mimeType: "image/png", name: "pixel.png" }],
-          mode: "describe",
-          customPrompt: "Responde apenas: REBORN_VISION_OK",
+          files: [{ dataUrl: visionFixture, mimeType: "image/png", name: "reborn-42.png" }],
+          mode: "ocr",
+          customPrompt: "Se conseguires ler a imagem e vires o texto REBORN 42, responde apenas: REBORN_VISION_OK",
         }),
       }),
     ).then(readResponse),
