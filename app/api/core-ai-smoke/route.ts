@@ -6,11 +6,12 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 async function readResponse(response: Response) {
-  const text = (await response.text()).trim()
+  const fullText = (await response.text()).trim()
   return {
     ok: response.ok,
     status: response.status,
-    text: text.slice(0, 500),
+    fullText,
+    preview: fullText.slice(0, 500),
   }
 }
 
@@ -58,9 +59,24 @@ export async function GET() {
   ])
 
   const result = {
-    live: { ...live, passed: live.ok && live.text.includes("REBORN_LIVE_OK") },
-    vision: { ...vision, passed: vision.ok && vision.text.includes("REBORN_VISION_OK") },
-    webcraft: { ...website, passed: website.ok && website.text.includes("REBORN_WEBCRAFT_OK") },
+    live: {
+      ok: live.ok,
+      status: live.status,
+      preview: live.preview,
+      passed: live.ok && live.fullText.includes("REBORN_LIVE_OK"),
+    },
+    vision: {
+      ok: vision.ok,
+      status: vision.status,
+      preview: vision.preview,
+      passed: vision.ok && vision.fullText.includes("REBORN_VISION_OK"),
+    },
+    webcraft: {
+      ok: website.ok,
+      status: website.status,
+      preview: website.preview,
+      passed: website.ok && website.fullText.includes("REBORN_WEBCRAFT_OK"),
+    },
   }
 
   const ok = result.live.passed && result.vision.passed && result.webcraft.passed
