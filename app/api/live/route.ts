@@ -4,10 +4,9 @@
  */
 
 import { streamText } from "ai"
+import { getAIModel } from "@/lib/ai-config"
 
 export const maxDuration = 120
-
-const DEFAULT_AI_MODEL = "google/gemini-3.6-flash"
 
 export async function POST(req: Request) {
   try {
@@ -74,10 +73,10 @@ CONTEXTO ATUAL:
 - Conversa ao vivo em tempo real
 - As respostas sao lidas em voz alta pelo sistema TTS
 
-Responde SEMPRE em portugues de Portugal (PT-PT, nao brasileiro).`
+Responde no idioma do utilizador. Quando nao for possivel determinar o idioma, usa portugues de Portugal.`
 
     const result = streamText({
-      model: process.env.AI_MODEL || DEFAULT_AI_MODEL,
+      model: getAIModel(),
       system: systemPrompt,
       messages: modelMessages,
       temperature: 0.85,
