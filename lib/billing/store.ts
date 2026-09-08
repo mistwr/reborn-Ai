@@ -57,6 +57,10 @@ function toRow(data: SubscriptionInput) {
   }
 }
 
+function newestSubscription(subscriptions: Subscription[]) {
+  return [...subscriptions].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0] || null
+}
+
 async function supabaseRequest(path: string, init?: RequestInit) {
   const config = supabaseConfig()
   if (!config) return null
@@ -87,22 +91,31 @@ export function isPersistentBillingConfigured() {
 }
 
 export async function getSubscriptionByEmail(email: string): Promise<Subscription | null> {
+  const normalizedEmail = email.trim().toLowerCase()
   const config = supabaseConfig()
   if (!config) {
-    return Array.from(memoryStore.values()).find((s) => s.email.toLowerCase() === email.toLowerCase()) || null
+    return newestSubscription(
+      Array.from(memoryStore.values()).filter((s) => s.email.toLowerCase() === normalizedEmail),
+    )
   }
 
-  const rows = await supabaseRequest(`reborn_subscriptions?email=eq.${encodeURIComponent(email.toLowerCase())}&limit=1`)
+  const rows = await supabaseRequest(
+    `reborn_subscriptions?email=eq.${encodeURIComponent(normalizedEmail)}&order=updated_at.desc&limit=1`,
+  )
   return rows?.[0] ? fromRow(rows[0]) : null
 }
 
 export async function getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null> {
   const config = supabaseConfig()
   if (!config) {
-    return Array.from(memoryStore.values()).find((s) => s.stripeCustomerId === customerId) || null
+    return newestSubscription(
+      Array.from(memoryStore.values()).filter((s) => s.stripeCustomerId === customerId),
+    )
   }
 
-  const rows = await supabaseRequest(`reborn_subscriptions?stripe_customer_id=eq.${encodeURIComponent(customerId)}&limit=1`)
+  const rows = await supabaseRequest(
+    `reborn_subscriptions?stripe_customer_id=eq.${encodeURIComponent(customerId)}&order=updated_at.desc&limit=1`,
+  )
   return rows?.[0] ? fromRow(rows[0]) : null
 }
 
@@ -176,11 +189,15 @@ export async function cancelSubscription(stripeSubscriptionId: string): Promise<
 export async function isUserPro(email: string): Promise<boolean> {
   const sub = await getSubscriptionByEmail(email)
   if (!sub) return false
-  return ["active", "trialing"].includes(sub.status) && sub.plan === "pro"
+
+  const paidStatus = sub.status === "active" || sub.status === "trialing"
+  const periodStillValid = Number.isFinite(sub.currentPeriodEnd.getTime()) && sub.currentPeriodEnd.getTime() > Date.now()
+
+  return paidStatus && sub.plan === "pro" && periodStillValid
 }
 
 export async function getAllSubscriptions(): Promise<Subscription[]> {
-  if (!supabaseConfig()) return Array.from(memoryStore.values())
-  const rows = await supabaseRequest("reborn_subscriptions?order=created_at.desc")
+  if (!supabaseConfig()) return Array.from(memoryStore.values()).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+  const rows = await supabaseRequest("reborn_subscriptions?order=updated_at.desc")
   return (rows || []).map(fromRow)
 }
