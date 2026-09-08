@@ -51,12 +51,15 @@ async function stripeGet(path: string, secretKey: string) {
   return data
 }
 
-function normalizeStatus(status: string): SubscriptionStatus {
+function normalizeStatus(status: unknown): SubscriptionStatus {
+  if (status === "active") return "active"
   if (status === "trialing") return "trialing"
   if (status === "past_due" || status === "unpaid") return "past_due"
-  if (status === "incomplete" || status === "incomplete_expired") return "incomplete"
   if (status === "canceled") return "canceled"
-  return "active"
+
+  // Stripe can introduce or return non-access states such as paused,
+  // incomplete_expired, or future statuses. Unknown must fail closed.
+  return "incomplete"
 }
 
 async function resolveCustomerEmail(customerId: string, secretKey: string) {
