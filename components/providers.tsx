@@ -6,6 +6,7 @@ import { SessionProvider } from "next-auth/react"
 import { ProSessionAuthority } from "@/components/pro-session-authority"
 import { ProjectContextBridge } from "@/components/project-context-bridge"
 import { ProjectContextPanel } from "@/components/project-context-panel"
+import { LiveVisionBridge } from "@/components/live-vision-bridge"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProSessionAuthority />
       <ProjectContextBridge />
       <ProjectContextPanel />
+      <LiveVisionBridge />
       {children}
     </SessionProvider>
   )
