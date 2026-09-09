@@ -7,6 +7,7 @@ import { ProSessionAuthority } from "@/components/pro-session-authority"
 import { ProjectContextBridge } from "@/components/project-context-bridge"
 import { ProjectContextPanel } from "@/components/project-context-panel"
 import { LiveVisionBridge } from "@/components/live-vision-bridge"
+import { RebornLiveAvatar } from "@/components/reborn-live-avatar"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -15,6 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProjectContextBridge />
       <ProjectContextPanel />
       <LiveVisionBridge />
+      <RebornLiveAvatar />
       {children}
     </SessionProvider>
   )
