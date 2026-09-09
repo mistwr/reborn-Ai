@@ -9,6 +9,7 @@ type SpeechDetail = {
   duration?: number
   provider?: "neural" | "browser"
   voice?: string
+  audioLevel?: number
 }
 
 function emitSpeech(detail: SpeechDetail) {
@@ -60,7 +61,6 @@ function prepareBrowserUtterance(synth: SpeechSynthesis, utterance: SpeechSynthe
 
   if (bestVoice) utterance.voice = bestVoice
 
-  // Natural conversational profile for fallback TTS. Respect explicit extreme user settings.
   const currentRate = Number(utterance.rate) || 1
   const currentPitch = Number(utterance.pitch) || 1
   if (Math.abs(currentRate - 1) < 0.16) utterance.rate = 0.96
@@ -80,13 +80,30 @@ export function NeuralVoiceBridge() {
     let activeAudio: HTMLAudioElement | null = null
     let activeUrl: string | null = null
     let generation = 0
+    let audioContext: AudioContext | null = null
+    let analyser: AnalyserNode | null = null
+    let sourceNode: MediaElementAudioSourceNode | null = null
+    let animationFrame = 0
 
-    // Chrome/Android may populate voices asynchronously. Warm the list early.
     synth.getVoices()
     const warmVoices = () => synth.getVoices()
     synth.addEventListener?.("voiceschanged", warmVoices)
 
+    const stopAnalyser = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame)
+      animationFrame = 0
+      try {
+        sourceNode?.disconnect()
+      } catch {}
+      try {
+        analyser?.disconnect()
+      } catch {}
+      sourceNode = null
+      analyser = null
+    }
+
     const cleanupAudio = () => {
+      stopAnalyser()
       if (activeAudio) {
         activeAudio.pause()
         activeAudio.src = ""
@@ -95,6 +112,44 @@ export function NeuralVoiceBridge() {
       if (activeUrl) {
         URL.revokeObjectURL(activeUrl)
         activeUrl = null
+      }
+    }
+
+    const attachAudioAnalyser = (audio: HTMLAudioElement, text: string, myGeneration: number) => {
+      try {
+        audioContext ||= new AudioContext()
+        analyser = audioContext.createAnalyser()
+        analyser.fftSize = 512
+        analyser.smoothingTimeConstant = 0.72
+        sourceNode = audioContext.createMediaElementSource(audio)
+        sourceNode.connect(analyser)
+        analyser.connect(audioContext.destination)
+        const samples = new Uint8Array(analyser.fftSize)
+
+        const tick = () => {
+          if (!analyser || myGeneration !== generation || !activeAudio) return
+          analyser.getByteTimeDomainData(samples)
+          let sum = 0
+          for (let i = 0; i < samples.length; i += 1) {
+            const normalized = (samples[i] - 128) / 128
+            sum += normalized * normalized
+          }
+          const rms = Math.sqrt(sum / samples.length)
+          const level = Math.max(0, Math.min(1, (rms - 0.018) * 9.5))
+          emitSpeech({
+            phase: "progress",
+            text,
+            currentTime: audio.currentTime,
+            duration: Number.isFinite(audio.duration) ? audio.duration : undefined,
+            provider: "neural",
+            audioLevel: level,
+          })
+          animationFrame = requestAnimationFrame(tick)
+        }
+
+        animationFrame = requestAnimationFrame(tick)
+      } catch {
+        stopAnalyser()
       }
     }
 
@@ -165,22 +220,13 @@ export function NeuralVoiceBridge() {
               text,
               duration: Number.isFinite(audio.duration) ? audio.duration : undefined,
               provider: "neural",
-            })
-          }
-
-          audio.ontimeupdate = () => {
-            emitSpeech({
-              phase: "progress",
-              text,
-              currentTime: audio.currentTime,
-              duration: Number.isFinite(audio.duration) ? audio.duration : undefined,
-              provider: "neural",
+              audioLevel: 0,
             })
           }
 
           audio.onended = () => {
             if (myGeneration !== generation) return
-            emitSpeech({ phase: "end", text, provider: "neural" })
+            emitSpeech({ phase: "end", text, provider: "neural", audioLevel: 0 })
             cleanupAudio()
             utterance.onend?.(new Event("end") as any)
           }
@@ -192,6 +238,8 @@ export function NeuralVoiceBridge() {
           }
 
           try {
+            if (audioContext?.state === "suspended") await audioContext.resume().catch(() => undefined)
+            attachAudioAnalyser(audio, text, myGeneration)
             await audio.play()
             utterance.onstart?.(new Event("start") as any)
           } catch {
@@ -206,7 +254,7 @@ export function NeuralVoiceBridge() {
 
     synth.cancel = (() => {
       generation += 1
-      if (activeAudio) emitSpeech({ phase: "end", provider: "neural" })
+      if (activeAudio) emitSpeech({ phase: "end", provider: "neural", audioLevel: 0 })
       cleanupAudio()
       return originalCancel()
     }) as typeof synth.cancel
@@ -217,6 +265,7 @@ export function NeuralVoiceBridge() {
       synth.removeEventListener?.("voiceschanged", warmVoices)
       synth.speak = originalSpeak
       synth.cancel = originalCancel
+      void audioContext?.close().catch(() => undefined)
     }
   }, [])
 
