@@ -2,34 +2,56 @@ export const runtime = "nodejs"
 export const maxDuration = 60
 
 const MAX_TEXT = 1200
-const EDGE_VOICE = process.env.REBORN_EDGE_TTS_VOICE || "pt-PT-DuarteNeural"
+const GATEWAY_SPEECH_MODEL = process.env.REBORN_TTS_MODEL || "openai/tts-1"
+const GATEWAY_VOICE = process.env.REBORN_TTS_VOICE || "onyx"
 
-function cleanForSsml(text: string) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&apos;")
-}
+async function gatewayTts(text: string, speed: number) {
+  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN
+  if (!token) return null
 
-async function edgeTts(text: string, speed: number) {
-  const { MsEdgeTTS, OUTPUT_FORMAT } = await import("msedge-tts")
-  const tts = new MsEdgeTTS()
-  await tts.setMetadata(EDGE_VOICE, OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12000)
 
-  const { audioStream } = tts.toStream(cleanForSsml(text), { rate: speed })
-  const chunks: Buffer[] = []
+  try {
+    const response = await fetch("https://ai-gateway.vercel.sh/v4/ai/speech-model", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "ai-model-id": GATEWAY_SPEECH_MODEL,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        voice: GATEWAY_VOICE,
+        outputFormat: "mp3",
+        speed,
+        language: "pt-PT",
+      }),
+      signal: controller.signal,
+    })
 
-  await new Promise<void>((resolve, reject) => {
-    audioStream.on("data", (chunk: Buffer | Uint8Array) => chunks.push(Buffer.from(chunk)))
-    audioStream.on("end", resolve)
-    audioStream.on("close", resolve)
-    audioStream.on("error", reject)
-  })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "")
+      console.error("[reborn] AI Gateway TTS error", response.status, detail.slice(0, 300))
+      return null
+    }
 
-  if (!chunks.length) throw new Error("Edge TTS returned no audio")
-  return Buffer.concat(chunks)
+    const result = await response.json().catch(() => null)
+    if (!result?.audio || typeof result.audio !== "string") return null
+
+    return {
+      audio: Buffer.from(result.audio, "base64"),
+      contentType: "audio/mpeg",
+      provider: "vercel-ai-gateway",
+      model: GATEWAY_SPEECH_MODEL,
+      voice: GATEWAY_VOICE,
+    }
+  } catch (error) {
+    console.warn("[reborn] AI Gateway TTS unavailable", error)
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function elevenLabsTts(text: string, speed: number) {
@@ -38,35 +60,47 @@ async function elevenLabsTts(text: string, speed: number) {
   if (!apiKey || !voiceId) return null
 
   const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-      "xi-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      text,
-      model_id: modelId,
-      voice_settings: {
-        stability: 0.48,
-        similarity_boost: 0.78,
-        style: 0.22,
-        use_speaker_boost: true,
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12000)
+
+  try {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+        "xi-api-key": apiKey,
       },
-      ...(speed !== 1 ? { speed } : {}),
-    }),
-  })
+      body: JSON.stringify({
+        text,
+        model_id: modelId,
+        voice_settings: {
+          stability: 0.48,
+          similarity_boost: 0.78,
+          style: 0.22,
+          use_speaker_boost: true,
+        },
+        ...(speed !== 1 ? { speed } : {}),
+      }),
+      signal: controller.signal,
+    })
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "")
-    console.error("[reborn] ElevenLabs TTS provider error", response.status, detail.slice(0, 300))
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "")
+      console.error("[reborn] ElevenLabs TTS provider error", response.status, detail.slice(0, 300))
+      return null
+    }
+
+    return {
+      audio: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type") || "audio/mpeg",
+      provider: "elevenlabs",
+    }
+  } catch (error) {
+    console.warn("[reborn] ElevenLabs TTS unavailable", error)
     return null
-  }
-
-  return {
-    audio: Buffer.from(await response.arrayBuffer()),
-    contentType: response.headers.get("content-type") || "audio/mpeg",
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -80,19 +114,18 @@ export async function POST(req: Request) {
       return Response.json({ available: false, error: "Texto em falta" }, { status: 400 })
     }
 
-    try {
-      const audio = await edgeTts(text, speed)
-      return new Response(audio, {
+    const gateway = await gatewayTts(text, speed)
+    if (gateway) {
+      return new Response(gateway.audio, {
         status: 200,
         headers: {
-          "Content-Type": "audio/webm; codecs=opus",
+          "Content-Type": gateway.contentType,
           "Cache-Control": "no-store",
-          "X-Reborn-TTS": "edge-neural",
-          "X-Reborn-TTS-Voice": EDGE_VOICE,
+          "X-Reborn-TTS": gateway.provider,
+          "X-Reborn-TTS-Model": gateway.model,
+          "X-Reborn-TTS-Voice": gateway.voice,
         },
       })
-    } catch (error) {
-      console.warn("[reborn] Edge neural TTS unavailable, trying next provider", error)
     }
 
     const eleven = await elevenLabsTts(text, speed)
@@ -102,7 +135,7 @@ export async function POST(req: Request) {
         headers: {
           "Content-Type": eleven.contentType,
           "Cache-Control": "no-store",
-          "X-Reborn-TTS": "elevenlabs",
+          "X-Reborn-TTS": eleven.provider,
         },
       })
     }
