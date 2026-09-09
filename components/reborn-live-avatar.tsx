@@ -4,17 +4,52 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Eye, Mic, Sparkles } from "lucide-react"
 
 type AvatarState = "idle" | "seeing" | "thinking" | "speaking"
-type Viseme = "closed" | "open" | "wide" | "round"
+type Viseme = "closed" | "open" | "wide" | "round" | "bite"
+
+type VisemeCue = {
+  at: number
+  viseme: Viseme
+}
 
 const AVATAR_SRC =
   "https://image.pollinations.ai/prompt/ultra%20realistic%20cinematic%20portrait%20of%20REBORN%20AI%20humanoid%20robot%2C%20humanlike%20male%20face%2C%20subtle%20futuristic%20synthetic%20skin%2C%20dark%20graphite%20and%20violet%20details%2C%20front%20facing%2C%20symmetrical%20face%2C%20calm%20intelligent%20expression%2C%20looking%20directly%20at%20camera%2C%20mouth%20closed%2C%20cinematic%20soft%20lighting%2C%20black%20background%2C%20photorealistic%2C%20high%20detail%2C%20no%20text?width=768&height=1024&model=flux&nologo=true&seed=260428"
 
-function visemeForText(text: string): Viseme {
-  const value = text.toLowerCase()
-  if (/[ouóôõ]/.test(value)) return "round"
-  if (/[eiéêí]/.test(value)) return "wide"
-  if (/[aáàâã]/.test(value)) return "open"
+function charToViseme(char: string): Viseme {
+  const c = char.toLowerCase()
+  if (/[bmp]/.test(c)) return "closed"
+  if (/[fv]/.test(c)) return "bite"
+  if (/[ouóôõ]/.test(c)) return "round"
+  if (/[eiéêí]/.test(c)) return "wide"
+  if (/[aáàâã]/.test(c)) return "open"
   return "closed"
+}
+
+function buildVisemeTimeline(text: string, rate = 1): VisemeCue[] {
+  const cues: VisemeCue[] = []
+  let t = 0
+  const base = Math.max(45, 78 / Math.max(0.65, rate))
+
+  for (const raw of text) {
+    const char = raw.toLowerCase()
+
+    if (/\s/.test(char)) {
+      cues.push({ at: t, viseme: "closed" })
+      t += base * 0.45
+      continue
+    }
+
+    if (/[,.!?;:]/.test(char)) {
+      cues.push({ at: t, viseme: "closed" })
+      t += /[.!?]/.test(char) ? base * 2.4 : base * 1.45
+      continue
+    }
+
+    cues.push({ at: t, viseme: charToViseme(char) })
+    t += /[aeiouáàâãéêíóôõú]/.test(char) ? base * 1.18 : base * 0.82
+  }
+
+  cues.push({ at: t + base * 0.5, viseme: "closed" })
+  return cues
 }
 
 export function RebornLiveAvatar() {
@@ -24,12 +59,12 @@ export function RebornLiveAvatar() {
   const [caption, setCaption] = useState("")
   const [blink, setBlink] = useState(false)
   const [headPhase, setHeadPhase] = useState(0)
-  const mouthTimer = useRef<number | null>(null)
+  const visemeTimer = useRef<number | null>(null)
   const headTimer = useRef<number | null>(null)
 
   const stopMouth = () => {
-    if (mouthTimer.current) window.clearInterval(mouthTimer.current)
-    mouthTimer.current = null
+    if (visemeTimer.current) window.clearInterval(visemeTimer.current)
+    visemeTimer.current = null
     setViseme("closed")
   }
 
@@ -46,29 +81,25 @@ export function RebornLiveAvatar() {
   }, [])
 
   useEffect(() => {
-    const blinkLoop = () => {
-      const delay = 2600 + Math.random() * 2600
-      return window.setTimeout(() => {
+    let timer = 0
+    const scheduleBlink = () => {
+      const delay = 2400 + Math.random() * 3200
+      timer = window.setTimeout(() => {
         setBlink(true)
-        window.setTimeout(() => setBlink(false), 125)
+        window.setTimeout(() => setBlink(false), 120)
+        scheduleBlink()
       }, delay)
     }
-
-    let timer = blinkLoop()
-    const interval = window.setInterval(() => {
-      window.clearTimeout(timer)
-      timer = blinkLoop()
-    }, 5400)
-
-    return () => {
-      window.clearTimeout(timer)
-      window.clearInterval(interval)
-    }
+    scheduleBlink()
+    return () => window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {
     if (headTimer.current) window.clearInterval(headTimer.current)
-    headTimer.current = window.setInterval(() => setHeadPhase((v) => (v + 1) % 8), state === "speaking" ? 360 : 900)
+    headTimer.current = window.setInterval(
+      () => setHeadPhase((v) => (v + 1) % 8),
+      state === "speaking" ? 320 : state === "thinking" ? 620 : 980,
+    )
     return () => {
       if (headTimer.current) window.clearInterval(headTimer.current)
       headTimer.current = null
@@ -94,22 +125,28 @@ export function RebornLiveAvatar() {
       utterance.onstart = (event) => {
         setState("speaking")
         stopMouth()
-        const words = (utterance.text || "").split(/\s+/).filter(Boolean)
-        let index = 0
-        mouthTimer.current = window.setInterval(() => {
-          const word = words[index % Math.max(words.length, 1)] || "a"
-          setViseme(visemeForText(word))
-          index += 1
-        }, 120)
+
+        const timeline = buildVisemeTimeline(utterance.text || "", utterance.rate || 1)
+        const startedAt = performance.now()
+        let cueIndex = 0
+
+        visemeTimer.current = window.setInterval(() => {
+          const elapsed = performance.now() - startedAt
+          while (cueIndex + 1 < timeline.length && timeline[cueIndex + 1].at <= elapsed) {
+            cueIndex += 1
+          }
+          setViseme(timeline[cueIndex]?.viseme || "closed")
+        }, 42)
+
         prevStart?.call(utterance, event)
       }
 
       utterance.onboundary = (event) => {
         const boundary = event as SpeechSynthesisEvent
         const start = Math.max(0, boundary.charIndex || 0)
-        const chunk = (utterance.text || "").slice(start, start + Math.max(1, boundary.charLength || 4))
-        setViseme(visemeForText(chunk))
-        window.setTimeout(() => setViseme("closed"), 90)
+        const sample = (utterance.text || "").slice(start, start + Math.max(1, boundary.charLength || 1))
+        const strongest = [...sample].find((c) => /[aeioubmpfváàâãéêíóôõú]/i.test(c))
+        if (strongest) setViseme(charToViseme(strongest))
         prevBoundary?.call(utterance, event)
       }
 
@@ -149,20 +186,22 @@ export function RebornLiveAvatar() {
   }, [state])
 
   const headTransform = useMemo(() => {
-    const x = [0, 0.5, 1, 0.4, 0, -0.4, -1, -0.5][headPhase]
-    const y = state === "speaking" ? [0, -0.4, 0, 0.3, 0, -0.2, 0, 0.2][headPhase] : 0
-    const r = state === "speaking" ? x * 0.25 : state === "thinking" ? x * 0.12 : x * 0.08
-    return `translate3d(${x}px, ${y}px, 0) rotate(${r}deg) scale(${state === "thinking" ? 1.018 : state === "speaking" ? 1.012 : 1})`
+    const x = [0, 0.6, 1.1, 0.4, 0, -0.5, -1.1, -0.4][headPhase]
+    const y = state === "speaking" ? [0, -0.45, 0, 0.35, 0, -0.25, 0, 0.2][headPhase] : 0
+    const r = state === "speaking" ? x * 0.28 : state === "thinking" ? x * 0.16 : x * 0.08
+    return `translate3d(${x}px, ${y}px, 0) rotate(${r}deg) scale(${state === "thinking" ? 1.018 : state === "speaking" ? 1.014 : 1})`
   }, [headPhase, state])
 
   const mouthClass =
     viseme === "round"
-      ? "h-[10px] w-[16px] rounded-full sm:h-[12px] sm:w-[19px]"
+      ? "h-[11px] w-[16px] rounded-full sm:h-[13px] sm:w-[19px]"
       : viseme === "wide"
-        ? "h-[6px] w-[30px] rounded-[45%] sm:h-[7px] sm:w-[34px]"
+        ? "h-[6px] w-[31px] rounded-[45%] sm:h-[7px] sm:w-[35px]"
         : viseme === "open"
-          ? "h-[11px] w-[24px] rounded-[45%] sm:h-[13px] sm:w-[28px]"
-          : "h-[2px] w-[22px] rounded-full sm:w-[26px]"
+          ? "h-[12px] w-[24px] rounded-[45%] sm:h-[14px] sm:w-[29px]"
+          : viseme === "bite"
+            ? "h-[4px] w-[24px] rounded-[45%] border-t border-white/25 sm:w-[28px]"
+            : "h-[2px] w-[22px] rounded-full sm:w-[26px]"
 
   if (!visible) return null
   const StatusIcon = status.icon
@@ -179,7 +218,6 @@ export function RebornLiveAvatar() {
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-violet-500/5" />
-
           <div className={`absolute left-1/2 top-[57.4%] -translate-x-1/2 bg-black/88 shadow-[0_0_12px_rgba(0,0,0,.9)] transition-all duration-75 ${mouthClass}`} />
 
           <div className={`absolute left-[35.2%] top-[33.2%] w-[9px] rounded-full bg-violet-300/80 blur-[1px] transition-all duration-75 ${blink ? "h-[1px] opacity-20" : "h-[3px] opacity-90"} ${state === "seeing" ? "animate-pulse" : ""}`} />
