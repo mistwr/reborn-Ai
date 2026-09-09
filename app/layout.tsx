@@ -73,20 +73,18 @@ export default function RootLayout({
                 var savedTheme = localStorage.getItem('rebornai-theme') || 'light';
                 document.documentElement.setAttribute('data-theme', savedTheme);
 
-                // One-time resurrection repair: an old client-side token counter could
-                // block the chat before /api/chat was called. Clear that stale state
-                // once; authoritative usage enforcement belongs on the server.
-                var repairKey = 'rebornai-chat-guard-repair-v1';
-                if (!localStorage.getItem(repairKey)) {
-                  localStorage.setItem('rebornai-tokens', '0');
-                  localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
-                  localStorage.setItem(repairKey, '1');
-                }
+                // Temporary resurrection compatibility: the historical client token
+                // counter can return before /api/chat is called. Until usage control is
+                // authoritative on the server, never let stale browser state block AI.
+                localStorage.setItem('rebornai-tokens', '0');
+                localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
+                localStorage.setItem('rebornai-chat-guard-repair-v2', '1');
               })();
 
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(registration) {
+                    registration.update();
                     console.log('[PWA] Service Worker registered:', registration.scope);
                   }).catch(function(error) {
                     console.log('[PWA] Service Worker registration failed:', error);
