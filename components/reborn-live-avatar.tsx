@@ -59,6 +59,7 @@ export function RebornLiveAvatar() {
   const [caption, setCaption] = useState("")
   const [blink, setBlink] = useState(false)
   const [headPhase, setHeadPhase] = useState(0)
+  const [audioLevel, setAudioLevel] = useState(0)
   const visemeTimer = useRef<number | null>(null)
   const headTimer = useRef<number | null>(null)
   const neuralTimeline = useRef<VisemeCue[]>([])
@@ -67,6 +68,7 @@ export function RebornLiveAvatar() {
     if (visemeTimer.current) window.clearInterval(visemeTimer.current)
     visemeTimer.current = null
     setViseme("closed")
+    setAudioLevel(0)
   }
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export function RebornLiveAvatar() {
         setVisible(true)
         setState("speaking")
         setCaption(detail.text || "")
+        setAudioLevel(0)
         stopMouth()
         neuralTimeline.current = buildVisemeTimeline(detail.text || "", 1)
         return
@@ -97,6 +100,9 @@ export function RebornLiveAvatar() {
       if (detail.phase === "progress") {
         const duration = Number(detail.duration)
         const currentTime = Number(detail.currentTime)
+        const level = Number(detail.audioLevel)
+        if (Number.isFinite(level)) setAudioLevel(Math.max(0, Math.min(1, level)))
+
         const timeline = neuralTimeline.current
         if (!timeline.length || !Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return
 
@@ -177,7 +183,9 @@ export function RebornLiveAvatar() {
           while (cueIndex + 1 < timeline.length && timeline[cueIndex + 1].at <= elapsed) {
             cueIndex += 1
           }
-          setViseme(timeline[cueIndex]?.viseme || "closed")
+          const nextViseme = timeline[cueIndex]?.viseme || "closed"
+          setViseme(nextViseme)
+          setAudioLevel(nextViseme === "closed" ? 0.05 : nextViseme === "bite" ? 0.22 : 0.38 + Math.random() * 0.28)
         }, 42)
 
         prevStart?.call(utterance, event)
@@ -231,10 +239,12 @@ export function RebornLiveAvatar() {
 
   const headTransform = useMemo(() => {
     const x = [0, 0.6, 1.1, 0.4, 0, -0.5, -1.1, -0.4][headPhase]
-    const y = state === "speaking" ? [0, -0.45, 0, 0.35, 0, -0.25, 0, 0.2][headPhase] : 0
-    const r = state === "speaking" ? x * 0.28 : state === "thinking" ? x * 0.16 : x * 0.08
-    return `translate3d(${x}px, ${y}px, 0) rotate(${r}deg) scale(${state === "thinking" ? 1.018 : state === "speaking" ? 1.014 : 1})`
-  }, [headPhase, state])
+    const yBase = state === "speaking" ? [0, -0.45, 0, 0.35, 0, -0.25, 0, 0.2][headPhase] : 0
+    const y = yBase - audioLevel * 0.8
+    const r = state === "speaking" ? x * 0.28 + audioLevel * 0.35 : state === "thinking" ? x * 0.16 : x * 0.08
+    const scale = state === "thinking" ? 1.018 : state === "speaking" ? 1.014 + audioLevel * 0.008 : 1
+    return `translate3d(${x}px, ${y}px, 0) rotate(${r}deg) scale(${scale})`
+  }, [headPhase, state, audioLevel])
 
   const mouthClass =
     viseme === "round"
@@ -249,25 +259,47 @@ export function RebornLiveAvatar() {
 
   if (!visible) return null
   const StatusIcon = status.icon
+  const mouthScaleY = state === "speaking" ? 1 + audioLevel * 0.75 : 1
+  const jawOffset = state === "speaking" ? audioLevel * 3.2 : 0
+  const faceBrightness = state === "thinking" ? 1.1 : state === "speaking" ? 1 + audioLevel * 0.12 : 1
+  const speakingGlow = 0.18 + audioLevel * 0.52
 
   return (
     <div className="pointer-events-none fixed right-3 top-28 z-[95] w-[156px] sm:w-[190px]">
-      <div className="overflow-hidden rounded-[28px] border border-violet-400/30 bg-black/75 shadow-[0_0_50px_rgba(124,58,237,.28)] backdrop-blur-xl">
+      <div
+        className="overflow-hidden rounded-[28px] border border-violet-400/30 bg-black/75 backdrop-blur-xl transition-shadow duration-100"
+        style={{ boxShadow: `0 0 ${42 + audioLevel * 24}px rgba(124,58,237,${state === "speaking" ? speakingGlow : 0.28})` }}
+      >
         <div className="relative aspect-[3/4] overflow-hidden bg-black">
           <img
             src={AVATAR_SRC}
             alt="Reborn AI humanoide"
-            className="h-full w-full object-cover object-top transition-[filter,transform] duration-300 will-change-transform"
-            style={{ transform: headTransform, filter: state === "thinking" ? "brightness(1.1)" : "none" }}
+            className="h-full w-full object-cover object-top transition-[filter,transform] duration-100 will-change-transform"
+            style={{ transform: headTransform, filter: `brightness(${faceBrightness})` }}
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-violet-500/5" />
-          <div className={`absolute left-1/2 top-[57.4%] -translate-x-1/2 bg-black/88 shadow-[0_0_12px_rgba(0,0,0,.9)] transition-all duration-75 ${mouthClass}`} />
+
+          <div
+            className={`absolute left-1/2 top-[57.4%] -translate-x-1/2 bg-black/88 shadow-[0_0_12px_rgba(0,0,0,.9)] transition-[width,height,transform] duration-75 ${mouthClass}`}
+            style={{ transform: `translate(-50%, ${jawOffset}px) scaleY(${mouthScaleY})` }}
+          />
+
+          <div
+            className="absolute left-1/2 top-[61.3%] h-[3px] w-[34px] -translate-x-1/2 rounded-full bg-black/15 blur-[2px] transition-transform duration-75"
+            style={{ transform: `translate(-50%, ${jawOffset * 0.65}px) scaleX(${1 + audioLevel * 0.18})` }}
+          />
 
           <div className={`absolute left-[35.2%] top-[33.2%] w-[9px] rounded-full bg-violet-300/80 blur-[1px] transition-all duration-75 ${blink ? "h-[1px] opacity-20" : "h-[3px] opacity-90"} ${state === "seeing" ? "animate-pulse" : ""}`} />
           <div className={`absolute right-[35.2%] top-[33.2%] w-[9px] rounded-full bg-violet-300/80 blur-[1px] transition-all duration-75 ${blink ? "h-[1px] opacity-20" : "h-[3px] opacity-90"} ${state === "seeing" ? "animate-pulse" : ""}`} />
 
           {state === "thinking" && <div className="absolute inset-0 animate-pulse ring-1 ring-inset ring-violet-400/40" />}
+          {state === "speaking" && (
+            <div
+              className="absolute inset-0 ring-1 ring-inset ring-violet-300/20 transition-opacity duration-75"
+              style={{ opacity: 0.28 + audioLevel * 0.55 }}
+            />
+          )}
 
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between rounded-full border border-white/10 bg-black/65 px-2.5 py-1.5 text-[10px] text-white backdrop-blur-md">
             <span className="font-medium">Reborn AI</span>
