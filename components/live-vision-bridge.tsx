@@ -12,6 +12,10 @@ function pathnameOf(input: RequestInfo | URL) {
   }
 }
 
+function emitState(state: "idle" | "seeing" | "thinking") {
+  window.dispatchEvent(new CustomEvent("reborn-live-state", { detail: { state } }))
+}
+
 async function captureFrame(stream: MediaStream): Promise<string | null> {
   const track = stream.getVideoTracks().find((t) => t.readyState === "live" && t.enabled)
   if (!track) return null
@@ -58,6 +62,7 @@ export function LiveVisionBridge() {
       const stream = await originalGetUserMedia(constraints)
       if (constraints && typeof constraints === "object" && constraints.video) {
         latestVideoStream = stream
+        emitState("seeing")
       }
       return stream
     }
@@ -70,15 +75,21 @@ export function LiveVisionBridge() {
       try {
         const body = JSON.parse(init.body)
         const wantsVision = body?.mode === "both" || body?.mode === "video"
+
         if (wantsVision && latestVideoStream) {
+          emitState("seeing")
           const frame = await captureFrame(latestVideoStream)
           if (frame) {
             body.imageDataUrl = frame
             body.cameraFrameCapturedAt = new Date().toISOString()
           }
         }
-        return originalFetch(input, { ...init, body: JSON.stringify(body) })
+
+        emitState("thinking")
+        const response = await originalFetch(input, { ...init, body: JSON.stringify(body) })
+        return response
       } catch {
+        emitState("idle")
         return originalFetch(input, init)
       }
     }
