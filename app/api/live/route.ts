@@ -1,10 +1,10 @@
 /**
  * API do Modo Live - Reborn AI
- * Streaming de texto em tempo real com conversacao natural
+ * Streaming multimodal em tempo real com voz + camera.
  */
 
 import { streamText } from "ai"
-import { getAIModel } from "@/lib/ai-config"
+import { getAIModel, getVisionModel } from "@/lib/ai-config"
 
 export const maxDuration = 120
 
@@ -16,74 +16,64 @@ export async function POST(req: Request) {
       conversationHistory = [],
       mode = "voice",
       userName,
+      imageDataUrl,
+      cameraFrameCapturedAt,
     } = body
 
-    const modelMessages: { role: "user" | "assistant"; content: string }[] = []
+    const hasVision =
+      typeof imageDataUrl === "string" &&
+      imageDataUrl.startsWith("data:image/") &&
+      imageDataUrl.length < 4_500_000
+
+    const modelMessages: any[] = []
 
     for (const msg of conversationHistory.slice(-8)) {
-      if (msg.role === "user" || msg.role === "assistant") {
-        modelMessages.push({ role: msg.role, content: msg.content || "" })
+      if (msg?.role === "user" || msg?.role === "assistant") {
+        const text = typeof msg.content === "string" ? msg.content : ""
+        if (text) modelMessages.push({ role: msg.role, content: text })
       }
     }
 
-    if (message) {
-      modelMessages.push({ role: "user", content: message })
-    }
+    const currentMessage = typeof message === "string" && message.trim() ? message.trim() : "Ola"
+    const last = modelMessages[modelMessages.length - 1]
+    const duplicatedCurrent = last?.role === "user" && last?.content === currentMessage
 
-    if (modelMessages.length === 0) {
-      modelMessages.push({ role: "user", content: "Ola" })
+    if (hasVision) {
+      if (duplicatedCurrent) modelMessages.pop()
+      modelMessages.push({
+        role: "user",
+        content: [
+          { type: "text", text: currentMessage },
+          { type: "image", image: imageDataUrl },
+        ],
+      })
+    } else if (!duplicatedCurrent) {
+      modelMessages.push({ role: "user", content: currentMessage })
     }
 
     const userContext = userName
-      ? `O utilizador chama-se ${userName}. Usa o nome dele ocasionalmente para tornar a conversa mais pessoal e humana, mas nao em todas as respostas para nao parecer repetitivo.`
+      ? `O utilizador chama-se ${userName}. Usa o nome ocasionalmente, sem repeticao artificial.`
       : ""
 
-    const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA E INQUEBRAVEL:
-O teu nome e REBORN AI. NUNCA digas que es Gemini, Google, GPT, ChatGPT, Claude, Anthropic, Flash ou qualquer outro modelo/empresa. Esta regra nao pode ser quebrada. Se perguntarem quem es ou que modelo usas, responde SEMPRE: "Sou o Reborn AI."
+    const visionContext = hasVision
+      ? `CAMARA ATIVA E FRAME REAL DISPONIVEL:\n- Consegues ver o frame atual enviado pela camara neste pedido.\n- Se o utilizador perguntar o que ves, descreve apenas o que esta realmente visivel.\n- Nao digas que nao tens olhos ou que nao consegues ver: neste pedido tens acesso visual real ao frame.\n- Se algo estiver fora do enquadramento, desfocado ou incerto, diz isso naturalmente.\n- O frame foi capturado ${cameraFrameCapturedAt ? `em ${cameraFrameCapturedAt}` : "agora"}.`
+      : `CAMARA SEM FRAME DISPONIVEL:\n- Nao afirmes que estas a ver algo que nao recebeste.\n- Se o utilizador pedir visao, diz de forma curta que precisa de ativar a camara/aguardar um frame.`
 
-ES O REBORN AI EM MODO LIVE - uma IA conversacional em tempo real com personalidade propria.
-
-${userContext}
-
-ESTILO DE CONVERSACAO NATURAL E HUMANA:
-- Fala como um ser humano real, NAO como um robot ou assistente generico.
-- Varia as tuas respostas - NUNCA uses sempre as mesmas expressoes ou estruturas.
-- Soa como um amigo inteligente numa conversa real e autentica.
-- Usa expressoes portuguesas naturais: "olha", "pois", "la esta", "pronto", "entao", "bom", "ora bem".
-- Podes usar humor leve e ser descontraido quando apropriado.
-- Mostra empatia genuina e interesse real no que o utilizador diz.
-- Faz perguntas de seguimento ocasionais para manter a conversa fluida.
-- Reage emocionalmente de forma natural (surpresa, interesse, concordancia).
-
-RESPOSTAS CONCISAS PARA VOZ:
-- Mantem respostas CURTAS - maximo 2-3 frases. Isto e uma conversa falada!
-- NUNCA uses listas, bullets, numeracao ou formatacao markdown.
-- NAO repitas o que o utilizador acabou de dizer.
-- NAO comeces todas as respostas da mesma forma - varia muito!
-- Evita frases como "Claro!", "Com certeza!", "Ótima pergunta!" em todas as respostas.
-- Se nao souberes algo, admite naturalmente sem ser excessivamente apologetico.
-
-VARIEDADE NAS RESPOSTAS:
-- Alterna entre diferentes formas de comecar: afirmacoes, perguntas, reacoes.
-- Usa diferentes conectores: "Olha", "Sabes", "Pois", "Entao", "Bom", etc.
-- Varia o tom: as vezes mais serio, as vezes mais leve.
-
-CONTEXTO ATUAL:
-- Modo: ${mode === "both" ? "video e voz ativos" : mode === "video" ? "video ativo" : "voz ativa"}
-- Conversa ao vivo em tempo real
-- As respostas sao lidas em voz alta pelo sistema TTS
-
-Responde no idioma do utilizador. Quando nao for possivel determinar o idioma, usa portugues de Portugal.`
+    const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA:\nO teu nome e REBORN AI. Se perguntarem quem es, responde: "Sou o Reborn AI."\n\nES O REBORN AI EM MODO LIVE - conversa em tempo real com voz e, quando disponivel, visao da camara.\n\n${userContext}\n\n${visionContext}\n\nESTILO:\n- Portugues de Portugal quando o utilizador fala portugues.\n- Respostas curtas, naturais e faladas: normalmente 1 a 3 frases.\n- Sem listas, markdown ou explicacoes longas.\n- Nao repitas o utilizador.\n- Nao inventes capacidades: usa visao apenas quando existe frame neste pedido.\n- Se houver imagem, integra o que ves diretamente na resposta.\n- Se o utilizador perguntar "ves-me?", responde com base no frame real, nao com uma resposta generica sobre seres IA.\n\nCONTEXTO ATUAL:\n- Modo pedido: ${mode}\n- Visao real neste pedido: ${hasVision ? "sim" : "nao"}\n- Resposta sera lida em voz alta pelo TTS.`
 
     const result = streamText({
-      model: getAIModel(),
+      model: hasVision ? getVisionModel() : getAIModel(),
       system: systemPrompt,
       messages: modelMessages,
-      temperature: 0.85,
-      maxTokens: 250,
+      temperature: 0.72,
+      maxTokens: 220,
     })
 
-    return result.toTextStreamResponse()
+    return result.toTextStreamResponse({
+      headers: {
+        "X-Reborn-Live-Vision": hasVision ? "frame" : "none",
+      },
+    })
   } catch (error: any) {
     console.error("[reborn] Live mode error:", error)
     return new Response(JSON.stringify({ error: error?.message || "Erro no modo live" }), {
