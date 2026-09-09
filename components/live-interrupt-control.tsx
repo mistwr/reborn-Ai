@@ -1,16 +1,47 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Hand, Mic, Waves } from "lucide-react"
+import { Hand, Mic, Waves, X } from "lucide-react"
 
 type PermissionStateLike = "granted" | "denied" | "prompt" | "unknown"
+
+function submitTranscriptToLive(text: string) {
+  const clean = text.trim()
+  if (!clean) return false
+
+  const input = Array.from(document.querySelectorAll<HTMLInputElement>("input")).find((element) =>
+    (element.placeholder || "").toLowerCase().includes("escreve ou fala"),
+  )
+
+  if (!input || input.disabled) return false
+
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+  if (setter) setter.call(input, clean)
+  else input.value = clean
+
+  input.dispatchEvent(new Event("input", { bubbles: true }))
+  input.dispatchEvent(new Event("change", { bubbles: true }))
+
+  window.setTimeout(() => {
+    const form = input.closest("form")
+    if (!form) return
+    if (typeof form.requestSubmit === "function") form.requestSubmit()
+    else form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+  }, 120)
+
+  return true
+}
 
 export function LiveInterruptControl() {
   const [speaking, setSpeaking] = useState(false)
   const [autoListening, setAutoListening] = useState(false)
   const [voiceLevel, setVoiceLevel] = useState(0)
+  const [capturing, setCapturing] = useState(false)
+  const [capturedText, setCapturedText] = useState("")
   const lastLiveActivityRef = useRef(0)
   const interruptedRef = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const captureFinalRef = useRef("")
 
   useEffect(() => {
     const onSpeech = (event: Event) => {
@@ -50,8 +81,91 @@ export function LiveInterruptControl() {
       window.removeEventListener("reborn-neural-speech", onSpeech as EventListener)
       window.removeEventListener("reborn-live-state", onLiveState as EventListener)
       window.clearInterval(poll)
+      try {
+        recognitionRef.current?.abort?.()
+      } catch {}
+      recognitionRef.current = null
     }
   }, [])
+
+  const stopCapture = () => {
+    try {
+      recognitionRef.current?.abort?.()
+    } catch {}
+    recognitionRef.current = null
+    captureFinalRef.current = ""
+    setCapturing(false)
+    setCapturedText("")
+  }
+
+  const beginCapture = () => {
+    if (recognitionRef.current) return
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+
+    const recognition = new SR()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = "pt-PT"
+    recognition.maxAlternatives = 1
+
+    captureFinalRef.current = ""
+    setCapturedText("")
+    setCapturing(true)
+    recognitionRef.current = recognition
+
+    recognition.onresult = (event: any) => {
+      let interim = ""
+      let finalText = captureFinalRef.current
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i]
+        const phrase = result?.[0]?.transcript || ""
+        if (result.isFinal) finalText = `${finalText} ${phrase}`.trim()
+        else interim += phrase
+      }
+
+      captureFinalRef.current = finalText
+      setCapturedText((finalText || interim).trim())
+
+      if (finalText.trim()) {
+        const submitted = submitTranscriptToLive(finalText)
+        if (submitted) {
+          window.dispatchEvent(
+            new CustomEvent("reborn-live-barge-in-captured", {
+              detail: { text: finalText.trim() },
+            }),
+          )
+          window.dispatchEvent(new CustomEvent("reborn-live-state", { detail: { state: "thinking" } }))
+          try {
+            recognition.stop()
+          } catch {}
+        }
+      }
+    }
+
+    recognition.onerror = () => {
+      recognitionRef.current = null
+      setCapturing(false)
+      setCapturedText("")
+    }
+
+    recognition.onend = () => {
+      recognitionRef.current = null
+      const pending = captureFinalRef.current.trim()
+      if (pending) submitTranscriptToLive(pending)
+      captureFinalRef.current = ""
+      setCapturing(false)
+      setCapturedText("")
+    }
+
+    try {
+      recognition.start()
+    } catch {
+      recognitionRef.current = null
+      setCapturing(false)
+    }
+  }
 
   const interrupt = (source: "user" | "voice" = "user") => {
     if (interruptedRef.current) return
@@ -66,6 +180,10 @@ export function LiveInterruptControl() {
     setSpeaking(false)
     setAutoListening(false)
     setVoiceLevel(0)
+
+    // Capture the continuation immediately, so the user does not need to repeat
+    // what they were saying after interrupting the Reborn response.
+    window.setTimeout(beginCapture, source === "voice" ? 70 : 120)
   }
 
   useEffect(() => {
@@ -91,13 +209,9 @@ export function LiveInterruptControl() {
     }
 
     const startDetector = async () => {
-      // Only auto-barge in around an actual Reborn Live turn. This prevents the
-      // global bridge from opening the mic for unrelated speech elsewhere.
       if (Date.now() - lastLiveActivityRef.current > 30_000) return
 
       const permission = await getPermission()
-      // Never trigger a fresh permission prompt just for barge-in. The user must
-      // already have granted microphone access through the Live experience.
       if (permission !== "granted") return
       if (cancelled || !navigator.mediaDevices?.getUserMedia) return
 
@@ -144,8 +258,6 @@ export function LiveInterruptControl() {
           const rms = Math.sqrt(sum / data.length)
           const now = performance.now()
 
-          // The first moments provide an estimate of residual speaker echo/noise.
-          // Keep adapting slowly afterwards so a noisy room does not cause a cut.
           if (now - startedAt < 650) {
             noiseFloor = calibrationSamples === 0 ? rms : noiseFloor * 0.82 + rms * 0.18
             calibrationSamples += 1
@@ -156,8 +268,6 @@ export function LiveInterruptControl() {
           const normalized = Math.max(0, Math.min(1, (rms - noiseFloor) / 0.14))
           setVoiceLevel((previous) => previous * 0.7 + normalized * 0.3)
 
-          // Require a clear, sustained rise over the calibrated echo floor.
-          // Peak requirement helps reject low-frequency speaker leakage.
           const threshold = Math.max(0.055, noiseFloor * 2.8 + 0.012)
           const looksLikeUserVoice = now - startedAt > 700 && rms > threshold && peak > 0.11
 
@@ -192,7 +302,25 @@ export function LiveInterruptControl() {
     }
   }, [speaking])
 
-  if (!speaking) return null
+  if (!speaking && !capturing) return null
+
+  if (capturing) {
+    return (
+      <button
+        type="button"
+        onClick={stopCapture}
+        className="fixed bottom-24 left-1/2 z-[110] flex max-w-[88vw] -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-300/25 bg-black/85 px-4 py-2.5 text-xs font-medium text-white shadow-[0_10px_35px_rgba(0,0,0,.35),0_0_30px_rgba(16,185,129,.16)] backdrop-blur-xl"
+        aria-label="Parar captura de voz"
+      >
+        <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200">
+          <Mic className="h-3.5 w-3.5 animate-pulse" />
+          <span className="absolute inset-0 animate-ping rounded-full border border-emerald-400/25" />
+        </span>
+        <span className="max-w-[58vw] truncate">{capturedText || "Estou a ouvir…"}</span>
+        <X className="h-3.5 w-3.5 text-zinc-400" />
+      </button>
+    )
+  }
 
   return (
     <button
