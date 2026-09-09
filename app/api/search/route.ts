@@ -1,14 +1,12 @@
 /**
  * API de Pesquisa Web - Reborn AI
- * Usa DuckDuckGo (gratuito, sem API key) para pesquisas na web
- * Permite ao Reborn AI ter acesso a informações atualizadas da internet
+ * Usa DuckDuckGo HTML como fonte principal e Wikipedia como fallback.
  */
 
 import { NextResponse } from "next/server"
 
 export const maxDuration = 30
 
-// Interface para resultados de pesquisa
 interface SearchResult {
   title: string
   link: string
@@ -17,14 +15,18 @@ interface SearchResult {
 }
 
 export async function POST(req: Request) {
+  let query = ""
+  let numResults = 5
+
   try {
-    const { query, numResults = 5 } = await req.json()
+    const body = await req.json()
+    query = typeof body?.query === "string" ? body.query.trim() : ""
+    numResults = Math.min(Math.max(Number(body?.numResults) || 5, 1), 10)
 
     if (!query) {
       return NextResponse.json({ error: "Query é obrigatório" }, { status: 400 })
     }
 
-    // Usar DuckDuckGo HTML (gratuito, sem API key)
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
 
     const response = await fetch(searchUrl, {
@@ -34,67 +36,58 @@ export async function POST(req: Request) {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
       },
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
     })
 
     if (!response.ok) {
-      throw new Error("Falha na pesquisa")
+      throw new Error(`DuckDuckGo respondeu ${response.status}`)
     }
 
     const html = await response.text()
-
-    // Parse dos resultados do HTML do DuckDuckGo
     const results: SearchResult[] = []
-
-    // Regex para extrair resultados
-    const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g
-    const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)<\/a>/g
+    const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g
 
     let match
     const links: string[] = []
     const titles: string[] = []
 
     while ((match = resultRegex.exec(html)) !== null && links.length < numResults) {
-      // DuckDuckGo usa redirecionamento, extrair URL real
       const href = match[1]
-      const title = match[2].replace(/<[^>]*>/g, "").trim()
-
-      // Extrair URL real do redirecionamento
+      const title = decodeHtml(match[2].replace(/<[^>]*>/g, "").trim())
       const urlMatch = href.match(/uddg=([^&]+)/)
-      const realUrl = urlMatch ? decodeURIComponent(urlMatch[1]) : href
+      const realUrl = urlMatch ? safeDecodeURIComponent(urlMatch[1]) : href
 
-      if (realUrl && title && !realUrl.includes("duckduckgo.com")) {
+      if (isHttpUrl(realUrl) && title && !realUrl.includes("duckduckgo.com")) {
         links.push(realUrl)
         titles.push(title)
       }
     }
 
-    // Extrair snippets
     const snippets: string[] = []
     const snippetMatches = html.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g) || []
 
     snippetMatches.forEach((s) => {
-      const text = s.replace(/<[^>]*>/g, "").trim()
+      const text = decodeHtml(s.replace(/<[^>]*>/g, "").trim())
       if (text) snippets.push(text)
     })
 
-    // Combinar resultados
     for (let i = 0; i < Math.min(links.length, numResults); i++) {
       results.push({
         title: titles[i] || "Sem título",
         link: links[i],
         snippet: snippets[i] || "Sem descrição disponível",
-        source: new URL(links[i]).hostname.replace("www.", ""),
+        source: new URL(links[i]).hostname.replace(/^www\./, ""),
       })
     }
 
-    // Se não encontrou resultados via regex, tentar método alternativo
     if (results.length === 0) {
-      // Fallback: usar API alternativa gratuita
       const fallbackResults = await fetchFallbackResults(query, numResults)
       return NextResponse.json({
         results: fallbackResults,
-        source: "fallback",
+        source: "wikipedia",
         query,
+        timestamp: new Date().toISOString(),
       })
     }
 
@@ -104,43 +97,76 @@ export async function POST(req: Request) {
       query,
       timestamp: new Date().toISOString(),
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error("Search error:", error)
 
-    // Tentar fallback
-    try {
-      const { query, numResults = 5 } = await req.json()
+    if (query) {
       const fallbackResults = await fetchFallbackResults(query, numResults)
-      return NextResponse.json({
-        results: fallbackResults,
-        source: "fallback",
-        query,
-      })
-    } catch {
-      return NextResponse.json(
-        {
-          error: "Erro na pesquisa",
-          results: [],
-        },
-        { status: 500 },
-      )
+      if (fallbackResults.length > 0) {
+        return NextResponse.json({
+          results: fallbackResults,
+          source: "wikipedia",
+          query,
+          timestamp: new Date().toISOString(),
+        })
+      }
     }
+
+    return NextResponse.json(
+      {
+        error: "Erro na pesquisa",
+        results: [],
+        query,
+      },
+      { status: 502 },
+    )
   }
 }
 
-// Fallback usando Wikipedia API (sempre funciona, gratuito)
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+}
+
 async function fetchFallbackResults(query: string, numResults: number): Promise<SearchResult[]> {
   try {
     const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=${numResults}`
 
-    const response = await fetch(wikiUrl)
+    const response = await fetch(wikiUrl, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!response.ok) return []
+
     const data = await response.json()
 
     if (data.query?.search) {
       return data.query.search.map((item: any) => ({
         title: item.title,
         link: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, "_"))}`,
-        snippet: item.snippet.replace(/<[^>]*>/g, ""),
+        snippet: decodeHtml(String(item.snippet || "").replace(/<[^>]*>/g, "")),
         source: "wikipedia.org",
       }))
     }

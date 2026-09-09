@@ -1,13 +1,25 @@
-import { NextResponse } from "next/server"
+import { POST as createCheckoutSession } from "@/app/api/stripe/checkout/route"
 
+export const runtime = "nodejs"
+
+// Compatibility route for older Reborn clients.
+// Never return a hardcoded Stripe Payment Link here: all purchases must go
+// through the canonical Checkout Session flow so price validation, metadata,
+// success/cancel URLs and webhook-based Pro activation stay consistent.
 export async function POST(request: Request) {
-  try {
-    const { priceId, userId } = await request.json()
+  const body = await request.json().catch(() => ({}))
+  const headers = new Headers({ "Content-Type": "application/json" })
+  const origin = request.headers.get("origin")
+  if (origin) headers.set("origin", origin)
 
-    const checkoutUrl = "https://buy.stripe.com/eVqdR93RbaHQ4ecbk95Rm00"
+  const canonicalRequest = new Request(new URL("/api/stripe/checkout", request.url), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      email: typeof body?.email === "string" ? body.email : undefined,
+      attribution: body?.attribution && typeof body.attribution === "object" ? body.attribution : undefined,
+    }),
+  })
 
-    return NextResponse.json({ url: checkoutUrl })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  return createCheckoutSession(canonicalRequest)
 }
