@@ -1,3 +1,5 @@
+import { buildIntelligentImagePrompt, type ProjectBrief } from "@/lib/content-brief"
+
 export const maxDuration = 60
 
 interface ImageProvider {
@@ -51,7 +53,7 @@ const API_PROVIDERS = [
             prompt,
             token: null,
             model: "art",
-            negative_prompt: "blurry, bad quality, distorted",
+            negative_prompt: "unrelated subject, wrong object, abstract blob, blurry, low quality, distorted anatomy, extra limbs, cropped main subject, random text, watermark",
             version: "c4ue22fb7kb6wlac",
           }),
           signal: AbortSignal.timeout(25000),
@@ -81,11 +83,11 @@ const API_PROVIDERS = [
           },
           body: JSON.stringify({
             prompt,
-            negative_prompt: "blurry, bad quality",
+            negative_prompt: "unrelated subject, wrong object, abstract blob, blurry, low quality, distorted anatomy, extra limbs, cropped main subject, random text, watermark",
             width: Math.min(w, 1024),
             height: Math.min(h, 1024),
-            steps: 20,
-            cfg_scale: 7,
+            steps: 28,
+            cfg_scale: 8,
           }),
           signal: AbortSignal.timeout(20000),
         })
@@ -166,7 +168,23 @@ async function verifyImageUrl(url: string, timeout = 5000): Promise<boolean> {
 
 export async function POST(req: Request) {
   try {
-    const { prompt, width = 1024, height = 1024, quality = "standard" } = await req.json()
+    const {
+      prompt,
+      width = 1024,
+      height = 1024,
+      quality = "standard",
+      style = "",
+      intent = "image",
+      brief,
+    } = await req.json() as {
+      prompt?: string
+      width?: number
+      height?: number
+      quality?: string
+      style?: string
+      intent?: "image" | "marketing" | "slide" | "ebook" | "website"
+      brief?: ProjectBrief
+    }
 
     if (!prompt || typeof prompt !== "string") {
       return Response.json({ error: "Prompt não fornecido" }, { status: 400 })
@@ -176,9 +194,15 @@ export async function POST(req: Request) {
     const w = Math.min(Math.max(Number(width) || 1024, 256), 1536)
     const h = Math.min(Math.max(Number(height) || 1024, 256), 1536)
 
-    const enhancedPrompt = quality === "hd"
-      ? `${prompt}, high quality, detailed, professional, 4k, sharp focus`
-      : prompt
+    const enhancedPrompt = buildIntelligentImagePrompt({
+      prompt,
+      style,
+      quality,
+      width: w,
+      height: h,
+      intent,
+      brief,
+    })
 
     if (quality !== "fast") {
       for (const provider of API_PROVIDERS) {
@@ -197,6 +221,7 @@ export async function POST(req: Request) {
             success: true,
             isBase64: isImageDataUrl(result),
             quality: "ai-generated",
+            promptUsed: enhancedPrompt,
           })
         } catch {
           continue
@@ -216,6 +241,7 @@ export async function POST(req: Request) {
             seed,
             success: true,
             quality: "ai-generated",
+            promptUsed: enhancedPrompt,
           })
         }
 
@@ -229,12 +255,14 @@ export async function POST(req: Request) {
           seed,
           success: true,
           quality: "ai-generated",
+          promptUsed: enhancedPrompt,
         })
       } catch {
         continue
       }
     }
 
+    // Stock fallbacks are intentionally last because semantic fidelity matters more than returning an unrelated picture.
     for (const provider of FALLBACK_PROVIDERS) {
       try {
         const url = provider.generate(prompt, w, h, seed)
@@ -249,13 +277,14 @@ export async function POST(req: Request) {
           success: true,
           quality: "stock",
           note: "Imagem de stock utilizada como alternativa",
+          promptUsed: enhancedPrompt,
         })
       } catch {
         continue
       }
     }
 
-    const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&seed=${seed + 1}`
+    const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${w}&height=${h}&nologo=true&seed=${seed + 1}&model=flux`
 
     return Response.json({
       url: fallbackUrl,
@@ -265,6 +294,7 @@ export async function POST(req: Request) {
       success: true,
       quality: "ai-generated",
       fallback: true,
+      promptUsed: enhancedPrompt,
     })
   } catch (error: any) {
     console.error("Image generation error:", error)
