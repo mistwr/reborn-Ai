@@ -61,6 +61,7 @@ export function RebornLiveAvatar() {
   const [headPhase, setHeadPhase] = useState(0)
   const visemeTimer = useRef<number | null>(null)
   const headTimer = useRef<number | null>(null)
+  const neuralTimeline = useRef<VisemeCue[]>([])
 
   const stopMouth = () => {
     if (visemeTimer.current) window.clearInterval(visemeTimer.current)
@@ -78,6 +79,47 @@ export function RebornLiveAvatar() {
     }
     window.addEventListener("reborn-live-state", onLiveState as EventListener)
     return () => window.removeEventListener("reborn-live-state", onLiveState as EventListener)
+  }, [])
+
+  useEffect(() => {
+    const onNeuralSpeech = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail || {}
+
+      if (detail.phase === "start") {
+        setVisible(true)
+        setState("speaking")
+        setCaption(detail.text || "")
+        stopMouth()
+        neuralTimeline.current = buildVisemeTimeline(detail.text || "", 1)
+        return
+      }
+
+      if (detail.phase === "progress") {
+        const duration = Number(detail.duration)
+        const currentTime = Number(detail.currentTime)
+        const timeline = neuralTimeline.current
+        if (!timeline.length || !Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return
+
+        const totalMs = timeline[timeline.length - 1]?.at || 1
+        const positionMs = Math.max(0, Math.min(totalMs, (currentTime / duration) * totalMs))
+        let cue = timeline[0]
+        for (let i = 1; i < timeline.length; i += 1) {
+          if (timeline[i].at > positionMs) break
+          cue = timeline[i]
+        }
+        setViseme(cue?.viseme || "closed")
+        return
+      }
+
+      if (detail.phase === "end") {
+        neuralTimeline.current = []
+        stopMouth()
+        setState("idle")
+      }
+    }
+
+    window.addEventListener("reborn-neural-speech", onNeuralSpeech as EventListener)
+    return () => window.removeEventListener("reborn-neural-speech", onNeuralSpeech as EventListener)
   }, [])
 
   useEffect(() => {
@@ -166,12 +208,14 @@ export function RebornLiveAvatar() {
     }) as typeof synth.speak
 
     synth.cancel = (() => {
+      neuralTimeline.current = []
       stopMouth()
       setState("idle")
       return originalCancel()
     }) as typeof synth.cancel
 
     return () => {
+      neuralTimeline.current = []
       stopMouth()
       synth.speak = originalSpeak
       synth.cancel = originalCancel
