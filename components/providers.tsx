@@ -9,6 +9,7 @@ import { ProjectContextPanel } from "@/components/project-context-panel"
 import { LiveVisionBridge } from "@/components/live-vision-bridge"
 import { RebornLiveAvatar } from "@/components/reborn-live-avatar"
 import { NeuralVoiceBridge } from "@/components/neural-voice-bridge"
+import { LiveInterruptControl } from "@/components/live-interrupt-control"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -19,6 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <LiveVisionBridge />
       <RebornLiveAvatar />
       <NeuralVoiceBridge />
+      <LiveInterruptControl />
       {children}
     </SessionProvider>
   )
