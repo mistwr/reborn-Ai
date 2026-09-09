@@ -1,4 +1,4 @@
-const CACHE_NAME = 'reborn-ai-v1';
+const CACHE_NAME = 'reborn-ai-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache immediately on install
@@ -45,41 +45,36 @@ self.addEventListener('fetch', (event) => {
 
   // Skip API requests and external resources
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/') || !url.origin.includes(self.location.origin)) {
+  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then((response) => {
-        // Clone the response before caching
         const responseClone = response.clone();
-        
-        // Cache successful responses
+
         if (response.status === 200) {
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseClone);
           });
         }
-        
+
         return response;
       })
       .catch(async () => {
-        // Try to get from cache
         const cachedResponse = await caches.match(event.request);
         if (cachedResponse) {
           return cachedResponse;
         }
-        
-        // Return offline page for navigation requests
+
         if (event.request.mode === 'navigate') {
           const offlinePage = await caches.match(OFFLINE_URL);
           if (offlinePage) {
             return offlinePage;
           }
         }
-        
-        // Return a basic offline response
+
         return new Response('Offline', {
           status: 503,
           statusText: 'Service Unavailable',
@@ -102,7 +97,7 @@ self.addEventListener('push', (event) => {
         url: data.url || '/'
       }
     };
-    
+
     event.waitUntil(
       self.registration.showNotification(data.title || 'Reborn AI', options)
     );
@@ -112,7 +107,7 @@ self.addEventListener('push', (event) => {
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   event.waitUntil(
     clients.openWindow(event.notification.data.url || '/')
   );
