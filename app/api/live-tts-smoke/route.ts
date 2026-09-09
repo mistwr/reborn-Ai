@@ -12,14 +12,18 @@ export async function GET() {
   const res = await ttsPost(req)
   const type = res.headers.get("content-type") || ""
   const provider = res.headers.get("x-reborn-tts") || ""
-  const body = await res.arrayBuffer()
+  const bytes = await res.arrayBuffer()
 
   return Response.json({
     ok: res.ok,
     status: res.status,
     contentType: type,
     provider,
-    bytes: body.byteLength,
-    looksLikeAudio: type.startsWith("audio/") && body.byteLength > 1000,
+    bytes: bytes.byteLength,
+    looksLikeAudio: type.startsWith("audio/") && bytes.byteLength > 1000,
+    auth: {
+      aiGatewayApiKey: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
+      vercelOidc: Boolean(process.env.VERCEL_OIDC_TOKEN?.trim()),
+    },
   })
 }
