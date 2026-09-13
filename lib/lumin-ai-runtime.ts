@@ -39,6 +39,8 @@ function isRetryableAIError(error: unknown) {
     "timeout",
     "timed out",
     "provider error",
+    "model unavailable",
+    "model is unavailable",
   ].some((needle) => message.includes(needle))
 }
 
@@ -47,9 +49,11 @@ export async function generateLuminText(options: {
   messages?: any[]
   prompt?: string
   maxOutputTokens?: number
+  temperature?: number
+  models?: string[]
 }) {
   const failures: Array<{ model: string; error: string }> = []
-  const models = getLuminModelCandidates()
+  const models = unique(options.models?.length ? options.models : getLuminModelCandidates())
 
   for (const model of models) {
     try {
@@ -59,6 +63,7 @@ export async function generateLuminText(options: {
         ...(options.messages ? { messages: options.messages } : {}),
         ...(options.prompt ? { prompt: options.prompt } : {}),
         ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+        ...(typeof options.temperature === "number" ? { temperature: options.temperature } : {}),
       } as any)
 
       if (result.text?.trim()) {
