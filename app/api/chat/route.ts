@@ -21,21 +21,41 @@ async function getContextInfo(baseUrl: string): Promise<string> {
   }
 }
 
-async function searchWeb(query: string, baseUrl: string): Promise<string> {
+type WebSearchResult = {
+  title: string
+  link: string
+  snippet: string
+  source: string
+}
+
+async function searchWeb(query: string, baseUrl: string): Promise<{ context: string; sources: WebSearchResult[] }> {
   try {
     const response = await fetch(`${baseUrl}/api/search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, numResults: 5 }),
-      signal: AbortSignal.timeout(12000),
+      body: JSON.stringify({ query, numResults: 6 }),
+      signal: AbortSignal.timeout(15000),
     })
-    if (!response.ok) return ""
+    if (!response.ok) return { context: "", sources: [] }
     const data = await response.json()
-    if (!data.results?.length) return ""
-    return data.results.map((r: any) => `- ${r.title}: ${r.snippet} (${r.source})`).join("\n")
+    const sources: WebSearchResult[] = Array.isArray(data.results) ? data.results : []
+    if (!sources.length) return { context: "", sources: [] }
+
+    const context = sources
+      .map((r, index) => `[${index + 1}] ${r.title}\nFonte: ${r.source}\nURL: ${r.link}\nResumo: ${r.snippet}`)
+      .join("\n\n")
+
+    return { context, sources }
   } catch {
-    return ""
+    return { context: "", sources: [] }
   }
+}
+
+function shouldSearchWeb(message: string, explicitSearch?: boolean) {
+  if (explicitSearch === true) return true
+  if (!message.trim()) return false
+
+  return /\b(hoje|agora|atual|atualmente|últim[oa]s?|recent[ea]s?|not[ií]cias?|pre[çc]o|cotação|mercado|tempo|meteorologia|resultado|classificação|ranking|lançamento|versão|update|atualização|lei|legislação|governo|eleição|presidente|empresa|CEO|fundador|site|website|produto|serviço|concorrente|campanha|promoção|disponível|stock|horário|morada|telefone|contacto|evento|agenda|202[5-9]|latest|current|today|news|price|weather|search|pesquisa|procura na web|vai à internet)\b/i.test(message)
 }
 
 function buildAccountContext(token: any, userPreferences: any) {
@@ -101,6 +121,7 @@ ${mode}
 
 CAPACIDADES LUMIN
 - Chat e escrita geral
+- Pesquisa web automática para informação atual
 - Live por voz/câmara quando disponível
 - Imagens e melhoria de imagem
 - Vision/OCR para imagens e documentos
@@ -114,13 +135,16 @@ COMPORTAMENTO INTELIGENTE
 - Percebe a intenção antes de responder.
 - Usa o histórico da conversa para não obrigar o utilizador a repetir informação já fornecida.
 - Se houver informação suficiente, executa o trabalho em vez de devolver apenas instruções.
+- Quando a pergunta depender de factos atuais e existirem resultados web, dá prioridade às fontes pesquisadas em vez da memória do modelo.
+- Não inventes factos atuais. Se as fontes forem insuficientes ou entrarem em conflito, diz isso claramente.
+- Quando utilizares pesquisa web, termina a resposta com uma secção curta "Fontes" com os URLs realmente usados.
 - Para vendas, transforma informação em material utilizável: mensagem, pitch, sequência, proposta, follow-up, objeções ou plano.
 - Para criação, entrega conteúdo pronto a usar e só depois oferece refinamentos.
 - Para tarefas complexas, estrutura a solução sem burocracia desnecessária.
 - Não afirmes que executaste uma ação externa sem confirmação real.
 - Não inventes preços, resultados, integrações ou dados atuais.
 
-${params.searchContext ? `RESULTADOS DE PESQUISA WEB ATUAL:\n${params.searchContext}\nUsa-os apenas quando forem relevantes e distingue informação pesquisada de inferência.` : ""}
+${params.searchContext ? `PESQUISA WEB ATUAL EFETUADA AGORA:\n${params.searchContext}\nUsa estes resultados quando forem relevantes. Não cites uma fonte que não suporte a afirmação.` : "Não foi necessária pesquisa web para este pedido."}
 
 Responde agora ao pedido do utilizador.`
 }
@@ -129,7 +153,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
-    const { enableSearch = false, userPreferences = {} } = body
+    const { enableSearch, userPreferences = {} } = body
 
     const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET }).catch(() => null)
 
@@ -174,17 +198,14 @@ export async function POST(req: Request) {
     }
 
     const contextInfo = await getContextInfo(baseUrl)
-    let searchContext = ""
-    if (enableSearch && currentMessage) {
-      const needsSearch = /\?|o que|como|quando|onde|quem|qual|porque|porquê|quanto|atualmente|hoje|notícias|preço|weather|news|current|latest|pesquisa|search/i.test(currentMessage)
-      if (needsSearch) searchContext = await searchWeb(currentMessage, baseUrl)
-    }
+    const useSearch = shouldSearchWeb(currentMessage, enableSearch)
+    const web = useSearch && currentMessage ? await searchWeb(currentMessage, baseUrl) : { context: "", sources: [] }
 
     const accountContext = buildAccountContext(token, userPreferences)
     const system = buildSystemPrompt({
       contextInfo,
       accountContext,
-      searchContext,
+      searchContext: web.context,
       isBusiness: token?.accountType === "business",
     })
 
@@ -196,6 +217,8 @@ export async function POST(req: Request) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
         "X-Lumin-Fallbacks": String(result.failures.length),
+        "X-Lumin-Web-Search": useSearch ? "1" : "0",
+        "X-Lumin-Web-Sources": String(web.sources.length),
       },
     })
   } catch (error: any) {
