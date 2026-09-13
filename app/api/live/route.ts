@@ -1,10 +1,10 @@
 /**
  * API do Modo Live - Lumin AI
- * Streaming multimodal em tempo real com voz + camera.
+ * Multimodal em tempo real com voz + camera e fallback automatico de modelos.
  */
 
-import { streamText } from "ai"
-import { getAIModel, getVisionModel } from "@/lib/ai-config"
+import { getVisionModel } from "@/lib/ai-config"
+import { generateLuminText, getLuminModelCandidates } from "@/lib/lumin-ai-runtime"
 
 export const maxDuration = 120
 
@@ -59,19 +59,29 @@ export async function POST(req: Request) {
       ? `CAMARA ATIVA E FRAME REAL DISPONIVEL:\n- Consegues ver o frame atual enviado pela camara neste pedido.\n- Se o utilizador perguntar o que ves, descreve apenas o que esta realmente visivel.\n- Nao digas que nao tens olhos ou que nao consegues ver: neste pedido tens acesso visual real ao frame.\n- Se algo estiver fora do enquadramento, desfocado ou incerto, diz isso naturalmente.\n- O frame foi capturado ${cameraFrameCapturedAt ? `em ${cameraFrameCapturedAt}` : "agora"}.`
       : `CAMARA SEM FRAME DISPONIVEL:\n- Nao afirmes que estas a ver algo que nao recebeste.\n- Se o utilizador pedir visao, diz de forma curta que precisa de ativar a camara/aguardar um frame.`
 
-    const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA:\nO teu nome e LUMIN AI. Se perguntarem quem es, responde: "Sou o Lumin AI."\n\nES O LUMIN AI EM MODO LIVE - conversa em tempo real com voz e, quando disponivel, visao da camara.\n\n${userContext}\n\n${visionContext}\n\nESTILO:\n- Portugues de Portugal quando o utilizador fala portugues.\n- Respostas curtas, naturais e faladas: normalmente 1 a 3 frases.\n- Sem listas, markdown ou explicacoes longas.\n- Nao repitas o utilizador.\n- Nao inventes capacidades: usa visao apenas quando existe frame neste pedido.\n- Se houver imagem, integra o que ves diretamente na resposta.\n- Se o utilizador perguntar "ves-me?", responde com base no frame real, nao com uma resposta generica sobre seres IA.\n\nCONTEXTO ATUAL:\n- Modo pedido: ${mode}\n- Visao real neste pedido: ${hasVision ? "sim" : "nao"}\n- Resposta sera lida em voz alta pelo TTS.`
+    const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA:\nO teu nome e LUMIN AI. Se perguntarem quem es, responde: "Sou o Lumin AI."\n\nES O LUMIN AI EM MODO LIVE - conversa em tempo real com voz e, quando disponivel, visao da camara.\n\n${userContext}\n\n${visionContext}\n\nESTILO:\n- Portugues de Portugal quando o utilizador fala portugues.\n- Respostas curtas, naturais e faladas: normalmente 1 a 3 frases.\n- Sem listas, markdown ou explicacoes longas.\n- Nao repitas o utilizador.\n- Nao inventes capacidades: usa visao apenas quando existe frame neste pedido.\n- Se houver imagem, integra o que ves diretamente na resposta.\n- Se o utilizador perguntar "ves-me?", responde com base no frame real, nao com uma resposta generica sobre seres IA.\n- Se o utilizador estiver a falar de trabalho, vendas ou negocio, ajuda de forma pratica e orientada ao proximo passo, sem transformar tudo num pitch.\n\nCONTEXTO ATUAL:\n- Modo pedido: ${mode}\n- Visao real neste pedido: ${hasVision ? "sim" : "nao"}\n- Resposta sera lida em voz alta pelo TTS.`
 
-    const result = streamText({
-      model: hasVision ? getVisionModel() : getAIModel(),
+    const fallbackModels = getLuminModelCandidates()
+    const models = hasVision
+      ? [getVisionModel(), ...fallbackModels]
+      : fallbackModels
+
+    const result = await generateLuminText({
       system: systemPrompt,
       messages: modelMessages,
       temperature: 0.72,
-      maxTokens: 220,
+      maxOutputTokens: 220,
+      models,
     })
 
-    return result.toTextStreamResponse({
+    return new Response(result.text, {
+      status: 200,
       headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
         "X-Lumin-Live-Vision": hasVision ? "frame" : "none",
+        "X-Lumin-Model": result.model,
+        "X-Lumin-Fallbacks": String(result.failures.length),
       },
     })
   } catch (error: any) {
