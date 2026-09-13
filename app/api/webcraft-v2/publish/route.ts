@@ -24,6 +24,13 @@ function validateFiles(files: ProjectFile[]) {
   return null
 }
 
+export async function GET() {
+  return Response.json({
+    vercelTokenConfigured: Boolean(process.env.VERCEL_TOKEN),
+    vercelTeamIdConfigured: Boolean(process.env.VERCEL_TEAM_ID),
+  })
+}
+
 export async function POST(req: Request) {
   try {
     const token = process.env.VERCEL_TOKEN
