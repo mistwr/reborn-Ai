@@ -9,35 +9,35 @@ import { trackEvent } from "@/lib/analytics"
 const copy = {
   pt: {
     eyebrow: "UMA IA. QUALQUER IDIOMA. MAIS POSSIBILIDADES.",
-    title: "Cria, comunica, vende e automatiza com o Reborn AI.",
+    title: "Cria, comunica, vende e automatiza com o Lumin AI.",
     subtitle: "Chat, Live, websites, imagens, marketing, clips, apresentações e ebooks numa única plataforma.",
-    cta: "Experimentar Reborn AI",
+    cta: "Experimentar Lumin AI",
     secondary: "Ver ferramentas",
     global: "Preparado para utilizadores em todo o mundo",
     tools: "Tudo num só lugar",
-    items: ["Chat e Live em tempo real", "WebCraft para criar websites", "Imagens e marketing", "Clipper para vídeos curtos", "Apresentações e ebooks", "Ferramentas para negócios e criadores"],
+    items: ["Chat e Live em tempo real", "Lumin AI Studio para criar websites", "Imagens e marketing", "Clipper para vídeos curtos", "Apresentações e ebooks", "Ferramentas para negócios e criadores"],
     pricing: "Começa gratuitamente. Faz upgrade quando precisares de mais poder.",
   },
   en: {
     eyebrow: "ONE AI. ANY LANGUAGE. MORE POSSIBILITIES.",
-    title: "Create, communicate, sell and automate with Reborn AI.",
+    title: "Create, communicate, sell and automate with Lumin AI.",
     subtitle: "Chat, Live, websites, images, marketing, clips, presentations and ebooks in one platform.",
-    cta: "Try Reborn AI",
+    cta: "Try Lumin AI",
     secondary: "Explore tools",
     global: "Built for users around the world",
     tools: "Everything in one place",
-    items: ["Real-time Chat and Live", "WebCraft website creation", "Images and marketing", "Clipper for short-form video", "Presentations and ebooks", "Tools for businesses and creators"],
+    items: ["Real-time Chat and Live", "Lumin AI Studio website creation", "Images and marketing", "Clipper for short-form video", "Presentations and ebooks", "Tools for businesses and creators"],
     pricing: "Start free. Upgrade when you need more power.",
   },
   es: {
     eyebrow: "UNA IA. CUALQUIER IDIOMA. MÁS POSIBILIDADES.",
-    title: "Crea, comunica, vende y automatiza con Reborn AI.",
+    title: "Crea, comunica, vende y automatiza con Lumin AI.",
     subtitle: "Chat, Live, sitios web, imágenes, marketing, clips, presentaciones y ebooks en una sola plataforma.",
-    cta: "Probar Reborn AI",
+    cta: "Probar Lumin AI",
     secondary: "Ver herramientas",
     global: "Preparado para usuarios de todo el mundo",
     tools: "Todo en un solo lugar",
-    items: ["Chat y Live en tiempo real", "WebCraft para crear sitios web", "Imágenes y marketing", "Clipper para vídeos cortos", "Presentaciones y ebooks", "Herramientas para negocios y creadores"],
+    items: ["Chat y Live en tiempo real", "Lumin AI Studio para crear sitios web", "Imágenes y marketing", "Clipper para vídeos cortos", "Presentaciones y ebooks", "Herramientas para negocios y creadores"],
     pricing: "Empieza gratis. Mejora cuando necesites más potencia.",
   },
 } as const
@@ -65,7 +65,7 @@ export default function GlobalLandingPage() {
 
   const tools = [
     [Sparkles, "Chat + Live"],
-    [Wand2, "WebCraft"],
+    [Wand2, "Lumin AI Studio"],
     [ImageIcon, "Images"],
     [Megaphone, "Marketing"],
     [Video, "Clipper"],
@@ -76,7 +76,7 @@ export default function GlobalLandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl tracking-tight">REBORN AI</Link>
+        <Link href="/" className="font-bold text-xl tracking-tight">LUMIN AI</Link>
         <div className="flex items-center gap-2">
           <Globe2 className="w-4 h-4 text-muted-foreground" />
           <select
