@@ -18,7 +18,7 @@ export type LuminSandboxResult = {
 
 function getConfig() {
   return {
-    token: process.env.VERCEL_TOKEN || "",
+    token: process.env.VERCEL_TOKEN || process.env.VERCEL_OIDC_TOKEN || "",
     projectId: process.env.LUMIN_VERCEL_PROJECT_ID || DEFAULT_PROJECT_ID,
     teamId: process.env.LUMIN_VERCEL_TEAM_ID || DEFAULT_TEAM_ID,
   }
