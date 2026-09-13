@@ -37,7 +37,7 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
     trackMetaEvent("InitiateCheckout", {
       value: PRO_PLAN.priceInCents / 100,
       currency: PRO_PLAN.currency,
-      content_name: "Reborn AI Pro",
+      content_name: "Lumin AI Pro",
     })
 
     try {
@@ -61,7 +61,7 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
     if (!supportWhatsApp) return
     trackEvent("whatsapp_clicked", { context: "pro_modal" })
     window.open(
-      `https://wa.me/${supportWhatsApp}?text=${encodeURIComponent("Quero saber mais sobre o Reborn AI Pro")}`,
+      `https://wa.me/${supportWhatsApp}?text=${encodeURIComponent("Quero saber mais sobre o Lumin AI Pro")}`,
       "_blank",
       "noopener,noreferrer",
     )
@@ -69,7 +69,7 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
 
   const benefits = [
     [Zap, "Cria mais rapido", "Transforma ideias em conteudos, paginas, imagens e campanhas sem perder horas."],
-    [Sparkles, "Mais ferramentas de IA", "Chat, WebCraft, imagens, ebooks, slides, marketing, visao OCR e muito mais."],
+    [Sparkles, "Mais ferramentas de IA", "Chat, Lumin AI Studio, imagens, ebooks, slides, marketing, visao OCR e muito mais."],
     [Target, "Feito para vender", "Ideal para negocios, vendedores, criadores e equipas que querem poupar tempo."],
     [Crown, "Acesso Pro", "Desbloqueia funcionalidades avancadas e prioridade no uso da plataforma."],
   ] as const
@@ -88,7 +88,7 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
         </button>
 
         <div className="bg-gradient-to-r from-primary to-violet-600 text-white text-center py-2 px-4 text-sm font-medium rounded-t-3xl">
-          Reborn AI Pro por {formatPrice(PRO_PLAN.priceInCents)}/mes
+          Lumin AI Pro por {formatPrice(PRO_PLAN.priceInCents)}/mes
         </div>
 
         <div className="p-6 space-y-6">
@@ -96,8 +96,8 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
             <div className="w-16 h-16 mx-auto bg-gradient-to-br from-primary to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
               <Sparkles className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground">Desbloqueia o Reborn AI Pro</h2>
-            <p className="text-sm text-muted-foreground">Todas as ferramentas do Reborn numa unica subscricao.</p>
+            <h2 className="text-2xl font-bold text-foreground">Desbloqueia o Lumin AI Pro</h2>
+            <p className="text-sm text-muted-foreground">Todas as ferramentas do Lumin AI numa unica subscricao.</p>
           </div>
 
           <div className="space-y-3">
@@ -119,7 +119,7 @@ export function ProModal({ isOpen, onClose, userEmail }: ProModalProps) {
 
           <Button size="lg" className="w-full gap-2" onClick={handleCheckout} disabled={isLoading}>
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
-            {isLoading ? "A abrir pagamento..." : "Ativar Reborn AI Pro"}
+            {isLoading ? "A abrir pagamento..." : "Ativar Lumin AI Pro"}
           </Button>
 
           {supportWhatsApp && (
