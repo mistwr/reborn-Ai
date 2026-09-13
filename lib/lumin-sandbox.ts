@@ -92,6 +92,27 @@ function extractCommandResult(raw: string) {
   }
 }
 
+async function cleanupSandbox(input: {
+  name: string
+  token: string
+  projectId: string
+  teamId: string
+}) {
+  try {
+    const params = new URLSearchParams({ projectId: input.projectId, teamId: input.teamId })
+    await fetch(`https://api.vercel.com/v2/sandboxes/${encodeURIComponent(input.name)}?${params.toString()}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch (error) {
+    console.warn("[Lumin Sandbox] cleanup skipped:", error)
+  }
+}
+
 export async function executeLuminSandbox(input: {
   language: LuminSandboxLanguage
   code: string
@@ -109,6 +130,9 @@ export async function executeLuminSandbox(input: {
     return { ok: false, language, error: "Lumin Sandbox ainda não está configurada", code: "SANDBOX_NOT_CONFIGURED" }
   }
 
+  const sandboxName = `lumin-${crypto.randomUUID().slice(0, 8)}`
+  let created = false
+
   try {
     const params = new URLSearchParams({ teamId })
     const create = await fetch(`https://api.vercel.com/v3/sandboxes?${params.toString()}`, {
@@ -118,7 +142,7 @@ export async function executeLuminSandbox(input: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name: `lumin-${crypto.randomUUID().slice(0, 8)}`,
+        name: sandboxName,
         projectId,
         runtime: language === "python" ? "python3.13" : "node24",
         timeout: "60000",
@@ -130,7 +154,7 @@ export async function executeLuminSandbox(input: {
           deniedCIDRs: ["0.0.0.0/0", "::/0"],
           injectionRules: [],
         },
-        resources: { vcpus: "2", memory: "2048" },
+        resources: { vcpus: "2", memory: "4096" },
         tags: { product: "lumin-ai", purpose: "assistant-execution" },
       }),
       signal: AbortSignal.timeout(15_000),
@@ -141,6 +165,7 @@ export async function executeLuminSandbox(input: {
       console.error("[Lumin Sandbox] create failed", create.status, createData)
       return { ok: false, language, error: "Não foi possível criar a sandbox" }
     }
+    created = true
 
     const sessionId = extractSessionId(createData)
     if (!sessionId) {
@@ -183,5 +208,9 @@ export async function executeLuminSandbox(input: {
   } catch (error: any) {
     console.error("[Lumin Sandbox] error", error)
     return { ok: false, language, error: "Erro na sandbox do Lumin" }
+  } finally {
+    if (created) {
+      await cleanupSandbox({ name: sandboxName, token, projectId, teamId })
+    }
   }
 }
