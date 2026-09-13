@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { LuminOrb } from "@/components/lumin-orb"
+import { useEffect } from "react"
 
 const REPLACEMENTS: Array<[RegExp, string]> = [
   [/REBORN AI/gi, "Lumin AI"],
@@ -31,8 +30,8 @@ function updateNode(node: Node) {
   }
 
   if (!(node instanceof Element)) return
-  updateElement(node)
 
+  updateElement(node)
   const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
   let current = walker.nextNode()
   while (current) {
@@ -43,15 +42,7 @@ function updateNode(node: Node) {
   node.querySelectorAll("[title], [aria-label], [placeholder]").forEach(updateElement)
 }
 
-function isLivePanelVisible() {
-  const activePanel = document.querySelector<HTMLElement>('[role="tabpanel"][data-state="active"]')
-  if (!activePanel) return false
-  return /modo live|iniciar live|terminar/i.test(activePanel.innerText || "")
-}
-
 export function LuminBrandBridge() {
-  const [liveSpeaking, setLiveSpeaking] = useState(false)
-
   useEffect(() => {
     updateNode(document.body)
 
@@ -65,25 +56,14 @@ export function LuminBrandBridge() {
       }
     })
 
-    observer.observe(document.body, { subtree: true, childList: true, characterData: true })
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    })
 
-    const speechWatch = window.setInterval(() => {
-      const speaking = Boolean(window.speechSynthesis?.speaking)
-      setLiveSpeaking(speaking && isLivePanelVisible())
-    }, 120)
-
-    return () => {
-      observer.disconnect()
-      window.clearInterval(speechWatch)
-    }
+    return () => observer.disconnect()
   }, [])
 
-  return liveSpeaking ? (
-    <div className="pointer-events-none fixed inset-x-0 top-20 z-[100] flex justify-center md:top-24">
-      <div className="rounded-[28px] border border-[#e8bd61]/20 bg-black/55 px-4 py-3 shadow-[0_0_55px_rgba(218,171,76,.24)] backdrop-blur-xl">
-        <LuminOrb state="speaking" level={0.85} size={170} showLabel />
-        <div className="-mt-1 text-center text-[11px] uppercase tracking-[.24em] text-zinc-500">Resposta em tempo real</div>
-      </div>
-    </div>
-  ) : null
+  return null
 }
