@@ -69,9 +69,9 @@ function focusComposer(prompt?: string) {
 
 export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
   return (
-    <div className="relative h-full w-full overflow-y-auto overscroll-contain bg-[#030303] text-white">
+    <div className="relative min-h-full w-full bg-[#030303] text-white">
       <div
-        className="pointer-events-none fixed inset-0 opacity-80"
+        className="pointer-events-none absolute inset-0 opacity-80"
         style={{
           background:
             "radial-gradient(circle at 50% 10%, rgba(75,42,130,.22), transparent 34%), radial-gradient(circle at 80% 38%, rgba(194,145,54,.08), transparent 28%), linear-gradient(180deg,#050507 0%,#020203 100%)",
