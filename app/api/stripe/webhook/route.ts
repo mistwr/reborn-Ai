@@ -12,6 +12,8 @@ const PRO_TOKENS_PER_DAY = 50_000
 const FREE_TOKENS_PER_DAY = 15_000
 const SIGNATURE_TOLERANCE_SECONDS = 300
 
+type BillingPlan = "personal_pro" | "business" | "business_team"
+
 function verifyStripeSignature(payload: string, header: string, secret: string) {
   const parts = header.split(",")
   const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2)
@@ -56,10 +58,31 @@ function normalizeStatus(status: unknown): SubscriptionStatus {
   if (status === "trialing") return "trialing"
   if (status === "past_due" || status === "unpaid") return "past_due"
   if (status === "canceled") return "canceled"
-
-  // Stripe can introduce or return non-access states such as paused,
-  // incomplete_expired, or future statuses. Unknown must fail closed.
   return "incomplete"
+}
+
+function configuredPrices() {
+  return {
+    personal_pro: process.env.STRIPE_PRICE_PERSONAL_PRO?.trim() || process.env.STRIPE_PRICE_ID?.trim() || "",
+    business: process.env.STRIPE_PRICE_BUSINESS?.trim() || process.env.STRIPE_PRICE_ID?.trim() || "",
+    business_team:
+      process.env.STRIPE_PRICE_BUSINESS_TEAM?.trim() ||
+      process.env.STRIPE_PRICE_BUSINESS?.trim() ||
+      process.env.STRIPE_PRICE_ID?.trim() || "",
+  } satisfies Record<BillingPlan, string>
+}
+
+function resolveBillingPlan(subscription: any, priceId: string): BillingPlan | null {
+  const metadataPlan = subscription?.metadata?.billing_plan
+  if (metadataPlan === "personal_pro" || metadataPlan === "business" || metadataPlan === "business_team") {
+    return metadataPlan
+  }
+
+  const prices = configuredPrices()
+  if (prices.business_team && priceId === prices.business_team && prices.business_team !== prices.business) return "business_team"
+  if (prices.business && priceId === prices.business && prices.business !== prices.personal_pro) return "business"
+  if (prices.personal_pro && priceId === prices.personal_pro) return "personal_pro"
+  return null
 }
 
 async function resolveCustomerEmail(customerId: string, secretKey: string) {
@@ -70,27 +93,63 @@ async function resolveCustomerEmail(customerId: string, secretKey: string) {
   return typeof customer?.email === "string" ? customer.email.trim().toLowerCase() : ""
 }
 
+async function updateOrganizationBilling(params: {
+  organizationId?: string | null
+  billingPlan?: BillingPlan | null
+  customerId: string
+  subscriptionId: string
+  active: boolean
+}) {
+  if (!params.organizationId) return
+  const url = process.env.REBORN_SUPABASE_URL?.replace(/\/$/, "")
+  const key = process.env.REBORN_SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return
+
+  const plan = params.active ? params.billingPlan || "business" : "business_free"
+  const response = await fetch(
+    `${url}/rest/v1/lumin_organizations?id=eq.${encodeURIComponent(params.organizationId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan,
+        stripe_customer_id: params.customerId,
+        stripe_subscription_id: params.subscriptionId,
+        updated_at: new Date().toISOString(),
+      }),
+      cache: "no-store",
+    },
+  )
+
+  if (!response.ok) {
+    console.error("[Lumin Stripe] could not update organization billing", await response.text())
+  }
+}
+
 async function persistStripeSubscription(subscription: any, secretKey: string, emailHint?: string) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id
   const subscriptionId = subscription.id
   const item = subscription.items?.data?.[0]
   const priceId = item?.price?.id || ""
-  const configuredProPriceId = process.env.STRIPE_PRICE_ID?.trim() || ""
 
   if (!customerId || !subscriptionId || !priceId) {
     throw new Error("Stripe subscription is missing customer, subscription, or price id")
   }
 
-  if (!configuredProPriceId) {
-    throw new Error("STRIPE_PRICE_ID is not configured")
-  }
-
   const email = (emailHint || (await resolveCustomerEmail(customerId, secretKey))).trim().toLowerCase()
-  if (!email) throw new Error("Could not resolve customer email for Reborn subscription")
+  if (!email) throw new Error("Could not resolve customer email for Lumin subscription")
 
   const status = normalizeStatus(subscription.status)
-  const matchesRebornProPrice = priceId === configuredProPriceId
-  const isPro = matchesRebornProPrice && (status === "active" || status === "trialing")
+  const billingPlan = resolveBillingPlan(subscription, priceId)
+  const allowedPriceIds = new Set(Object.values(configuredPrices()).filter(Boolean))
+  const active = allowedPriceIds.has(priceId) && Boolean(billingPlan) && (status === "active" || status === "trialing")
+  const metadata = subscription?.metadata || {}
+  const userId = typeof metadata.user_id === "string" && metadata.user_id ? metadata.user_id : null
+  const organizationId = typeof metadata.organization_id === "string" && metadata.organization_id ? metadata.organization_id : null
 
   const periodStart = Number(subscription.current_period_start || Math.floor(Date.now() / 1000))
   const periodEnd = Number(subscription.current_period_end || periodStart + 30 * 24 * 60 * 60)
@@ -101,10 +160,21 @@ async function persistStripeSubscription(subscription: any, secretKey: string, e
     stripeSubscriptionId: subscriptionId,
     stripePriceId: priceId,
     status,
-    plan: isPro ? "pro" : "free",
+    plan: active ? "pro" : "free",
+    userId,
+    organizationId,
+    billingPlan,
     currentPeriodStart: new Date(periodStart * 1000),
     currentPeriodEnd: new Date(periodEnd * 1000),
-    tokensPerDay: isPro ? PRO_TOKENS_PER_DAY : FREE_TOKENS_PER_DAY,
+    tokensPerDay: active ? PRO_TOKENS_PER_DAY : FREE_TOKENS_PER_DAY,
+  })
+
+  await updateOrganizationBilling({
+    organizationId,
+    billingPlan,
+    customerId,
+    subscriptionId,
+    active,
   })
 }
 
@@ -149,13 +219,13 @@ async function sendMetaPurchase(session: any) {
   const event: Record<string, unknown> = {
     event_name: "Purchase",
     event_time: eventTime,
-    event_id: String(session?.id || `reborn-${eventTime}`),
+    event_id: String(session?.id || `lumin-${eventTime}`),
     action_source: "website",
     user_data: userData,
     custom_data: {
       currency,
       value,
-      content_name: "Reborn AI Pro",
+      content_name: `Lumin AI ${metadata.billing_plan || "Pro"}`,
       content_type: "product",
       utm_source: metadata.utm_source || undefined,
       utm_medium: metadata.utm_medium || undefined,
@@ -167,22 +237,19 @@ async function sendMetaPurchase(session: any) {
 
   if (eventSourceUrl) event.event_source_url = eventSourceUrl
 
-  const body = { data: [event] }
-
   const apiVersion = process.env.META_GRAPH_API_VERSION?.trim() || "v23.0"
   const response = await fetch(
     `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(pixelId)}/events?access_token=${encodeURIComponent(accessToken)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ data: [event] }),
       cache: "no-store",
     },
   )
 
   if (!response.ok) {
-    const text = await response.text()
-    console.error(`[Reborn Meta] CAPI Purchase failed (${response.status})`, text)
+    console.error(`[Lumin Meta] CAPI Purchase failed (${response.status})`, await response.text())
   }
 }
 
@@ -215,11 +282,10 @@ export async function POST(req: Request) {
           await persistStripeSubscription(subscription, secretKey, email)
         }
 
-        // Conversion tracking is best-effort and must never block subscription activation.
         try {
           await sendMetaPurchase(session)
         } catch (metaError) {
-          console.error("[Reborn Meta] unexpected CAPI error", metaError)
+          console.error("[Lumin Meta] unexpected CAPI error", metaError)
         }
         break
       }
@@ -237,7 +303,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error("[Reborn Stripe] webhook error", error)
+    console.error("[Lumin Stripe] webhook error", error)
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
   }
 }
