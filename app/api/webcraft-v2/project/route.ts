@@ -29,7 +29,7 @@ a { color: inherit; text-decoration: none; }
 `
 
 function slugify(value: string) {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "reborn-app"
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "lumin-ai-app"
 }
 
 function parseFiles(output: string): ProjectFile[] {
@@ -74,11 +74,11 @@ function scaffoldFiles(name: string): ProjectFile[] {
     { path: ".env.example", content: "NEXT_PUBLIC_SUPABASE_URL=\nNEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=\n" },
     { path: ".gitignore", content: ".next\nnode_modules\n.env\n.env.local\n.vercel\n" },
     { path: "app/globals.css", content: BASE_CSS },
-    { path: "app/layout.tsx", content: `import type { Metadata } from "next"\nimport "./globals.css"\n\nexport const metadata: Metadata = { title: ${JSON.stringify(name)}, description: "Built with Reborn AI WebCraft" }\n\nexport default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {\n  return <html lang="pt"><body>{children}</body></html>\n}\n` },
+    { path: "app/layout.tsx", content: `import type { Metadata } from "next"\nimport "./globals.css"\n\nexport const metadata: Metadata = { title: ${JSON.stringify(name)}, description: "Built with Lumin AI Studio" }\n\nexport default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {\n  return <html lang="pt"><body>{children}</body></html>\n}\n` },
     { path: "lib/supabase/client.ts", content: `import { createBrowserClient } from "@supabase/ssr"\n\nexport function createClient() {\n  return createBrowserClient(\n    process.env.NEXT_PUBLIC_SUPABASE_URL!,\n    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!\n  )\n}\n` },
     { path: "lib/supabase/server.ts", content: `import { createServerClient } from "@supabase/ssr"\nimport { cookies } from "next/headers"\n\nexport async function createClient() {\n  const cookieStore = await cookies()\n  return createServerClient(\n    process.env.NEXT_PUBLIC_SUPABASE_URL!,\n    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,\n    {\n      cookies: {\n        getAll() { return cookieStore.getAll() },\n        setAll(cookiesToSet, _headers) {\n          try {\n            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))\n          } catch {\n            // Server Components cannot always write cookies; proxy refresh handles this.\n          }\n        },\n      },\n    }\n  )\n}\n` },
     { path: "proxy.ts", content: `import { createServerClient } from "@supabase/ssr"\nimport { NextResponse, type NextRequest } from "next/server"\n\nexport async function proxy(request: NextRequest) {\n  let response = NextResponse.next({ request })\n  const supabase = createServerClient(\n    process.env.NEXT_PUBLIC_SUPABASE_URL!,\n    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,\n    { cookies: {\n      getAll() { return request.cookies.getAll() },\n      setAll(cookiesToSet, headers) {\n        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))\n        response = NextResponse.next({ request })\n        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))\n        Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value))\n      },\n    } }\n  )\n  await supabase.auth.getUser()\n  return response\n}\n\nexport const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"] }\n` },
-    { path: "README.md", content: `# ${name}\n\nProjeto gerado pelo Reborn AI WebCraft Full-Stack.\n\n## Arranque\n1. Copia \`.env.example\` para \`.env.local\`.\n2. Preenche URL e publishable key do Supabase.\n3. Executa \`npm install\` e depois \`npm run dev\`.\n4. Se existir SQL em \`supabase/migrations\`, aplica-o ao teu projeto Supabase antes de usar dados reais.\n\nNunca coloques uma service role/secret key em variáveis \`NEXT_PUBLIC_*\`.\n` },
+    { path: "README.md", content: `# ${name}\n\nProjeto gerado pelo Lumin AI Studio.\n\n## Arranque\n1. Copia \`.env.example\` para \`.env.local\`.\n2. Preenche URL e publishable key do Supabase.\n3. Executa \`npm install\` e depois \`npm run dev\`.\n4. Se existir SQL em \`supabase/migrations\`, aplica-o ao teu projeto Supabase antes de usar dados reais.\n\nNunca coloques uma service role/secret key em variáveis \`NEXT_PUBLIC_*\`.\n` },
   ]
 }
 
@@ -91,10 +91,11 @@ export async function POST(req: Request) {
     const projectName = slugify(body.projectName || prompt.slice(0, 40))
     const language = body.language?.trim() || "Português de Portugal (PT-PT)"
     const visualReference = body.currentHtml?.slice(0, 30000) || ""
+    const currentYear = new Date().getFullYear()
 
     const result = await generateText({
       model: getAIModel(),
-      system: `És o REBORN AI WebCraft Full-Stack. Gera código de uma aplicação Next.js 16 App Router realmente executável.\n\nREGRAS:\n- Responde apenas com blocos <file path="caminho">conteúdo</file>.\n- Podes criar ficheiros apenas dentro de app/, components/, lib/ e supabase/.\n- Tens obrigatoriamente de gerar app/page.tsx.\n- Usa TypeScript/React e CSS normal; não importes bibliotecas que não estejam no package base.\n- Supabase já estará configurado em lib/supabase/client.ts e server.ts. Usa-o quando fizer sentido.\n- Para Auth no cliente usa a publishable key através do helper existente. Nunca uses service_role/secret key no browser.\n- Se criares tabelas, inclui supabase/migrations/0001_init.sql, ativa RLS em todas as tabelas public e cria políticas por utilizador com auth.uid() = user_id.\n- UPDATE deve ter USING e WITH CHECK.\n- Não uses auth.role() nem SECURITY DEFINER.\n- Não uses user_metadata para autorização.\n- Não finjas integrações que não existam.\n- Cria estados vazios/erro/loading e uma experiência mobile responsiva.\n- Texto visível em ${language}.\n- Limite: até 10 ficheiros gerados para manter o projeto simples e robusto.`,
+      system: `És o motor interno full-stack do Lumin AI Studio. Gera código de uma aplicação Next.js 16 App Router realmente executável.\n\nCONTEXTO:\n- Ano atual: ${currentYear}.\n- O produto visível chama-se Lumin AI Studio. Nunca mostres REBORN AI ao cliente final.\n- Copyright e datas devem ser atuais; quando possível usa ano dinâmico.\n\nREGRAS:\n- Responde apenas com blocos <file path="caminho">conteúdo</file>.\n- Podes criar ficheiros apenas dentro de app/, components/, lib/ e supabase/.\n- Tens obrigatoriamente de gerar app/page.tsx.\n- Usa TypeScript/React e CSS normal; não importes bibliotecas que não estejam no package base.\n- Supabase já estará configurado em lib/supabase/client.ts e server.ts. Usa-o quando fizer sentido.\n- Para Auth no cliente usa a publishable key através do helper existente. Nunca uses service_role/secret key no browser.\n- Se criares tabelas, inclui supabase/migrations/0001_init.sql, ativa RLS em todas as tabelas public e cria políticas por utilizador com auth.uid() = user_id.\n- UPDATE deve ter USING e WITH CHECK.\n- Não uses auth.role() nem SECURITY DEFINER.\n- Não uses user_metadata para autorização.\n- Não finjas integrações que não existam.\n- Cria estados vazios/erro/loading e uma experiência mobile responsiva.\n- Texto visível em ${language}.\n- Limite: até 10 ficheiros gerados para manter o projeto simples e robusto.`,
       prompt: `PROJETO PEDIDO:\n${prompt}\n\n${visualReference ? `REFERÊNCIA VISUAL DO PREVIEW ATUAL (preserva a identidade e estrutura quando útil):\n${visualReference}` : ""}\n\nGera agora os ficheiros específicos da aplicação.`,
     })
 
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
       files: Array.from(merged.values()),
     })
   } catch (error: any) {
-    console.error("[reborn] WebCraft full-stack error:", error)
+    console.error("[lumin-ai-studio] full-stack error:", error)
     return Response.json({ error: error?.message || "Erro ao gerar projeto full-stack" }, { status: 500 })
   }
 }
