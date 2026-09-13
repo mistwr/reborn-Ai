@@ -1,295 +1,256 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import {
-  MessageSquare,
-  Video,
-  ImagePlus,
-  Globe,
-  Presentation,
-  BookOpen,
-  Mail,
-  Share2,
-  Scissors,
-  Megaphone,
-  Eye,
-  Sparkles,
   ArrowRight,
-  Zap,
-  Brain,
-  Shield,
+  Bot,
+  Code2,
+  FileText,
+  Grid2X2,
+  ImagePlus,
+  MessageSquare,
+  Paperclip,
+  Send,
+  Sparkles,
+  Video,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-
-const features = [
-  {
-    icon: MessageSquare,
-    label: "Chat Inteligente",
-    desc: "Conversa natural com IA avancada em tempo real",
-    tab: "chat",
-    color: "from-blue-500/20 to-blue-600/5",
-    iconColor: "text-blue-400",
-    border: "border-blue-500/20",
-  },
-  {
-    icon: Video,
-    label: "Modo Live",
-    desc: "Conversa por voz e video com camara e microfone",
-    tab: "live",
-    color: "from-purple-500/20 to-purple-600/5",
-    iconColor: "text-purple-400",
-    border: "border-purple-500/20",
-  },
-  {
-    icon: ImagePlus,
-    label: "Imagens AI",
-    desc: "Gera imagens realistas com inteligencia artificial",
-    tab: "images",
-    color: "from-pink-500/20 to-pink-600/5",
-    iconColor: "text-pink-400",
-    border: "border-pink-500/20",
-  },
-  {
-    icon: Globe,
-    label: "WebCraft",
-    desc: "Cria websites e landing pages automaticamente",
-    tab: "webcraft",
-    color: "from-cyan-500/20 to-cyan-600/5",
-    iconColor: "text-cyan-400",
-    border: "border-cyan-500/20",
-  },
-  {
-    icon: Presentation,
-    label: "Apresentacoes",
-    desc: "Slides profissionais gerados em segundos",
-    tab: "presentations",
-    color: "from-orange-500/20 to-orange-600/5",
-    iconColor: "text-orange-400",
-    border: "border-orange-500/20",
-  },
-  {
-    icon: BookOpen,
-    label: "Ebooks",
-    desc: "Escreve e formata ebooks completos com IA",
-    tab: "ebooks",
-    color: "from-green-500/20 to-green-600/5",
-    iconColor: "text-green-400",
-    border: "border-green-500/20",
-  },
-  {
-    icon: Mail,
-    label: "Email Marketing",
-    desc: "Campanhas de email que convertem mais",
-    tab: "email",
-    color: "from-yellow-500/20 to-yellow-600/5",
-    iconColor: "text-yellow-400",
-    border: "border-yellow-500/20",
-  },
-  {
-    icon: Share2,
-    label: "WhatsApp",
-    desc: "Mensagens e campanhas para WhatsApp",
-    tab: "whatsapp",
-    color: "from-emerald-500/20 to-emerald-600/5",
-    iconColor: "text-emerald-400",
-    border: "border-emerald-500/20",
-  },
-  {
-    icon: Scissors,
-    label: "Clipper",
-    desc: "Extrai e resume conteudo de videos e audios",
-    tab: "clipper",
-    color: "from-red-500/20 to-red-600/5",
-    iconColor: "text-red-400",
-    border: "border-red-500/20",
-  },
-  {
-    icon: Megaphone,
-    label: "Marketing",
-    desc: "Estrategias e copys de marketing com IA",
-    tab: "marketing",
-    color: "from-indigo-500/20 to-indigo-600/5",
-    iconColor: "text-indigo-400",
-    border: "border-indigo-500/20",
-  },
-  {
-    icon: Eye,
-    label: "Visao AI",
-    desc: "OCR e analise de imagens, PDFs e documentos",
-    tab: "vision",
-    color: "from-violet-500/20 to-violet-600/5",
-    iconColor: "text-violet-400",
-    border: "border-violet-500/20",
-  },
-]
-
-const headlines = [
-  "A IA que transforma o teu negocio",
-  "Cria, escreve e automatiza com IA",
-  "O assistente AI mais completo",
-  "Produtividade sem limites com IA",
-]
-
-const stats = [
-  { icon: Zap, value: "10x", label: "Mais rapido" },
-  { icon: Brain, value: "11+", label: "Ferramentas AI" },
-  { icon: Shield, value: "100%", label: "Seguro" },
-]
 
 interface ChatWelcomeProps {
   onTabChange: (tab: string) => void
 }
 
+const primaryTools = [
+  {
+    icon: MessageSquare,
+    title: "Escrever",
+    description: "Textos, emails e ideias",
+    tab: "chat",
+    accent: "violet",
+  },
+  {
+    icon: ImagePlus,
+    title: "Gerar Imagens",
+    description: "Cria imagens incríveis",
+    tab: "images",
+    accent: "gold",
+  },
+  {
+    icon: FileText,
+    title: "Analisar",
+    description: "PDFs, documentos e imagens",
+    tab: "vision",
+    accent: "blue",
+  },
+  {
+    icon: Grid2X2,
+    title: "Mais Ferramentas",
+    description: "Explora todo o potencial",
+    tab: "webcraft",
+    accent: "purple",
+  },
+]
+
+const suggestions = [
+  { icon: Sparkles, label: "Resume este texto para mim", prompt: "Resume este texto para mim: " },
+  { icon: ImagePlus, label: "Cria uma imagem de um cenário futurista", tab: "images" },
+  { icon: FileText, label: "Analisa este documento", tab: "vision" },
+  { icon: Code2, label: "Escreve um código para uma landing page", tab: "webcraft" },
+]
+
+function focusComposer(prompt?: string) {
+  const input = document.querySelector<HTMLTextAreaElement>("textarea")
+  if (!input) return
+  input.focus()
+  if (prompt) {
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set
+    nativeSetter?.call(input, prompt)
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+  }
+}
+
 export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
-  const [headlineIdx, setHeadlineIdx] = useState(0)
-  const [visible, setVisible] = useState(true)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVisible(false)
-      setTimeout(() => {
-        setHeadlineIdx((i) => (i + 1) % headlines.length)
-        setVisible(true)
-      }, 350)
-    }, 3200)
-    return () => clearInterval(interval)
-  }, [])
-
   return (
-    <div className="w-full h-full overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-10 sm:space-y-14">
+    <div className="relative h-full w-full overflow-y-auto overscroll-contain bg-[#030303] text-white">
+      <div
+        className="pointer-events-none fixed inset-0 opacity-80"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 10%, rgba(75,42,130,.22), transparent 34%), radial-gradient(circle at 80% 38%, rgba(194,145,54,.08), transparent 28%), linear-gradient(180deg,#050507 0%,#020203 100%)",
+        }}
+      />
+
+      <div className="relative mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 pb-28 pt-5 sm:px-6 sm:pb-24 md:px-8 lg:px-10">
+        {/* Header */}
+        <header className="sticky top-0 z-30 -mx-4 mb-3 flex items-center justify-between border-b border-white/5 bg-black/70 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#d6a84b]/30 bg-[#120f0b] shadow-[0_0_26px_rgba(214,168,75,.12)]">
+              <Sparkles className="h-5 w-5 text-[#f0c86b]" />
+            </div>
+            <div>
+              <div className="text-xl font-semibold tracking-tight sm:text-2xl">
+                Lumin <span className="text-[#e7bd63]">AI</span>
+              </div>
+              <div className="mt-0.5 text-[8px] font-medium uppercase tracking-[.34em] text-zinc-500 sm:text-[9px]">
+                Pensar&nbsp;&nbsp;Criar&nbsp;&nbsp;Realizar
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-500/5 px-3 py-2 text-xs text-zinc-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.9)]" />
+              <span className="hidden xs:inline">Online</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onTabChange("live")}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[.03] text-zinc-300 transition hover:border-[#d6a84b]/30 hover:text-[#f0c86b]"
+              aria-label="Abrir modo Live"
+            >
+              <Video className="h-4 w-4" />
+            </button>
+          </div>
+        </header>
 
         {/* Hero */}
-        <div className="text-center space-y-5 relative">
-          {/* Background glow */}
-          <div
-            className="absolute inset-0 -z-10 pointer-events-none"
-            style={{
-              background:
-                "radial-gradient(ellipse 70% 50% at 50% 0%, oklch(0.65 0.22 220 / 0.12) 0%, transparent 70%)",
-            }}
-          />
-
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-xs sm:text-sm font-medium">
-            <Sparkles className="h-3 w-3" />
-            Reborn AI — Assistente Inteligente
+        <section className="mx-auto flex w-full max-w-4xl flex-col items-center pt-4 text-center sm:pt-7 lg:pt-10">
+          <div className="relative mb-5 flex h-[220px] w-[220px] items-center justify-center sm:h-[290px] sm:w-[290px] lg:h-[330px] lg:w-[330px]">
+            <div className="absolute inset-[7%] rounded-full border border-[#d9aa4d]/25 shadow-[0_0_80px_rgba(218,171,76,.10)]" />
+            <div className="absolute inset-0 animate-[spin_18s_linear_infinite] rounded-full border border-transparent border-t-[#d9aa4d]/40 border-r-violet-500/20" />
+            <div className="absolute inset-[12%] animate-[spin_24s_linear_infinite_reverse] rounded-full border border-transparent border-b-[#d9aa4d]/20 border-l-violet-500/20" />
+            <div
+              className="absolute inset-[17%] rounded-full border border-white/15 shadow-[inset_0_0_55px_rgba(255,255,255,.05),0_0_55px_rgba(218,171,76,.18)]"
+              style={{
+                background:
+                  "radial-gradient(circle at 34% 23%, rgba(255,255,255,.22), transparent 16%), radial-gradient(circle at 65% 70%, rgba(229,177,68,.20), transparent 25%), radial-gradient(circle at 48% 50%, rgba(24,20,32,.55), rgba(1,1,2,.96) 68%)",
+              }}
+            />
+            <div className="absolute inset-[21%] rounded-full border border-[#e8bd61]/15 bg-black/20 backdrop-blur-[1px]" />
+            <div className="relative flex h-[34%] w-[34%] rotate-[-14deg] items-center justify-center rounded-[28%] border border-[#f5d37d]/20 bg-gradient-to-br from-[#f7d981] via-[#b87922] to-[#ffe9a8] shadow-[0_0_34px_rgba(244,196,91,.28)]">
+              <Bot className="h-1/2 w-1/2 rotate-[14deg] text-black/80" strokeWidth={1.8} />
+              <Sparkles className="absolute -right-3 -top-3 h-7 w-7 rotate-[14deg] text-[#f5cf70] drop-shadow-[0_0_10px_rgba(245,207,112,.7)]" />
+            </div>
+            <div className="absolute bottom-[7%] h-px w-[72%] bg-gradient-to-r from-transparent via-[#e1ad4a]/70 to-transparent shadow-[0_0_18px_rgba(225,173,74,.45)]" />
           </div>
 
-          {/* Animated headline */}
-          <h1
-            className="font-bold text-balance text-foreground leading-tight"
-            style={{
-              fontSize: "clamp(2rem, 6vw, 4rem)",
-              transition: "opacity 0.35s ease, transform 0.35s ease",
-              opacity: visible ? 1 : 0,
-              transform: visible ? "translateY(0)" : "translateY(6px)",
-            }}
-          >
-            {headlines[headlineIdx]}
+          <h1 className="text-balance text-3xl font-semibold tracking-[-0.035em] sm:text-4xl md:text-5xl lg:text-6xl">
+            Olá, eu sou o <span className="text-[#e9be62]">Lumin.</span>
           </h1>
-
-          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto text-balance leading-relaxed">
-            Reborn AI e uma plataforma completa de inteligencia artificial. Chat, imagens, websites, apresentacoes, ebooks, marketing e muito mais — tudo num so lugar.
+          <p className="mt-2 text-sm tracking-wide text-zinc-400 sm:text-base md:text-lg">
+            O teu assistente de IA mais completo.
           </p>
+        </section>
 
-          {/* Stats */}
-          <div className="flex items-center justify-center gap-6 sm:gap-10 pt-2">
-            {stats.map(({ icon: Icon, value, label }) => (
-              <div key={label} className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-1.5">
-                  <Icon className="h-4 w-4 text-primary" />
-                  <span className="text-xl sm:text-2xl font-bold text-foreground">{value}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Tools */}
+        <section className="mx-auto mt-7 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {primaryTools.map(({ icon: Icon, title, description, tab, accent }) => {
+            const accentClass =
+              accent === "gold"
+                ? "border-[#c69640]/25 bg-[#b8832b]/[.06] text-[#e9ba59]"
+                : accent === "blue"
+                  ? "border-blue-400/20 bg-blue-500/[.05] text-blue-400"
+                  : "border-violet-400/20 bg-violet-500/[.05] text-violet-400"
 
-        {/* Section title */}
-        <div className="space-y-1">
-          <h2 className="text-base sm:text-lg font-semibold text-foreground">Explora as ferramentas</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">Clica numa ferramenta para comecar</p>
-        </div>
-
-        {/* Features grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {features.map(({ icon: Icon, label, desc, tab, color, iconColor, border }) => (
-            <button
-              key={tab}
-              onClick={() => onTabChange(tab)}
-              className={`group relative text-left rounded-xl border ${border} bg-gradient-to-br ${color} p-4 sm:p-5 transition-all duration-200 hover:scale-[1.02] hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/40`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-lg bg-background/40 border ${border} shrink-0`}>
-                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${iconColor}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-sm sm:text-base text-foreground text-balance">{label}</span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -translate-x-1 group-hover:translate-x-0 duration-200" />
-                  </div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 leading-relaxed text-balance">{desc}</p>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* Quick start prompts */}
-        <div className="space-y-3">
-          <h2 className="text-base sm:text-lg font-semibold text-foreground">Experimenta agora</h2>
-          <div className="flex flex-wrap gap-2">
-            {[
-              "Resume este texto...",
-              "Cria uma landing page para...",
-              "Escreve um email de vendas sobre...",
-              "Gera uma imagem de...",
-              "Analisa este documento...",
-              "Cria uma apresentacao sobre...",
-            ].map((prompt) => (
+            return (
               <button
-                key={prompt}
-                onClick={() => {
-                  const input = document.querySelector<HTMLTextAreaElement>("textarea")
-                  if (input) {
-                    input.value = prompt
-                    input.focus()
-                    input.dispatchEvent(new Event("input", { bubbles: true }))
-                  }
-                }}
-                className="px-3 py-1.5 rounded-full border border-border bg-muted/30 text-xs sm:text-sm text-muted-foreground hover:bg-muted hover:text-foreground hover:border-primary/30 transition-all duration-150 active:scale-95"
+                key={title}
+                type="button"
+                onClick={() => onTabChange(tab)}
+                className={`group min-h-[132px] rounded-[22px] border p-4 text-left transition duration-200 hover:-translate-y-1 hover:bg-white/[.06] hover:shadow-[0_16px_45px_rgba(0,0,0,.35)] active:translate-y-0 ${accentClass}`}
               >
-                {prompt}
+                <Icon className="mb-5 h-5 w-5 sm:h-6 sm:w-6" />
+                <div className="text-sm font-semibold text-zinc-100 sm:text-base">{title}</div>
+                <div className="mt-1 text-xs leading-relaxed text-zinc-500 sm:text-sm">{description}</div>
+              </button>
+            )
+          })}
+        </section>
+
+        {/* Main CTA */}
+        <button
+          type="button"
+          onClick={() => focusComposer()}
+          className="mx-auto mt-5 flex w-full max-w-4xl items-center justify-center gap-3 rounded-[22px] border border-[#e8bd61]/55 bg-gradient-to-r from-[#a56b1d]/45 via-[#2a1c0d] to-[#8f5d1b]/45 px-5 py-4 text-base font-semibold text-[#ffe7a5] shadow-[0_0_30px_rgba(217,166,66,.18),inset_0_0_18px_rgba(255,220,145,.04)] transition hover:border-[#f3cf7a]/80 hover:shadow-[0_0_40px_rgba(217,166,66,.28)] sm:py-5 sm:text-lg"
+        >
+          <MessageSquare className="h-5 w-5" />
+          Começar a conversar
+          <ArrowRight className="ml-auto h-5 w-5" />
+        </button>
+
+        {/* Suggestions */}
+        <section className="mx-auto mt-8 w-full max-w-4xl">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-200 sm:text-base">Sugestões para começar</h2>
+            <button
+              type="button"
+              onClick={() => onTabChange("chat")}
+              className="text-xs text-zinc-500 transition hover:text-[#e6bc63] sm:text-sm"
+            >
+              Ver todas →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+            {suggestions.map(({ icon: Icon, label, prompt, tab }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  if (tab) onTabChange(tab)
+                  else focusComposer(prompt)
+                }}
+                className="flex min-h-[70px] items-center gap-3 rounded-[18px] border border-white/[.08] bg-white/[.025] px-4 py-3 text-left text-sm text-zinc-300 transition hover:border-[#c99943]/25 hover:bg-white/[.045]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/[.08] text-violet-400">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="leading-snug">{label}</span>
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Bottom CTA */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pb-4">
-          <Button
-            size="lg"
-            className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg shadow-primary/20"
-            onClick={() => {
-              const input = document.querySelector<HTMLTextAreaElement>("textarea")
-              if (input) input.focus()
-            }}
-          >
-            <MessageSquare className="h-4 w-4" />
-            Comecar a conversar
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="w-full sm:w-auto gap-2"
-            onClick={() => onTabChange("live")}
-          >
-            <Video className="h-4 w-4" />
-            Modo Live
-          </Button>
-        </div>
+        {/* Composer-style shortcut */}
+        <button
+          type="button"
+          onClick={() => focusComposer()}
+          className="mx-auto mt-5 flex w-full max-w-4xl items-center rounded-[22px] border border-white/[.08] bg-[#0a0a0d]/90 px-3 py-3 text-left shadow-[0_18px_45px_rgba(0,0,0,.25)] transition hover:border-[#c79a42]/20 sm:px-4"
+        >
+          <span className="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[.08] bg-white/[.03] text-zinc-400">
+            <Paperclip className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm text-zinc-600 sm:text-base">Escreve uma mensagem...</span>
+          <span className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f3cf78] to-[#a96e1c] text-black shadow-[0_0_25px_rgba(231,183,80,.3)]">
+            <Send className="h-4 w-4" />
+          </span>
+        </button>
+
+        {/* Mobile nav-like shortcuts */}
+        <nav className="mx-auto mt-5 grid w-full max-w-4xl grid-cols-4 border-t border-white/[.06] py-4 md:hidden">
+          {[
+            [Sparkles, "Início", "chat"],
+            [MessageSquare, "Chats", "chat"],
+            [Grid2X2, "Ferramentas", "webcraft"],
+            [Bot, "Conta", "account"],
+          ].map(([Icon, label, tab], index) => {
+            const NavIcon = Icon as typeof Sparkles
+            return (
+              <button
+                key={label as string}
+                type="button"
+                onClick={() => onTabChange(tab as string)}
+                className={`flex flex-col items-center gap-1.5 text-[11px] ${index === 0 ? "text-[#e9be62]" : "text-zinc-500"}`}
+              >
+                <NavIcon className="h-5 w-5" />
+                {label as string}
+              </button>
+            )
+          })}
+        </nav>
+
+        <footer className="mx-auto mt-2 flex w-full max-w-4xl items-center justify-between gap-4 border-t border-white/[.04] pt-4 text-[8px] uppercase tracking-[.28em] text-zinc-700 sm:text-[9px]">
+          <span className="text-[#a8803e]">Lumin AI Studio</span>
+          <span className="hidden sm:block">Ideias transformam realidades</span>
+        </footer>
       </div>
     </div>
   )
