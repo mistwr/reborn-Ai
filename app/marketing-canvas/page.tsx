@@ -11,12 +11,12 @@ export default function MarketingCanvasPage() {
           <Button asChild variant="ghost" size="sm">
             <Link href="/" className="gap-2">
               <ArrowLeft className="h-4 w-4" />
-              Reborn AI
+              Lumin AI
             </Link>
           </Button>
           <div className="text-right">
             <p className="text-sm font-semibold">Marketing Canvas</p>
-            <p className="text-[10px] text-muted-foreground">Legacy engine recuperado</p>
+            <p className="text-[10px] text-muted-foreground">Motor criativo Lumin AI</p>
           </div>
         </div>
       </div>
