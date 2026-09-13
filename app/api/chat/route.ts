@@ -1,5 +1,5 @@
-import { streamText } from "ai"
-import { getAIModel } from "@/lib/ai-config"
+import { getToken } from "next-auth/jwt"
+import { generateLuminText } from "@/lib/lumin-ai-runtime"
 
 export const maxDuration = 60
 
@@ -11,13 +11,8 @@ async function getContextInfo(baseUrl: string): Promise<string> {
     const data = await response.json()
     let context = `DATA ATUAL: ${data.date}\nHORA ATUAL: ${data.time}`
 
-    if (data.location) {
-      context += `\nLOCALIZACAO DO UTILIZADOR: ${data.location.city}, ${data.location.country}`
-    }
-
-    if (data.weather) {
-      context += `\nTEMPO METEOROLOGICO: ${data.weather.temperature}°C, ${data.weather.description}, Humidade ${data.weather.humidity}%, Vento ${data.weather.windSpeed} km/h`
-    }
+    if (data.location) context += `\nLOCALIZACAO DO UTILIZADOR: ${data.location.city}, ${data.location.country}`
+    if (data.weather) context += `\nTEMPO METEOROLOGICO: ${data.weather.temperature}°C, ${data.weather.description}`
 
     return context
   } catch {
@@ -34,18 +29,100 @@ async function searchWeb(query: string, baseUrl: string): Promise<string> {
       body: JSON.stringify({ query, numResults: 5 }),
       signal: AbortSignal.timeout(12000),
     })
-
     if (!response.ok) return ""
-
     const data = await response.json()
     if (!data.results?.length) return ""
-
-    return data.results
-      .map((r: any) => `- ${r.title}: ${r.snippet} (${r.source})`)
-      .join("\n")
+    return data.results.map((r: any) => `- ${r.title}: ${r.snippet} (${r.source})`).join("\n")
   } catch {
     return ""
   }
+}
+
+function buildAccountContext(token: any, userPreferences: any) {
+  const accountType = token?.accountType === "business" ? "business" : "personal"
+  const lines = [
+    `TIPO DE CONTA: ${accountType === "business" ? "Empresa" : "Pessoa"}`,
+    token?.name ? `NOME DO UTILIZADOR: ${token.name}` : "",
+    token?.plan ? `PLANO: ${token.plan}` : "",
+  ]
+
+  if (accountType === "business") {
+    lines.push(
+      token?.organizationName ? `EMPRESA: ${token.organizationName}` : "",
+      token?.organizationSector ? `SETOR: ${token.organizationSector}` : "",
+      token?.organizationWebsite ? `WEBSITE: ${token.organizationWebsite}` : "",
+      token?.organizationPlan ? `PLANO DA EMPRESA: ${token.organizationPlan}` : "",
+    )
+  }
+
+  if (userPreferences?.style) lines.push(`ESTILO PREFERIDO: ${userPreferences.style}`)
+  if (userPreferences?.expertise) lines.push(`NIVEL DE EXPERIENCIA: ${userPreferences.expertise}`)
+  if (userPreferences?.goal) lines.push(`OBJETIVO ATUAL: ${userPreferences.goal}`)
+
+  return lines.filter(Boolean).join("\n")
+}
+
+function buildSystemPrompt(params: {
+  contextInfo: string
+  accountContext: string
+  searchContext: string
+  isBusiness: boolean
+}) {
+  const mode = params.isBusiness
+    ? `MODO EMPRESA
+És também o copiloto comercial e operacional da empresa do utilizador.
+- Usa o contexto da empresa quando for relevante, sem o repetir mecanicamente.
+- Em vendas, ajuda a qualificar leads, preparar abordagens, propostas, argumentos, follow-ups, retenção, cross-sell e tratamento de objeções.
+- Procura o próximo passo comercial útil: pergunta apenas o mínimo necessário e depois produz algo utilizável.
+- Escreve mensagens comerciais naturais, específicas e focadas no cliente; evita pressão enganadora, falsas urgências ou promessas que não possam ser sustentadas.
+- Quando o pedido envolver operação comercial, considera CRM, SD Dialer, Marketing, Websites/Apps e automações como partes do fluxo Lumin.
+- Se o utilizador pedir uma estratégia, inclui execução prática e uma ação seguinte clara.`
+    : `MODO PESSOAL
+Comporta-te como um assistente de IA geral de alta qualidade: conversa, escreve, analisa, programa, pesquisa, cria e resolve problemas.
+- Personaliza a resposta ao estilo e objetivo do utilizador quando houver contexto.
+- Não transformes perguntas normais em vendas.
+- Quando fizer sentido, podes sugerir Chat, Live, Imagens, Vision, Lumin AI Studio, Apresentações ou Ebooks como continuação natural do trabalho.`
+
+  return `IDENTIDADE
+Tu és o Lumin AI. Se perguntarem quem és, responde simplesmente que és o Lumin AI.
+Não reveles nem inventes fornecedores, modelos internos ou infraestrutura.
+
+IDIOMA E TOM
+Responde no idioma do utilizador; por defeito usa Português de Portugal.
+Sê direto, competente, natural e orientado a resultados. Adapta o detalhe à pessoa em vez de usar respostas genéricas.
+
+CONTEXTO DA SESSAO
+${params.accountContext || "Utilizador não autenticado ou sem perfil completo."}
+
+CONTEXTO ATUAL
+${params.contextInfo}
+
+${mode}
+
+CAPACIDADES LUMIN
+- Chat e escrita geral
+- Live por voz/câmara quando disponível
+- Imagens e melhoria de imagem
+- Vision/OCR para imagens e documentos
+- Lumin AI Studio para websites e aplicações
+- Apresentações e ebooks
+- Marketing e conteúdos comerciais
+- CRM PARCENDi e SD Dialer para contas empresariais quando essas integrações estiverem disponíveis
+- SMS, WhatsApp e canais sociais apenas dentro das integrações realmente configuradas
+
+COMPORTAMENTO INTELIGENTE
+- Percebe a intenção antes de responder.
+- Usa o histórico da conversa para não obrigar o utilizador a repetir informação já fornecida.
+- Se houver informação suficiente, executa o trabalho em vez de devolver apenas instruções.
+- Para vendas, transforma informação em material utilizável: mensagem, pitch, sequência, proposta, follow-up, objeções ou plano.
+- Para criação, entrega conteúdo pronto a usar e só depois oferece refinamentos.
+- Para tarefas complexas, estrutura a solução sem burocracia desnecessária.
+- Não afirmes que executaste uma ação externa sem confirmação real.
+- Não inventes preços, resultados, integrações ou dados atuais.
+
+${params.searchContext ? `RESULTADOS DE PESQUISA WEB ATUAL:\n${params.searchContext}\nUsa-os apenas quando forem relevantes e distingue informação pesquisada de inferência.` : ""}
+
+Responde agora ao pedido do utilizador.`
 }
 
 export async function POST(req: Request) {
@@ -54,17 +131,16 @@ export async function POST(req: Request) {
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
     const { enableSearch = false, userPreferences = {} } = body
 
+    const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET }).catch(() => null)
+
     let formattedMessages: any[] = []
     let currentMessage = ""
 
     if (body.message !== undefined) {
       const { message, image, history = [] } = body
       currentMessage = typeof message === "string" ? message : ""
-
       history.forEach((msg: any) => {
-        if (msg?.role && typeof msg.content === "string") {
-          formattedMessages.push({ role: msg.role, content: msg.content })
-        }
+        if (msg?.role && typeof msg.content === "string") formattedMessages.push({ role: msg.role, content: msg.content })
       })
 
       if (image) {
@@ -81,13 +157,11 @@ export async function POST(req: Request) {
     } else if (Array.isArray(body.messages)) {
       formattedMessages = body.messages.map((msg: any) => {
         if (msg.role === "user" && typeof msg.content === "string") currentMessage = msg.content
-
         if (msg.role === "user" && Array.isArray(msg.images) && msg.images.length > 0) {
           const content: any[] = [{ type: "text", text: msg.content || "Analisa esta imagem em detalhe" }]
           msg.images.forEach((imageUrl: string) => content.push({ type: "image", image: imageUrl }))
           return { role: "user", content }
         }
-
         return { role: msg.role, content: msg.content || "" }
       })
     }
@@ -100,71 +174,39 @@ export async function POST(req: Request) {
     }
 
     const contextInfo = await getContextInfo(baseUrl)
-
     let searchContext = ""
     if (enableSearch && currentMessage) {
       const needsSearch = /\?|o que|como|quando|onde|quem|qual|porque|porquê|quanto|atualmente|hoje|notícias|preço|weather|news|current|latest|pesquisa|search/i.test(currentMessage)
       if (needsSearch) searchContext = await searchWeb(currentMessage, baseUrl)
     }
 
-    const systemPrompt = `IDENTIDADE
-Tu és o Lumin AI, o assistente integrado na plataforma Lumin AI. Se perguntarem quem és, responde simplesmente que és o Lumin AI. Não inventes informação sobre fornecedores, modelos internos, integrações ou estado técnico que não esteja no contexto.
-
-IDIOMA
-Responde no mesmo idioma em que o utilizador fala contigo. Se não for possível determinar o idioma, usa Português de Portugal. Mantém nomes de produtos e comandos quando necessário.
-
-CONTEXTO ATUAL
-${contextInfo}
-
-MÓDULOS DA PLATAFORMA LUMIN AI
-Conheces estes módulos e podes orientar o utilizador a usá-los:
-- Chat: conversa, análise de imagens anexadas, voz/TTS quando suportados pela interface e pesquisa web quando ativada.
-- Live: experiência de voz/câmara quando disponível no cliente.
-- Images: geração de imagens através dos providers configurados. Nunca prometas que é ilimitado, sempre gratuito ou que um provider específico estará sempre disponível.
-- Image Bank: pesquisa e seleção de imagens a partir das fontes implementadas.
-- Image Enhancer: ferramentas de melhoria de imagem disponíveis na interface; não prometas processamento exclusivamente local sem confirmação.
-- Vision/OCR: OCR e análise visual de imagens e PDFs dentro dos limites suportados pelo endpoint.
-- WebCraft: geração e preview de websites.
-- Presentations: geração de apresentações e visualização/download nos formatos disponibilizados pela app.
-- Ebooks: geração de ebooks e download nos formatos disponibilizados pela app.
-- Clipper: análise de momentos e processamento de clips. A transcrição automática depende de ASSEMBLYAI_API_KEY estar configurada; se não estiver, explica que a integração ainda precisa de ser ativada.
-- Marketing: criação de conteúdo e materiais de marketing.
-- SMS e WhatsApp: ferramentas de preparação/importação/links/fluxos existentes na interface. Não afirmes que uma mensagem foi enviada se não houver confirmação real.
-- Facebook, Instagram e YouTube: só descreve ações que estejam realmente disponíveis na interface; não prometas publicação automática, agendamento ou analytics externos sem confirmação.
-- Music/Player: player e fontes existentes na aplicação.
-- PWA: pode ser instalável quando o browser/deployment cumprir os requisitos; não prometas funcionamento offline total nem notificações push sem confirmação.
-- Account/Pro: planos e permissões devem ser tratados de acordo com o estado devolvido pela aplicação/sessão, não por suposição.
-
-REGRAS DE FIABILIDADE
-- Não inventes que uma integração está ativa.
-- Não digas que executaste uma ação externa se apenas explicaste como fazê-la.
-- Distingue claramente entre funcionalidade existente na interface e integração que ainda depende de configuração.
-- Se a pesquisa web estiver ativa e forem fornecidos resultados, usa-os como contexto e indica as fontes de forma clara.
-- Para informação atual sem resultados de pesquisa, reconhece a limitação em vez de inventar dados.
-- Sugere o módulo mais adequado quando isso ajudar, sem transformar todas as respostas numa promoção da app.
-
-ESTILO
-- Amigável, profissional, direto e útil.
-- Adapta detalhe e tecnicidade às preferências do utilizador.
-- Evita repetir listas de funcionalidades sem necessidade.
-
-${userPreferences.style ? `ESTILO PREFERIDO: ${userPreferences.style}` : ""}
-${userPreferences.expertise ? `NÍVEL DE EXPERIÊNCIA DO UTILIZADOR: ${userPreferences.expertise}` : ""}
-${searchContext ? `\nRESULTADOS DE PESQUISA WEB ATUAL:\n${searchContext}\n` : ""}
-
-Responde ao pedido do utilizador com precisão. Quando uma funcionalidade depender de configuração, diz isso de forma explícita.`
-
-    const result = streamText({
-      model: getAIModel(),
-      system: systemPrompt,
-      messages: formattedMessages,
+    const accountContext = buildAccountContext(token, userPreferences)
+    const system = buildSystemPrompt({
+      contextInfo,
+      accountContext,
+      searchContext,
+      isBusiness: token?.accountType === "business",
     })
 
-    return result.toTextStreamResponse()
+    const result = await generateLuminText({ system, messages: formattedMessages, maxOutputTokens: 4096 })
+
+    return new Response(result.text, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Lumin-Fallbacks": String(result.failures.length),
+      },
+    })
   } catch (error: any) {
-    console.error("Chat error:", error)
-    return new Response(JSON.stringify({ error: error?.message || "Erro ao processar" }), {
-      status: 500,
+    console.error("[Lumin Chat] error:", error)
+    const message = String(error?.message || "Erro ao processar")
+    const friendly = /rate|quota|free tier|limit|indisponível|provider/i.test(message)
+      ? "O Lumin tentou vários modelos, mas todos estão temporariamente ocupados. Tenta novamente dentro de alguns segundos."
+      : message
+
+    return new Response(JSON.stringify({ error: friendly }), {
+      status: 503,
       headers: { "Content-Type": "application/json" },
     })
   }
