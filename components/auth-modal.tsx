@@ -23,7 +23,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [countdown, setCountdown] = useState(0)
-  const [isNewUser, setIsNewUser] = useState(false)
   const [codeCopied, setCodeCopied] = useState(false)
 
   useEffect(() => {
@@ -35,38 +34,27 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   if (!isOpen) return null
 
-  const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString()
-  }
+  const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email) return
-    
     setLoading(true)
     setError("")
 
     try {
-      // Check if user exists in localStorage
       const users = JSON.parse(localStorage.getItem("rebornai-users") || "[]")
-      const existingUser = users.find((u: any) => u.email === email)
-      setIsNewUser(!existingUser)
-
-      // Generate 6-digit code
       const newCode = generateOTP()
       setGeneratedCode(newCode)
-      
-      // Store code temporarily (in production, send via email/SMS)
       localStorage.setItem("rebornai-otp", JSON.stringify({
         email,
         code: newCode,
-        expires: Date.now() + 5 * 60 * 1000 // 5 minutes
+        expires: Date.now() + 5 * 60 * 1000,
       }))
-
       setStep("code")
       setCountdown(60)
-    } catch (err) {
-      setError("Erro ao enviar codigo. Tente novamente.")
+    } catch {
+      setError("Erro ao enviar código. Tenta novamente.")
     } finally {
       setLoading(false)
     }
@@ -75,49 +63,37 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!code) return
-    
     setLoading(true)
     setError("")
 
     try {
       const otpData = JSON.parse(localStorage.getItem("rebornai-otp") || "{}")
-      
       if (otpData.email !== email) {
-        setError("Sessao expirada. Tente novamente.")
+        setError("Sessão expirada. Tenta novamente.")
         setStep("email")
         return
       }
-
       if (Date.now() > otpData.expires) {
-        setError("Codigo expirado. Solicite um novo.")
+        setError("Código expirado. Solicita um novo.")
         return
       }
-
       if (otpData.code !== code) {
-        setError("Codigo incorreto. Verifique e tente novamente.")
+        setError("Código incorreto. Verifica e tenta novamente.")
         return
       }
 
-      // Code is valid - clear OTP
       localStorage.removeItem("rebornai-otp")
-
-      // Check if new user needs name
       const users = JSON.parse(localStorage.getItem("rebornai-users") || "[]")
       const existingUser = users.find((u: any) => u.email === email)
 
       if (!existingUser) {
         setStep("name")
       } else {
-        // Login existing user
-        await signIn("credentials", {
-          email,
-          password: "otp-verified",
-          redirect: false,
-        })
+        await signIn("credentials", { email, password: "otp-verified", redirect: false })
         onClose()
       }
-    } catch (err) {
-      setError("Erro ao verificar codigo.")
+    } catch {
+      setError("Erro ao verificar código.")
     } finally {
       setLoading(false)
     }
@@ -126,30 +102,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name) return
-    
     setLoading(true)
     setError("")
 
     try {
-      // Save new user to localStorage
       const users = JSON.parse(localStorage.getItem("rebornai-users") || "[]")
-      users.push({
-        id: Date.now().toString(),
-        email,
-        name,
-        createdAt: new Date().toISOString()
-      })
+      users.push({ id: Date.now().toString(), email, name, createdAt: new Date().toISOString() })
       localStorage.setItem("rebornai-users", JSON.stringify(users))
-
-      // Sign in the new user
-      await signIn("credentials", {
-        email,
-        password: "otp-verified",
-        redirect: false,
-      })
-      
+      await signIn("credentials", { email, password: "otp-verified", redirect: false })
       onClose()
-    } catch (err) {
+    } catch {
       setError("Erro ao criar conta.")
     } finally {
       setLoading(false)
@@ -163,7 +125,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     localStorage.setItem("rebornai-otp", JSON.stringify({
       email,
       code: newCode,
-      expires: Date.now() + 5 * 60 * 1000
+      expires: Date.now() + 5 * 60 * 1000,
     }))
     setCountdown(60)
     setCode("")
@@ -184,137 +146,129 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setGeneratedCode("")
   }
 
+  const title = step === "email" ? "Entrar no Lumin AI" : step === "code" ? "Verificar código" : "Criar conta"
+  const subtitle = step === "email"
+    ? "Acede ao teu espaço com um código seguro."
+    : step === "code"
+      ? `Código enviado para ${email}`
+      : "Só falta dizeres-nos como te devemos chamar."
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-md bg-zinc-900 border-white/10 shadow-2xl overflow-hidden">
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-3">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 sm:p-6">
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_18%,rgba(245,190,80,0.14),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(109,40,217,0.10),transparent_30%)]" />
+
+      <Card className="relative w-full max-w-[430px] overflow-hidden rounded-[28px] border border-amber-300/15 bg-[#09090b]/95 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_70px_rgba(217,164,65,.08)]">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
+
+        <div className="p-5 sm:p-7">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
               {step !== "email" && (
-                <button 
+                <button
                   onClick={() => setStep(step === "name" ? "code" : "email")}
-                  className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                  className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-400 transition hover:border-amber-300/30 hover:text-amber-200"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               )}
-              <div>
-                <h2 className="text-xl font-bold text-white">
-                  {step === "email" && "Entrar no Reborn AI"}
-                  {step === "code" && "Verificar Codigo"}
-                  {step === "name" && "Criar Conta"}
-                </h2>
-                <p className="text-sm text-zinc-500">
-                  {step === "email" && "Recebe um codigo no teu email"}
-                  {step === "code" && `Codigo enviado para ${email}`}
-                  {step === "name" && "So mais um passo"}
-                </p>
+
+              <div className="flex gap-3">
+                <div className="relative mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-300/25 bg-gradient-to-br from-amber-300/10 to-black shadow-[inset_0_0_24px_rgba(255,194,85,.08)]">
+                  <div className="absolute inset-2 rounded-full border border-amber-200/15" />
+                  <Sparkles className="h-5 w-5 text-amber-300" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-500 sm:text-sm">{subtitle}</p>
+                </div>
               </div>
             </div>
-            <button 
-              onClick={() => { onClose(); resetForm(); }}
-              className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+
+            <button
+              onClick={() => { onClose(); resetForm() }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/[0.05] hover:text-white"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               {error}
             </div>
           )}
 
-          {/* Step 1: Email */}
           {step === "email" && (
             <form onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-zinc-300">Email ou Telemovel</Label>
+                <Label htmlFor="email" className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="seu@email.com"
+                    placeholder="teu@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
+                    className="h-12 rounded-2xl border-white/10 bg-white/[0.035] pl-11 text-white placeholder:text-zinc-600 focus-visible:border-amber-300/40 focus-visible:ring-amber-300/20"
                     required
                     autoFocus
                   />
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-medium"
+              <Button
+                type="submit"
+                className="h-12 w-full rounded-2xl border border-amber-200/30 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white shadow-[0_10px_35px_rgba(214,153,48,.18)] transition hover:brightness-110"
                 disabled={loading}
               >
                 {loading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Enviando...
-                  </span>
+                  <span className="flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A enviar...</span>
                 ) : (
-                  <span className="flex items-center gap-2">
-                    <Smartphone className="h-4 w-4" />
-                    Enviar Codigo
-                  </span>
+                  <span className="flex items-center gap-2"><Smartphone className="h-4 w-4" />Enviar código</span>
                 )}
               </Button>
 
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-zinc-900 px-2 text-zinc-500">Seguro e rapido</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 text-sm text-zinc-400">
-                <Shield className="h-5 w-5 text-primary flex-shrink-0" />
-                <p>Sem passwords. Recebe um codigo de 6 digitos para verificar a tua identidade.</p>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-center">
+                {[
+                  [Shield, "Seguro"],
+                  [Check, "Sem password"],
+                  [Sparkles, "Rápido"],
+                ].map(([Icon, text]: any) => (
+                  <div key={text} className="rounded-2xl border border-white/[0.06] bg-white/[0.025] px-2 py-3">
+                    <Icon className="mx-auto mb-1.5 h-4 w-4 text-amber-300/80" />
+                    <span className="text-[10px] text-zinc-500 sm:text-xs">{text}</span>
+                  </div>
+                ))}
               </div>
             </form>
           )}
 
-          {/* Step 2: Verify Code */}
           {step === "code" && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
-              {/* Demo: Show the code (in production, this would be sent via email/SMS) */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-violet-500/10 border border-primary/20">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-zinc-400">O teu codigo de verificacao:</p>
-                  <button 
-                    type="button"
-                    onClick={copyCode}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                  >
+              <div className="rounded-2xl border border-amber-300/15 bg-gradient-to-br from-amber-300/[0.07] via-white/[0.02] to-violet-500/[0.05] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs text-zinc-500">Código de verificação</p>
+                  <button type="button" onClick={copyCode} className="flex items-center gap-1.5 text-xs text-amber-300 transition hover:text-amber-200">
                     {codeCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     {codeCopied ? "Copiado" : "Copiar"}
                   </button>
                 </div>
-                <p className="text-2xl font-mono font-bold text-white tracking-[0.5em] text-center">
-                  {generatedCode}
-                </p>
-                <p className="text-[10px] text-zinc-500 mt-2 text-center">
-                  Em producao, este codigo seria enviado por email/SMS
-                </p>
+                <p className="text-center font-mono text-2xl font-semibold tracking-[0.45em] text-white sm:text-3xl">{generatedCode}</p>
+                <p className="mt-3 text-center text-[10px] text-zinc-600">Modo de teste: em produção este código é enviado por email/SMS.</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="code" className="text-zinc-300">Introduz o codigo</Label>
+                <Label htmlFor="code" className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">Introduz o código</Label>
                 <div className="relative">
-                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Shield className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
                   <Input
                     id="code"
                     type="text"
                     placeholder="000000"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-zinc-500 text-center text-xl tracking-[0.3em] font-mono"
+                    className="h-12 rounded-2xl border-white/10 bg-white/[0.035] pl-11 text-center font-mono text-xl tracking-[0.3em] text-white placeholder:text-zinc-700 focus-visible:border-amber-300/40 focus-visible:ring-amber-300/20"
                     maxLength={6}
                     required
                     autoFocus
@@ -322,22 +276,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-medium"
+              <Button
+                type="submit"
+                className="h-12 w-full rounded-2xl border border-amber-200/30 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white shadow-[0_10px_35px_rgba(214,153,48,.18)] transition hover:brightness-110"
                 disabled={loading || code.length !== 6}
               >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Verificando...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Check className="h-4 w-4" />
-                    Verificar Codigo
-                  </span>
-                )}
+                {loading ? "A verificar..." : <span className="flex items-center gap-2"><Check className="h-4 w-4" />Verificar código</span>}
               </Button>
 
               <div className="text-center">
@@ -345,65 +289,46 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   type="button"
                   onClick={handleResendCode}
                   disabled={countdown > 0}
-                  className={`text-sm ${countdown > 0 ? "text-zinc-600" : "text-primary hover:underline"}`}
+                  className={`text-sm ${countdown > 0 ? "text-zinc-700" : "text-amber-300 hover:text-amber-200"}`}
                 >
-                  {countdown > 0 ? `Reenviar codigo em ${countdown}s` : "Reenviar codigo"}
+                  {countdown > 0 ? `Reenviar código em ${countdown}s` : "Reenviar código"}
                 </button>
               </div>
             </form>
           )}
 
-          {/* Step 3: Name (for new users) */}
           {step === "name" && (
             <form onSubmit={handleCreateAccount} className="space-y-4">
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-white" />
-                </div>
+              <div className="mx-auto mb-2 flex h-20 w-20 items-center justify-center rounded-full border border-amber-300/20 bg-[radial-gradient(circle_at_35%_30%,rgba(255,219,145,.28),rgba(15,15,18,.95)_48%,rgba(179,121,29,.15)_80%)] shadow-[0_0_35px_rgba(229,170,63,.15)]">
+                <Sparkles className="h-8 w-8 text-amber-300" />
               </div>
-              
-              <p className="text-center text-zinc-400 text-sm mb-4">
-                Bem-vindo ao Reborn AI! Como te podemos chamar?
-              </p>
 
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-zinc-300">O teu nome</Label>
+                <Label htmlFor="name" className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">O teu nome</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
                   <Input
                     id="name"
                     type="text"
-                    placeholder="O teu nome"
+                    placeholder="Como te devemos chamar?"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-zinc-500"
+                    className="h-12 rounded-2xl border-white/10 bg-white/[0.035] pl-11 text-white placeholder:text-zinc-600 focus-visible:border-amber-300/40 focus-visible:ring-amber-300/20"
                     required
                     autoFocus
                   />
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-medium"
+              <Button
+                type="submit"
+                className="h-12 w-full rounded-2xl border border-amber-200/30 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white shadow-[0_10px_35px_rgba(214,153,48,.18)] transition hover:brightness-110"
                 disabled={loading || !name}
               >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Criando conta...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    Comecar a usar Reborn AI
-                  </span>
-                )}
+                {loading ? "A criar conta..." : <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" />Entrar no Lumin AI</span>}
               </Button>
 
-              <p className="text-center text-xs text-zinc-500">
-                Ao criar conta, aceitas os Termos de Servico e Politica de Privacidade
-              </p>
+              <p className="text-center text-xs leading-relaxed text-zinc-600">Ao continuar, aceitas os Termos de Serviço e a Política de Privacidade.</p>
             </form>
           )}
         </div>
