@@ -138,7 +138,7 @@ export function WebCraftStudioV2() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${(businessName || "reborn-webcraft").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`
+    a.download = `${(businessName || "lumin-ai-studio").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -201,12 +201,12 @@ export function WebCraftStudioV2() {
               <div>
                 <div className="mb-2 flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  <Badge variant="secondary">WebCraft V2</Badge>
+                  <Badge variant="secondary">Lumin AI Studio</Badge>
                   <Badge variant="outline" className="gap-1"><Database className="h-3 w-3" /> Full-Stack</Badge>
                 </div>
-                <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Diz o que queres. O Reborn constrói.</h2>
+                <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Descreve. Cria. Publica.</h2>
                 <p className="mt-2 text-sm text-muted-foreground md:text-base">
-                  Cria o preview, refina por conversa e exporta um projeto Next.js + Supabase pronto para GitHub e deploy.
+                  Cria websites e aplicações por conversa, vê o preview e exporta um projeto Next.js + Supabase pronto para GitHub e deploy.
                 </p>
               </div>
             </div>
@@ -267,7 +267,8 @@ export function WebCraftStudioV2() {
           <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null) }} className="gap-2">
             <RefreshCw className="h-4 w-4" /> Novo
           </Button>
-          <Badge variant="secondary">{mode === "app" ? "App Web" : "Website"}</Badge>
+          <Badge variant="secondary">Lumin AI Studio</Badge>
+          <Badge variant="outline">{mode === "app" ? "App Web" : "Website"}</Badge>
           {fullStackProject && <Badge variant="outline">{fullStackProject.files.length} ficheiros · {fullStackProject.framework}</Badge>}
         </div>
 
@@ -299,7 +300,7 @@ export function WebCraftStudioV2() {
           <div className="space-y-3">
             <div>
               <h3 className="font-semibold">Pede alterações</h3>
-              <p className="mt-1 text-xs text-muted-foreground">O Reborn mantém o projeto e altera apenas o que pedires.</p>
+              <p className="mt-1 text-xs text-muted-foreground">O Lumin AI Studio mantém o projeto e altera apenas o que pedires.</p>
             </div>
             <Textarea
               value={refinement}
@@ -313,7 +314,7 @@ export function WebCraftStudioV2() {
             </Button>
             {error && <p className="text-xs text-destructive">{error}</p>}
             <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-              Quando estiver como queres, usa <strong>Full-Stack ZIP</strong>. O Reborn gera Next.js 16, Supabase SSR, .env.example, migrações SQL/RLS quando necessárias e estrutura pronta para GitHub/Vercel.
+              Quando estiver como queres, usa <strong>Full-Stack ZIP</strong>. O Lumin AI Studio gera Next.js 16, Supabase SSR, .env.example, migrações SQL/RLS quando necessárias e estrutura pronta para GitHub/Vercel.
             </div>
           </div>
         </aside>
@@ -323,7 +324,7 @@ export function WebCraftStudioV2() {
             <Textarea value={editableHtml} onChange={(e) => setEditableHtml(e.target.value)} className="min-h-[75vh] w-full resize-none bg-card font-mono text-xs" />
           ) : (
             <div className="overflow-hidden rounded-xl bg-white shadow-xl transition-all" style={{ width: previewWidth, minHeight: "75vh" }}>
-              <iframe srcDoc={html} title="Reborn WebCraft Preview" className="h-[78vh] w-full border-0" sandbox="allow-scripts allow-forms allow-modals allow-popups" />
+              <iframe srcDoc={html} title="Lumin AI Studio Preview" className="h-[78vh] w-full border-0" sandbox="allow-scripts allow-forms allow-modals allow-popups" />
             </div>
           )}
         </main>
