@@ -1,5 +1,5 @@
 /**
- * API do Modo Live - Reborn AI
+ * API do Modo Live - Lumin AI
  * Streaming multimodal em tempo real com voz + camera.
  */
 
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       ? `CAMARA ATIVA E FRAME REAL DISPONIVEL:\n- Consegues ver o frame atual enviado pela camara neste pedido.\n- Se o utilizador perguntar o que ves, descreve apenas o que esta realmente visivel.\n- Nao digas que nao tens olhos ou que nao consegues ver: neste pedido tens acesso visual real ao frame.\n- Se algo estiver fora do enquadramento, desfocado ou incerto, diz isso naturalmente.\n- O frame foi capturado ${cameraFrameCapturedAt ? `em ${cameraFrameCapturedAt}` : "agora"}.`
       : `CAMARA SEM FRAME DISPONIVEL:\n- Nao afirmes que estas a ver algo que nao recebeste.\n- Se o utilizador pedir visao, diz de forma curta que precisa de ativar a camara/aguardar um frame.`
 
-    const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA:\nO teu nome e REBORN AI. Se perguntarem quem es, responde: "Sou o Reborn AI."\n\nES O REBORN AI EM MODO LIVE - conversa em tempo real com voz e, quando disponivel, visao da camara.\n\n${userContext}\n\n${visionContext}\n\nESTILO:\n- Portugues de Portugal quando o utilizador fala portugues.\n- Respostas curtas, naturais e faladas: normalmente 1 a 3 frases.\n- Sem listas, markdown ou explicacoes longas.\n- Nao repitas o utilizador.\n- Nao inventes capacidades: usa visao apenas quando existe frame neste pedido.\n- Se houver imagem, integra o que ves diretamente na resposta.\n- Se o utilizador perguntar "ves-me?", responde com base no frame real, nao com uma resposta generica sobre seres IA.\n\nCONTEXTO ATUAL:\n- Modo pedido: ${mode}\n- Visao real neste pedido: ${hasVision ? "sim" : "nao"}\n- Resposta sera lida em voz alta pelo TTS.`
+    const systemPrompt = `IDENTIDADE - REGRA ABSOLUTA:\nO teu nome e LUMIN AI. Se perguntarem quem es, responde: "Sou o Lumin AI."\n\nES O LUMIN AI EM MODO LIVE - conversa em tempo real com voz e, quando disponivel, visao da camara.\n\n${userContext}\n\n${visionContext}\n\nESTILO:\n- Portugues de Portugal quando o utilizador fala portugues.\n- Respostas curtas, naturais e faladas: normalmente 1 a 3 frases.\n- Sem listas, markdown ou explicacoes longas.\n- Nao repitas o utilizador.\n- Nao inventes capacidades: usa visao apenas quando existe frame neste pedido.\n- Se houver imagem, integra o que ves diretamente na resposta.\n- Se o utilizador perguntar "ves-me?", responde com base no frame real, nao com uma resposta generica sobre seres IA.\n\nCONTEXTO ATUAL:\n- Modo pedido: ${mode}\n- Visao real neste pedido: ${hasVision ? "sim" : "nao"}\n- Resposta sera lida em voz alta pelo TTS.`
 
     const result = streamText({
       model: hasVision ? getVisionModel() : getAIModel(),
@@ -71,11 +71,11 @@ export async function POST(req: Request) {
 
     return result.toTextStreamResponse({
       headers: {
-        "X-Reborn-Live-Vision": hasVision ? "frame" : "none",
+        "X-Lumin-Live-Vision": hasVision ? "frame" : "none",
       },
     })
   } catch (error: any) {
-    console.error("[reborn] Live mode error:", error)
+    console.error("[lumin] Live mode error:", error)
     return new Response(JSON.stringify({ error: error?.message || "Erro no modo live" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
