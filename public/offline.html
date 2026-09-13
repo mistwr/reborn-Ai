@@ -3,18 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#7c3aed">
-  <title>Reborn AI - Offline</title>
+  <meta name="theme-color" content="#050507">
+  <title>Lumin AI - Offline</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+      background: radial-gradient(circle at 50% 20%, rgba(214,168,75,.12), transparent 35%), linear-gradient(180deg,#050507 0%,#020203 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -22,101 +17,54 @@
       color: #fff;
       padding: 20px;
     }
-    
-    .container {
-      text-align: center;
-      max-width: 400px;
-    }
-    
+    .container { text-align: center; max-width: 420px; }
     .icon {
       width: 120px;
       height: 120px;
       margin: 0 auto 30px;
-      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-      border-radius: 30px;
+      background: radial-gradient(circle at 35% 25%, #ffe7a5 0%, #d6a84b 28%, #7f531c 70%, #120f0b 100%);
+      border: 1px solid rgba(240,200,107,.45);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 20px 40px rgba(124, 58, 237, 0.3);
+      box-shadow: 0 0 46px rgba(214,168,75,.24), inset 0 0 28px rgba(255,255,255,.08);
+      animation: luminPulse 2.4s ease-in-out infinite;
     }
-    
-    .icon svg {
-      width: 60px;
-      height: 60px;
-      color: white;
-    }
-    
-    h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 12px;
-      background: linear-gradient(135deg, #fff 0%, #a855f7 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    
-    p {
-      color: #9ca3af;
-      font-size: 16px;
-      line-height: 1.6;
-      margin-bottom: 30px;
-    }
-    
+    .mark { font-size: 42px; font-weight: 800; color: #090704; text-shadow: 0 1px 0 rgba(255,255,255,.25); }
+    h1 { font-size: 30px; font-weight: 700; margin-bottom: 10px; color: #f2d083; }
+    .brand { font-size: 13px; letter-spacing: .28em; text-transform: uppercase; color: #a9874a; margin-bottom: 24px; }
+    p { color: #a1a1aa; font-size: 16px; line-height: 1.6; margin-bottom: 30px; }
     button {
-      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-      color: white;
-      border: none;
+      background: linear-gradient(135deg, #f0cf7a 0%, #b77921 100%);
+      color: #090704;
+      border: 1px solid rgba(255,230,160,.55);
       padding: 14px 32px;
       font-size: 16px;
-      font-weight: 600;
-      border-radius: 12px;
+      font-weight: 700;
+      border-radius: 999px;
       cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 10px 20px rgba(124, 58, 237, 0.3);
+      transition: all 0.25s ease;
+      box-shadow: 0 12px 30px rgba(214,168,75,.16);
     }
-    
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 15px 30px rgba(124, 58, 237, 0.4);
-    }
-    
-    button:active {
-      transform: translateY(0);
-    }
-    
-    .pulse {
-      animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgba(214,168,75,.26); }
+    button:active { transform: translateY(0); }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    @keyframes luminPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.035)} }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="icon">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" />
-      </svg>
-    </div>
-    <h1>Estas Offline</h1>
-    <p>Parece que perdeste a ligacao a internet. Verifica a tua conexao e tenta novamente.</p>
-    <button onclick="window.location.reload()">
-      Tentar Novamente
-    </button>
-    <p class="pulse" style="margin-top: 30px; font-size: 14px;">
-      A aguardar conexao...
-    </p>
+    <div class="icon"><span class="mark">L</span></div>
+    <div class="brand">Lumin AI</div>
+    <h1>Estás offline</h1>
+    <p>Parece que perdeste a ligação à internet. Assim que a conexão regressar, o Lumin volta a ficar disponível.</p>
+    <button onclick="window.location.reload()">Tentar novamente</button>
+    <p class="pulse" style="margin-top:30px;font-size:14px;">A aguardar ligação...</p>
   </div>
-  
   <script>
-    // Auto-reload when back online
-    window.addEventListener('online', () => {
-      window.location.reload();
-    });
+    window.addEventListener('online', () => window.location.reload());
   </script>
 </body>
 </html>
