@@ -40,11 +40,56 @@ function extractSessionId(data: any) {
   )
 }
 
-function extractCommandResult(data: any) {
-  const stdout = data?.stdout ?? data?.result?.stdout ?? data?.output?.stdout ?? data?.logs?.stdout ?? ""
-  const stderr = data?.stderr ?? data?.result?.stderr ?? data?.output?.stderr ?? data?.logs?.stderr ?? ""
-  const exitCode = data?.exitCode ?? data?.result?.exitCode ?? data?.output?.exitCode ?? null
-  return { stdout: safeText(stdout), stderr: safeText(stderr), exitCode }
+function parseNdjson(raw: string) {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line)
+      } catch {
+        return { type: "raw", data: line }
+      }
+    })
+}
+
+function extractCommandResult(raw: string) {
+  const events = parseNdjson(raw)
+  const stdout: string[] = []
+  const stderr: string[] = []
+  let exitCode: number | null = null
+
+  for (const event of events) {
+    const command = event?.command || event?.result?.command || event?.data?.command
+    const eventExit = command?.exitCode ?? event?.exitCode ?? event?.result?.exitCode
+    if (eventExit !== undefined && eventExit !== null && Number.isFinite(Number(eventExit))) {
+      exitCode = Number(eventExit)
+    }
+
+    const stream = String(event?.stream || event?.type || event?.channel || "").toLowerCase()
+    const payload =
+      event?.stdout ??
+      event?.stderr ??
+      event?.text ??
+      event?.message ??
+      event?.data?.text ??
+      event?.data?.message ??
+      (typeof event?.data === "string" ? event.data : "")
+
+    if (payload !== undefined && payload !== null && String(payload).trim()) {
+      if (stream.includes("stderr") || event?.stderr !== undefined) stderr.push(String(payload))
+      else if (stream.includes("stdout") || event?.stdout !== undefined || stream.includes("log")) stdout.push(String(payload))
+    }
+  }
+
+  if (!stdout.length && !stderr.length && raw.trim()) stdout.push(raw.trim())
+
+  return {
+    stdout: safeText(stdout.join("\n")),
+    stderr: safeText(stderr.join("\n")),
+    exitCode,
+  }
 }
 
 export async function executeLuminSandbox(input: {
@@ -122,18 +167,18 @@ export async function executeLuminSandbox(input: {
         sudo: false,
         wait: true,
         logs: true,
-        timeout: String(COMMAND_TIMEOUT_MS),
+        timeout: COMMAND_TIMEOUT_MS,
       }),
       signal: AbortSignal.timeout(30_000),
     })
 
-    const runData = await run.json().catch(() => ({}))
+    const runRaw = await run.text()
     if (!run.ok) {
-      console.error("[Lumin Sandbox] command failed", run.status, runData)
+      console.error("[Lumin Sandbox] command failed", run.status, runRaw)
       return { ok: false, language, sessionId, error: "Falha ao executar na sandbox" }
     }
 
-    const result = extractCommandResult(runData)
+    const result = extractCommandResult(runRaw)
     return { ok: true, language, sessionId, ...result }
   } catch (error: any) {
     console.error("[Lumin Sandbox] error", error)
