@@ -8,6 +8,9 @@ export interface Subscription {
   stripePriceId: string
   status: SubscriptionStatus
   plan: "free" | "pro"
+  userId?: string | null
+  organizationId?: string | null
+  billingPlan?: string | null
   currentPeriodStart: Date
   currentPeriodEnd: Date
   tokensPerDay: number
@@ -34,6 +37,9 @@ function fromRow(row: any): Subscription {
     stripePriceId: row.stripe_price_id,
     status: row.status,
     plan: row.plan,
+    userId: row.user_id || null,
+    organizationId: row.organization_id || null,
+    billingPlan: row.billing_plan || null,
     currentPeriodStart: new Date(row.current_period_start),
     currentPeriodEnd: new Date(row.current_period_end),
     tokensPerDay: row.tokens_per_day,
@@ -50,6 +56,9 @@ function toRow(data: SubscriptionInput) {
     stripe_price_id: data.stripePriceId,
     status: data.status,
     plan: data.plan,
+    user_id: data.userId || null,
+    organization_id: data.organizationId || null,
+    billing_plan: data.billingPlan || null,
     current_period_start: data.currentPeriodStart.toISOString(),
     current_period_end: data.currentPeriodEnd.toISOString(),
     tokens_per_day: data.tokensPerDay,
@@ -79,7 +88,7 @@ async function supabaseRequest(path: string, init?: RequestInit) {
 
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`Reborn billing storage error (${response.status}): ${text}`)
+    throw new Error(`Lumin billing storage error (${response.status}): ${text}`)
   }
 
   if (response.status === 204) return []
@@ -163,6 +172,9 @@ export async function updateSubscription(
     stripePriceId: data.stripePriceId ?? existing.stripePriceId,
     status: data.status ?? existing.status,
     plan: data.plan ?? existing.plan,
+    userId: data.userId ?? existing.userId ?? null,
+    organizationId: data.organizationId ?? existing.organizationId ?? null,
+    billingPlan: data.billingPlan ?? existing.billingPlan ?? null,
     currentPeriodStart: data.currentPeriodStart ?? existing.currentPeriodStart,
     currentPeriodEnd: data.currentPeriodEnd ?? existing.currentPeriodEnd,
     tokensPerDay: data.tokensPerDay ?? existing.tokensPerDay,
