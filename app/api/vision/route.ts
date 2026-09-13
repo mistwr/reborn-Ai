@@ -64,8 +64,8 @@ export async function POST(req: Request) {
       return jsonError("Nenhum ficheiro enviado.", "NO_FILE", 400)
     }
 
-    const systemPrompt = `IDENTIDADE: O teu nome é REBORN AI Vision.
-És o sistema de visão computacional e OCR da plataforma Reborn AI.
+    const systemPrompt = `IDENTIDADE: O teu nome é LUMIN AI Vision.
+És o sistema de visão computacional e OCR da plataforma Lumin AI.
 Analisa imagens, PDFs, screenshots e outros ficheiros visuais com precisão profissional.
 Responde no idioma do utilizador. Quando não for possível determinar o idioma, usa Português de Portugal.
 Usa Markdown para organizar as respostas de forma clara e legível.`
@@ -136,7 +136,7 @@ Usa Markdown para organizar as respostas de forma clara e legível.`
 
     return result.toTextStreamResponse()
   } catch (error: any) {
-    console.error("Vision API error:", error)
+    console.error("Lumin Vision API error:", error)
 
     if (error?.message?.includes("Too Large") || error?.message?.includes("PAYLOAD")) {
       return jsonError(
