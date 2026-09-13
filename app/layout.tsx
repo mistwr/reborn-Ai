@@ -12,17 +12,17 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
-  title: "Reborn AI - Assistente Inteligente",
+  title: "Lumin AI - Pensar. Criar. Realizar.",
   description:
     "Assistente de IA avançado com visão, voz, pesquisa web, geração de imagens, websites, apresentações e muito mais.",
-  generator: "Reborn AI",
+  generator: "Lumin AI",
   keywords: ["AI", "assistente", "chatbot", "imagens", "websites", "apresentações"],
-  authors: [{ name: "Reborn AI" }],
+  authors: [{ name: "Lumin AI" }],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Reborn AI",
+    title: "Lumin AI",
     startupImage: [
       {
         url: "/icons/icon-512x512.jpg",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "msapplication-TileColor": "#7c3aed",
+    "msapplication-TileColor": "#d6a84b",
     "msapplication-tap-highlight": "no",
   },
 }
@@ -46,7 +46,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   minimumScale: 1,
-  themeColor: "#0a0a0f",
+  themeColor: "#050507",
   viewportFit: "cover",
 }
 
@@ -61,9 +61,9 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
         <link rel="apple-touch-icon" href="/icons/icon-512x512.jpg" />
-        <link rel="mask-icon" href="/icons/icon-512x512.jpg" color="#7c3aed" />
-        <meta name="apple-mobile-web-app-title" content="Reborn AI" />
-        <meta name="application-name" content="Reborn AI" />
+        <link rel="mask-icon" href="/icons/icon-512x512.jpg" color="#d6a84b" />
+        <meta name="apple-mobile-web-app-title" content="Lumin AI" />
+        <meta name="application-name" content="Lumin AI" />
         <meta name="msapplication-TileImage" content="/icons/icon-512x512.jpg" />
 
         <script
@@ -73,9 +73,8 @@ export default function RootLayout({
                 var savedTheme = localStorage.getItem('rebornai-theme') || 'light';
                 document.documentElement.setAttribute('data-theme', savedTheme);
 
-                // Temporary resurrection compatibility: the historical client token
-                // counter can return before /api/chat is called. Until usage control is
-                // authoritative on the server, never let stale browser state block AI.
+                // Keep historical storage keys for backwards compatibility while
+                // presenting the product publicly as Lumin AI.
                 localStorage.setItem('rebornai-tokens', '0');
                 localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
                 localStorage.setItem('rebornai-chat-guard-repair-v2', '1');
