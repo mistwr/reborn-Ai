@@ -49,6 +49,7 @@ export function WebCraftStudioV2() {
   const [refinement, setRefinement] = useState("")
   const [businessName, setBusinessName] = useState("")
   const [businessEmail, setBusinessEmail] = useState("")
+  const [referenceImagesText, setReferenceImagesText] = useState("")
   const [html, setHtml] = useState<string | null>(null)
   const [editableHtml, setEditableHtml] = useState("")
   const [editCode, setEditCode] = useState(false)
@@ -64,6 +65,16 @@ export function WebCraftStudioV2() {
     if (viewMode === "tablet") return "820px"
     return "100%"
   }, [viewMode])
+
+  const referenceImages = useMemo(
+    () =>
+      referenceImagesText
+        .split(/[\n,]+/)
+        .map((value) => value.trim())
+        .filter((value) => /^https?:\/\//i.test(value))
+        .slice(0, 12),
+    [referenceImagesText],
+  )
 
   async function streamProject(payload: Record<string, unknown>) {
     setLoading(true)
@@ -120,6 +131,7 @@ export function WebCraftStudioV2() {
       mode,
       businessName,
       businessEmail,
+      referenceImages,
       language: "Português de Portugal (PT-PT)",
     })
   }
@@ -133,6 +145,7 @@ export function WebCraftStudioV2() {
       mode,
       currentHtml: current,
       refinement: instruction,
+      referenceImages,
       language: "Português de Portugal (PT-PT)",
     })
   }
@@ -278,6 +291,22 @@ export function WebCraftStudioV2() {
               <Input value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} placeholder="Email/contacto (opcional)" />
             </div>
 
+            <div className="mt-4 rounded-2xl border bg-muted/20 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Imagens de referência</p>
+                  <p className="text-xs text-muted-foreground">Cola URLs de fotos reais do negócio, uma por linha. O Lumin dá prioridade a estas imagens no website.</p>
+                </div>
+                {referenceImages.length > 0 && <Badge variant="outline">{referenceImages.length} imagem{referenceImages.length === 1 ? "" : "s"}</Badge>}
+              </div>
+              <Textarea
+                value={referenceImagesText}
+                onChange={(e) => setReferenceImagesText(e.target.value)}
+                placeholder={'https://exemplo.pt/foto-1.jpg\nhttps://exemplo.pt/foto-2.jpg'}
+                className="min-h-24 rounded-xl text-sm"
+              />
+            </div>
+
             <Button onClick={generate} disabled={loading || !prompt.trim()} size="lg" className="mt-5 h-12 w-full gap-2 rounded-xl">
               {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> A construir...</> : <><Rocket className="h-5 w-5" /> Gerar {mode === "app" ? "App" : "Website"}</>}
             </Button>
@@ -309,6 +338,7 @@ export function WebCraftStudioV2() {
           </Button>
           <Badge variant="secondary">Lumin AI Studio</Badge>
           <Badge variant="outline">{mode === "app" ? "App Web" : "Website"}</Badge>
+          {referenceImages.length > 0 && <Badge variant="outline">{referenceImages.length} refs</Badge>}
           {fullStackProject && <Badge variant="outline">{fullStackProject.files.length} ficheiros · {fullStackProject.framework}</Badge>}
         </div>
 
@@ -360,6 +390,11 @@ export function WebCraftStudioV2() {
             <Button onClick={refine} disabled={loading || !refinement.trim()} className="w-full gap-2">
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> A alterar...</> : <><Send className="h-4 w-4" /> Aplicar alteração</>}
             </Button>
+            {referenceImages.length > 0 && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                O Lumin mantém <strong>{referenceImages.length}</strong> imagem{referenceImages.length === 1 ? "" : "s"} de referência durante os refinamentos.
+              </div>
+            )}
             {error && <p className="text-xs text-destructive">{error}</p>}
             {publishedUrl && (
               <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs">
