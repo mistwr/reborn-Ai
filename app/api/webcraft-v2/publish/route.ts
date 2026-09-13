@@ -24,6 +24,7 @@ function validateFiles(files: ProjectFile[]) {
   return null
 }
 
+// Safe temporary diagnostics: returns booleans only, never secret values.
 export async function GET() {
   return Response.json({
     vercelTokenConfigured: Boolean(process.env.VERCEL_TOKEN),
