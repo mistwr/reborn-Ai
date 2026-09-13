@@ -30,7 +30,14 @@ function safeText(value: unknown, max = 24_000) {
 }
 
 function extractSessionId(data: any) {
-  return data?.sessionId || data?.id || data?.sandboxId || data?.session?.id || ""
+  return (
+    data?.sessionId ||
+    data?.id ||
+    data?.sandboxId ||
+    data?.session?.id ||
+    data?.sandbox?.currentSessionId ||
+    ""
+  )
 }
 
 function extractCommandResult(data: any) {
@@ -66,6 +73,7 @@ export async function executeLuminSandbox(input: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        name: `lumin-${crypto.randomUUID().slice(0, 8)}`,
         projectId,
         runtime: language === "python" ? "python3.13" : "node24",
         timeout: "60000",
@@ -109,7 +117,7 @@ export async function executeLuminSandbox(input: {
       body: JSON.stringify({
         command,
         args,
-        cwd: "/home/vercel-sandbox",
+        cwd: "/vercel/sandbox",
         env: {},
         sudo: false,
         wait: true,
