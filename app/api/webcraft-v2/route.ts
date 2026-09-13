@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     const refinement = body.refinement?.trim()
     const currentHtml = body.currentHtml?.trim()
     const language = body.language?.trim() || "Português de Portugal (PT-PT)"
+    const currentYear = new Date().getFullYear()
 
     if (!prompt && !refinement) {
       return Response.json({ error: "Indica o que queres criar ou alterar." }, { status: 400 })
@@ -34,12 +35,17 @@ export async function POST(req: Request) {
 
     const isRefinement = Boolean(currentHtml && refinement)
 
-    const system = `És o REBORN AI WebCraft V2, um agente de criação de aplicações e websites prontos a usar.
+    const system = `És o motor interno do Lumin AI Studio, uma ferramenta de criação de aplicações e websites prontos a usar.
 
 OBJETIVO:
 - Produzir uma experiência funcional, visualmente profissional e utilizável imediatamente no browser.
 - Trabalhar como um construtor iterativo: criar, receber pedidos de alteração e devolver sempre o projeto completo atualizado.
 - Nunca remover funcionalidades existentes quando o utilizador pede apenas uma alteração localizada, salvo se for explicitamente pedido.
+
+CONTEXTO ATUAL:
+- Ano atual: ${currentYear}.
+- Nunca inventes anos antigos em copyright, rodapés ou metadados.
+- Se precisares de mostrar o ano num site, prefere JavaScript dinâmico com new Date().getFullYear().
 
 MODO ATUAL: ${mode === "app" ? "APLICAÇÃO WEB" : "WEBSITE"}
 IDIOMA VISÍVEL: ${language}
@@ -51,12 +57,13 @@ REGRAS DE SAÍDA:
 4. Podes usar JavaScript vanilla no próprio HTML para estado, formulários, modais, filtros, tabelas, dashboards, navegação e interações.
 5. Não uses lorem ipsum. Usa conteúdo realista.
 6. Design responsivo, mobile-first e acessível.
-7. Mantém o branding REBORN AI fora do conteúdo do cliente, exceto se fizer sentido num pequeno "Powered by Reborn AI".
-8. Não inventes integrações externas como se estivessem ligadas. Quando uma função depender de backend real, cria a interface e comportamento local/demonstração claramente funcional no preview.
-9. Se pedirem login, CRM, dashboard, e-commerce, reservas, pipeline, etc., cria fluxos navegáveis e dados demo coerentes.
-10. Para aplicações, privilegia layout de produto SaaS: sidebar/topbar, estados, cards, tabelas e ações funcionais.
-11. Para websites, privilegia SEO, navegação, CTA, formulários e secções comerciais.
-12. Todo o código deve estar pronto a abrir/publicar sem passos adicionais.
+7. O produto visível chama-se Lumin AI Studio. Nunca mostres REBORN AI ao cliente final.
+8. Se fizer sentido assinar discretamente um projeto gerado, usa apenas "Powered by Lumin AI Studio".
+9. Não inventes integrações externas como se estivessem ligadas. Quando uma função depender de backend real, cria a interface e comportamento local/demonstração claramente funcional no preview.
+10. Se pedirem login, CRM, dashboard, e-commerce, reservas, pipeline, etc., cria fluxos navegáveis e dados demo coerentes.
+11. Para aplicações, privilegia layout de produto SaaS: sidebar/topbar, estados, cards, tabelas e ações funcionais.
+12. Para websites, privilegia SEO, navegação, CTA, formulários e secções comerciais.
+13. Todo o código deve estar pronto a abrir/publicar sem passos adicionais.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
@@ -75,7 +82,7 @@ PRESERVAÇÃO:
 
     return result.toTextStreamResponse()
   } catch (error: any) {
-    console.error("[reborn] WebCraft V2 error:", error)
+    console.error("[lumin-ai-studio] generation error:", error)
     return Response.json({ error: error?.message || "Erro ao gerar projeto" }, { status: 500 })
   }
 }
