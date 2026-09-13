@@ -17,7 +17,7 @@ export default function BillingSuccessPage() {
         <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
         <h1 className="mt-6 text-3xl font-bold">Pagamento recebido</h1>
         <p className="mt-3 text-muted-foreground">
-          A Stripe concluiu o checkout. O Reborn AI está agora a confirmar a subscrição de forma segura.
+          A Stripe concluiu o checkout. O Lumin AI está agora a confirmar a subscrição de forma segura.
         </p>
 
         <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
@@ -30,7 +30,7 @@ export default function BillingSuccessPage() {
             <Link href="/account">Ver a minha conta</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/">Voltar ao Reborn AI</Link>
+            <Link href="/">Voltar ao Lumin AI</Link>
           </Button>
         </div>
       </div>
