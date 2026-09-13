@@ -1,11 +1,11 @@
 {
-  "name": "Reborn AI - Assistente Inteligente",
-  "short_name": "Reborn AI",
-  "description": "Assistente de IA avancado com visao, voz, pesquisa web, geracao de imagens, websites e muito mais.",
+  "name": "Lumin AI - Pensar. Criar. Realizar.",
+  "short_name": "Lumin AI",
+  "description": "Assistente de IA avançado com visão, voz, pesquisa web, geração de imagens, websites e muito mais.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0f",
-  "theme_color": "#7c3aed",
+  "background_color": "#050507",
+  "theme_color": "#d6a84b",
   "orientation": "any",
   "scope": "/",
   "lang": "pt",
@@ -30,14 +30,14 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Reborn AI Desktop"
+      "label": "Lumin AI Desktop"
     },
     {
       "src": "/screenshots/mobile.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Reborn AI Mobile"
+      "label": "Lumin AI Mobile"
     }
   ],
   "shortcuts": [
