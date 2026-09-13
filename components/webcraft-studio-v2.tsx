@@ -9,11 +9,13 @@ import {
   AppWindow,
   Check,
   Code2,
+  Database,
   Download,
   ExternalLink,
   Globe2,
   Loader2,
   Monitor,
+  PackageOpen,
   RefreshCw,
   Rocket,
   Send,
@@ -24,6 +26,13 @@ import {
 
 type Mode = "website" | "app"
 type ViewMode = "desktop" | "tablet" | "mobile"
+type ProjectFile = { path: string; content: string }
+
+type FullStackProject = {
+  name: string
+  framework: string
+  files: ProjectFile[]
+}
 
 const EXAMPLES = [
   "CRM para imobiliária com login, clientes, imóveis e pipeline de vendas",
@@ -43,6 +52,8 @@ export function WebCraftStudioV2() {
   const [editableHtml, setEditableHtml] = useState("")
   const [editCode, setEditCode] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [fullStackLoading, setFullStackLoading] = useState(false)
+  const [fullStackProject, setFullStackProject] = useState<FullStackProject | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const previewWidth = useMemo(() => {
@@ -84,6 +95,7 @@ export function WebCraftStudioV2() {
       const clean = output.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
       setHtml(clean)
       setEditableHtml(clean)
+      setFullStackProject(null)
       return clean
     } catch (err: any) {
       setError(err?.message || "Erro inesperado")
@@ -97,6 +109,7 @@ export function WebCraftStudioV2() {
     if (!prompt.trim()) return
     setHtml(null)
     setEditCode(false)
+    setFullStackProject(null)
     await streamProject({
       prompt,
       mode,
@@ -130,6 +143,46 @@ export function WebCraftStudioV2() {
     URL.revokeObjectURL(url)
   }
 
+  async function downloadFullStackProject(project: FullStackProject) {
+    const JSZip = (await import("jszip")).default
+    const zip = new JSZip()
+    project.files.forEach((file) => zip.file(file.path, file.content))
+    const blob = await zip.generateAsync({ type: "blob" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${project.name}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function generateFullStack() {
+    if (!html || !prompt.trim()) return
+    setFullStackLoading(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/webcraft-v2/project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          currentHtml: html,
+          projectName: businessName || prompt,
+          language: "Português de Portugal (PT-PT)",
+        }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || "Não foi possível criar o projeto full-stack")
+      const project = data as FullStackProject
+      setFullStackProject(project)
+      await downloadFullStackProject(project)
+    } catch (err: any) {
+      setError(err?.message || "Erro ao criar o projeto full-stack")
+    } finally {
+      setFullStackLoading(false)
+    }
+  }
+
   function openFullscreen() {
     if (!html) return
     const w = window.open("", "_blank")
@@ -149,10 +202,11 @@ export function WebCraftStudioV2() {
                 <div className="mb-2 flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
                   <Badge variant="secondary">WebCraft V2</Badge>
+                  <Badge variant="outline" className="gap-1"><Database className="h-3 w-3" /> Full-Stack</Badge>
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Diz o que queres. O Reborn constrói.</h2>
                 <p className="mt-2 text-sm text-muted-foreground md:text-base">
-                  Cria websites ou aplicações web completas, vê o preview e continua a pedir alterações por conversa.
+                  Cria o preview, refina por conversa e exporta um projeto Next.js + Supabase pronto para GitHub e deploy.
                 </p>
               </div>
             </div>
@@ -210,10 +264,11 @@ export function WebCraftStudioV2() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-card px-3 py-2 md:px-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false) }} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null) }} className="gap-2">
             <RefreshCw className="h-4 w-4" /> Novo
           </Button>
           <Badge variant="secondary">{mode === "app" ? "App Web" : "Website"}</Badge>
+          {fullStackProject && <Badge variant="outline">{fullStackProject.files.length} ficheiros · {fullStackProject.framework}</Badge>}
         </div>
 
         <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
@@ -222,11 +277,19 @@ export function WebCraftStudioV2() {
           <button onClick={() => setViewMode("mobile")} className={`rounded-md p-1.5 ${viewMode === "mobile" ? "bg-background shadow" : "text-muted-foreground"}`}><Smartphone className="h-4 w-4" /></button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant={editCode ? "default" : "outline"} size="sm" onClick={() => { if (editCode) setHtml(editableHtml); else setEditableHtml(html); setEditCode(!editCode) }} className="gap-2">
             {editCode ? <><Check className="h-4 w-4" /> Guardar</> : <><Code2 className="h-4 w-4" /> Código</>}
           </Button>
           <Button variant="outline" size="sm" onClick={downloadHtml} className="gap-2"><Download className="h-4 w-4" /> HTML</Button>
+          <Button size="sm" onClick={generateFullStack} disabled={fullStackLoading} className="gap-2">
+            {fullStackLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Full-Stack...</> : <><PackageOpen className="h-4 w-4" /> Full-Stack ZIP</>}
+          </Button>
+          {fullStackProject && (
+            <Button variant="outline" size="sm" onClick={() => downloadFullStackProject(fullStackProject)} className="gap-2">
+              <Download className="h-4 w-4" /> Repetir ZIP
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={openFullscreen}><ExternalLink className="h-4 w-4" /></Button>
         </div>
       </div>
@@ -250,7 +313,7 @@ export function WebCraftStudioV2() {
             </Button>
             {error && <p className="text-xs text-destructive">{error}</p>}
             <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-              Já podes iterar sobre o mesmo projeto em vez de gerar tudo de novo.
+              Quando estiver como queres, usa <strong>Full-Stack ZIP</strong>. O Reborn gera Next.js 16, Supabase SSR, .env.example, migrações SQL/RLS quando necessárias e estrutura pronta para GitHub/Vercel.
             </div>
           </div>
         </aside>
