@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "msapplication-TileColor": "#d6a84b",
+    "msapplication-TileColor": "#050507",
     "msapplication-tap-highlight": "no",
   },
 }
@@ -58,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt" suppressHydrationWarning className="bg-background" data-theme="light">
+    <html lang="pt" suppressHydrationWarning className="bg-background" data-theme="dark">
       <head>
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
@@ -72,7 +72,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                var savedTheme = localStorage.getItem('rebornai-theme') || 'light';
+                var savedTheme = localStorage.getItem('rebornai-theme') || 'dark';
                 document.documentElement.setAttribute('data-theme', savedTheme);
 
                 // Keep historical storage keys for backwards compatibility while
