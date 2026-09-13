@@ -1,78 +1,62 @@
-const CACHE_NAME = 'lumin-ai-v3';
+const CACHE_NAME = 'lumin-ai-v4';
 const OFFLINE_URL = '/offline.html';
 
-// Assets to cache immediately on install
+// Keep only true offline/static essentials. Never precache '/' so an old app shell
+// cannot pin users to an outdated UI after a production deploy.
 const PRECACHE_ASSETS = [
-  '/',
   '/offline.html',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
 
-// Install event - precache essential assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Precaching app shell');
-      return cache.addAll(PRECACHE_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
   );
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    (async () => {
+      const cacheNames = await caches.keys();
+      await Promise.all(
         cacheNames
           .filter((cacheName) => cacheName !== CACHE_NAME)
-          .map((cacheName) => {
-            console.log('[SW] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          })
+          .map((cacheName) => caches.delete(cacheName))
       );
-    })
+      await self.clients.claim();
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      clientList.forEach((client) => client.postMessage({ type: 'LUMIN_SW_ACTIVATED', version: CACHE_NAME }));
+    })()
   );
-  self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests
   if (event.request.method !== 'GET') return;
 
-  // Skip API requests and external resources
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
-    return;
-  }
+  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) return;
 
+  // Navigations and Next assets must always prefer the network so production
+  // deploys appear immediately. Cache is only an offline fallback.
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
       .then((response) => {
-        const responseClone = response.clone();
-
-        if (response.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+        if (response.status === 200 && event.request.mode !== 'navigate') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
-
         return response;
       })
       .catch(async () => {
         const cachedResponse = await caches.match(event.request);
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+        if (cachedResponse) return cachedResponse;
 
         if (event.request.mode === 'navigate') {
           const offlinePage = await caches.match(OFFLINE_URL);
-          if (offlinePage) {
-            return offlinePage;
-          }
+          if (offlinePage) return offlinePage;
         }
 
         return new Response('Offline', {
@@ -84,38 +68,24 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Handle push notifications (future feature)
 self.addEventListener('push', (event) => {
-  if (event.data) {
-    const data = event.data.json();
-    const options = {
-      body: data.body || 'Nova notificacao do Lumin AI',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-72x72.png',
-      vibrate: [100, 50, 100],
-      data: {
-        url: data.url || '/'
-      }
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'Lumin AI', options)
-    );
-  }
+  if (!event.data) return;
+  const data = event.data.json();
+  const options = {
+    body: data.body || 'Nova notificacao do Lumin AI',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
+    vibrate: [100, 50, 100],
+    data: { url: data.url || '/' }
+  };
+  event.waitUntil(self.registration.showNotification(data.title || 'Lumin AI', options));
 });
 
-// Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url || '/')
-  );
+  event.waitUntil(clients.openWindow(event.notification.data.url || '/'));
 });
 
-// Background sync (future feature)
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-messages') {
-    console.log('[SW] Syncing messages...');
-  }
+  if (event.tag === 'sync-messages') console.log('[SW] Syncing messages...');
 });
