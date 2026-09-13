@@ -1,4 +1,4 @@
-const CACHE_NAME = 'reborn-ai-v2';
+const CACHE_NAME = 'lumin-ai-v3';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache immediately on install
@@ -89,7 +89,7 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     const data = event.data.json();
     const options = {
-      body: data.body || 'Nova notificacao do Reborn AI',
+      body: data.body || 'Nova notificacao do Lumin AI',
       icon: '/icons/icon-192x192.png',
       badge: '/icons/icon-72x72.png',
       vibrate: [100, 50, 100],
@@ -99,7 +99,7 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title || 'Reborn AI', options)
+      self.registration.showNotification(data.title || 'Lumin AI', options)
     );
   }
 });
