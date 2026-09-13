@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   AppWindow,
   Check,
+  CloudUpload,
   Code2,
   Database,
   Download,
@@ -53,7 +54,9 @@ export function WebCraftStudioV2() {
   const [editCode, setEditCode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fullStackLoading, setFullStackLoading] = useState(false)
+  const [publishLoading, setPublishLoading] = useState(false)
   const [fullStackProject, setFullStackProject] = useState<FullStackProject | null>(null)
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const previewWidth = useMemo(() => {
@@ -65,6 +68,7 @@ export function WebCraftStudioV2() {
   async function streamProject(payload: Record<string, unknown>) {
     setLoading(true)
     setError(null)
+    setPublishedUrl(null)
 
     try {
       const response = await fetch("/api/webcraft-v2", {
@@ -110,6 +114,7 @@ export function WebCraftStudioV2() {
     setHtml(null)
     setEditCode(false)
     setFullStackProject(null)
+    setPublishedUrl(null)
     await streamProject({
       prompt,
       mode,
@@ -160,6 +165,7 @@ export function WebCraftStudioV2() {
     if (!html || !prompt.trim()) return
     setFullStackLoading(true)
     setError(null)
+    setPublishedUrl(null)
     try {
       const response = await fetch("/api/webcraft-v2/project", {
         method: "POST",
@@ -183,6 +189,39 @@ export function WebCraftStudioV2() {
     }
   }
 
+  async function publishProject() {
+    if (!fullStackProject) {
+      setError("Cria primeiro a versão Full-Stack do projeto.")
+      return
+    }
+
+    setPublishLoading(true)
+    setError(null)
+    setPublishedUrl(null)
+
+    try {
+      const response = await fetch("/api/webcraft-v2/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullStackProject.name,
+          files: fullStackProject.files,
+          target: "production",
+        }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        const setup = data?.setup ? ` ${data.setup}` : ""
+        throw new Error(`${data?.error || "Não foi possível publicar."}${setup}`)
+      }
+      setPublishedUrl(data?.url || null)
+    } catch (err: any) {
+      setError(err?.message || "Erro ao publicar o projeto")
+    } finally {
+      setPublishLoading(false)
+    }
+  }
+
   function openFullscreen() {
     if (!html) return
     const w = window.open("", "_blank")
@@ -203,10 +242,11 @@ export function WebCraftStudioV2() {
                   <Sparkles className="h-5 w-5 text-primary" />
                   <Badge variant="secondary">Lumin AI Studio</Badge>
                   <Badge variant="outline" className="gap-1"><Database className="h-3 w-3" /> Full-Stack</Badge>
+                  <Badge variant="outline" className="gap-1"><CloudUpload className="h-3 w-3" /> 1-click deploy</Badge>
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Descreve. Cria. Publica.</h2>
                 <p className="mt-2 text-sm text-muted-foreground md:text-base">
-                  Cria websites e aplicações por conversa, vê o preview e exporta um projeto Next.js + Supabase pronto para GitHub e deploy.
+                  Cria websites e aplicações por conversa, vê o preview, transforma em Full-Stack e publica quando estiver pronto.
                 </p>
               </div>
             </div>
@@ -264,7 +304,7 @@ export function WebCraftStudioV2() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-card px-3 py-2 md:px-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null) }} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null); setPublishedUrl(null) }} className="gap-2">
             <RefreshCw className="h-4 w-4" /> Novo
           </Button>
           <Badge variant="secondary">Lumin AI Studio</Badge>
@@ -285,6 +325,14 @@ export function WebCraftStudioV2() {
           <Button variant="outline" size="sm" onClick={downloadHtml} className="gap-2"><Download className="h-4 w-4" /> HTML</Button>
           <Button size="sm" onClick={generateFullStack} disabled={fullStackLoading} className="gap-2">
             {fullStackLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Full-Stack...</> : <><PackageOpen className="h-4 w-4" /> Full-Stack ZIP</>}
+          </Button>
+          <Button
+            size="sm"
+            onClick={publishProject}
+            disabled={!fullStackProject || publishLoading}
+            className="gap-2"
+          >
+            {publishLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> A publicar...</> : <><CloudUpload className="h-4 w-4" /> PUBLICAR</>}
           </Button>
           {fullStackProject && (
             <Button variant="outline" size="sm" onClick={() => downloadFullStackProject(fullStackProject)} className="gap-2">
@@ -313,8 +361,16 @@ export function WebCraftStudioV2() {
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> A alterar...</> : <><Send className="h-4 w-4" /> Aplicar alteração</>}
             </Button>
             {error && <p className="text-xs text-destructive">{error}</p>}
+            {publishedUrl && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs">
+                <div className="font-semibold text-foreground">Publicado com sucesso</div>
+                <a href={publishedUrl} target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-1 break-all text-primary hover:underline">
+                  {publishedUrl} <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              </div>
+            )}
             <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-              Quando estiver como queres, usa <strong>Full-Stack ZIP</strong>. O Lumin AI Studio gera Next.js 16, Supabase SSR, .env.example, migrações SQL/RLS quando necessárias e estrutura pronta para GitHub/Vercel.
+              Fluxo: <strong>criar → refinar → Full-Stack → PUBLICAR</strong>. O deploy direto usa a infraestrutura Vercel configurada no Lumin AI Studio.
             </div>
           </div>
         </aside>
