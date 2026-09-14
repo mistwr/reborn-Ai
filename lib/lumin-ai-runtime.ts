@@ -7,8 +7,15 @@ const DEFAULT_FALLBACK_MODELS = [
   "deepseek/deepseek-v4.1-flash",
 ]
 
+const DEFAULT_RETRY_ROUNDS = 2
+const BASE_RETRY_DELAY_MS = 450
+
 function unique(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export function getLuminModelCandidates() {
@@ -51,39 +58,55 @@ export async function generateLuminText(options: {
   maxOutputTokens?: number
   temperature?: number
   models?: string[]
+  retryRounds?: number
 }) {
-  const failures: Array<{ model: string; error: string }> = []
+  const failures: Array<{ model: string; error: string; round?: number }> = []
   const models = unique(options.models?.length ? options.models : getLuminModelCandidates())
+  const retryRounds = Math.max(1, Math.min(3, Number(options.retryRounds || DEFAULT_RETRY_ROUNDS)))
 
-  for (const model of models) {
-    try {
-      const result = await generateText({
-        model,
-        system: options.system,
-        ...(options.messages ? { messages: options.messages } : {}),
-        ...(options.prompt ? { prompt: options.prompt } : {}),
-        ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-        ...(typeof options.temperature === "number" ? { temperature: options.temperature } : {}),
-      } as any)
+  for (let round = 1; round <= retryRounds; round++) {
+    let sawRetryableFailure = false
 
-      if (result.text?.trim()) {
-        return { text: result.text, model, failures }
-      }
+    for (const model of models) {
+      try {
+        const result = await generateText({
+          model,
+          system: options.system,
+          ...(options.messages ? { messages: options.messages } : {}),
+          ...(options.prompt ? { prompt: options.prompt } : {}),
+          ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+          ...(typeof options.temperature === "number" ? { temperature: options.temperature } : {}),
+        } as any)
 
-      failures.push({ model, error: "empty response" })
-    } catch (error: any) {
-      const message = String(error?.message || error || "AI provider error")
-      failures.push({ model, error: message.slice(0, 260) })
-      console.warn(`[Lumin AI] model ${model} failed:`, message)
+        if (result.text?.trim()) {
+          return { text: result.text, model, failures, resilienceRound: round }
+        }
 
-      if (!isRetryableAIError(error)) {
-        throw error
+        failures.push({ model, error: "empty response", round })
+      } catch (error: any) {
+        const message = String(error?.message || error || "AI provider error")
+        const retryable = isRetryableAIError(error)
+        failures.push({ model, error: message.slice(0, 260), round })
+        console.warn(`[Lumin AI] model ${model} failed on round ${round}:`, message)
+
+        if (!retryable) {
+          throw error
+        }
+        sawRetryableFailure = true
       }
     }
+
+    if (round < retryRounds && sawRetryableFailure) {
+      const jitter = Math.floor(Math.random() * 250)
+      await sleep(BASE_RETRY_DELAY_MS * round + jitter)
+      continue
+    }
+    break
   }
 
   const lastError = failures.at(-1)?.error || "Todos os modelos estão temporariamente indisponíveis."
-  const aggregate = new Error(`Lumin AI indisponível após ${models.length} tentativas. ${lastError}`)
+  const aggregate = new Error(`Lumin AI indisponível após ${failures.length} tentativas. ${lastError}`)
   ;(aggregate as any).failures = failures
+  ;(aggregate as any).resilienceExhausted = true
   throw aggregate
 }
