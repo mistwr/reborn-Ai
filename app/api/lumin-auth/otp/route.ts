@@ -4,12 +4,56 @@ export const runtime = "nodejs"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_URL?.trim() || "https://yqninaripblwhcfcwwnr.supabase.co"
 const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_PUBLISHABLE_KEY?.trim() || "sb_publishable_zlhSNpfeS3gjBDPsxOPiCQ_DYkKwgb_"
+const AUTH_REDIRECT_URL =
+  process.env.LUMIN_AUTH_REDIRECT_URL?.trim() ||
+  process.env.NEXTAUTH_URL?.trim() ||
+  "https://rebornaaqi.vercel.app"
 
 function headers(accessToken?: string) {
   return {
     apikey: SUPABASE_PUBLISHABLE_KEY,
     "Content-Type": "application/json",
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  }
+}
+
+function safeRedirectUrl() {
+  try {
+    const url = new URL(AUTH_REDIRECT_URL)
+    if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("invalid protocol")
+    url.hash = ""
+    return url.toString().replace(/\/$/, "")
+  } catch {
+    return "https://rebornaaqi.vercel.app"
+  }
+}
+
+async function loadAccount(userId: string, accessToken: string) {
+  const accountResponse = await fetch(
+    `${SUPABASE_URL}/rest/v1/lumin_accounts?user_id=eq.${encodeURIComponent(userId)}&select=user_id,display_name,account_type,active_organization_id,onboarding_completed&limit=1`,
+    { headers: headers(accessToken), cache: "no-store" },
+  )
+  const accounts = accountResponse.ok ? await accountResponse.json().catch(() => []) : []
+  return Array.isArray(accounts) ? accounts[0] || null : null
+}
+
+async function inspectAccessToken(accessToken: string) {
+  const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: headers(accessToken),
+    cache: "no-store",
+  })
+  const user = await userResponse.json().catch(() => null)
+  if (!userResponse.ok || !user?.id) return null
+
+  const account = await loadAccount(user.id, accessToken)
+  return {
+    user: {
+      id: user.id,
+      email: user.email || "",
+      name: user.user_metadata?.name || user.user_metadata?.full_name || "",
+    },
+    account,
+    needsOnboarding: !account?.onboarding_completed,
   }
 }
 
@@ -22,7 +66,8 @@ export async function POST(req: Request) {
     if (action === "send") {
       if (!email) return NextResponse.json({ error: "Email obrigatório." }, { status: 400 })
 
-      const response = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
+      const redirectTo = safeRedirectUrl()
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`, {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -34,9 +79,21 @@ export async function POST(req: Request) {
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        return NextResponse.json({ error: data?.msg || data?.error_description || data?.message || "Não foi possível enviar o código." }, { status: response.status })
+        return NextResponse.json(
+          { error: data?.msg || data?.error_description || data?.message || "Não foi possível enviar o acesso." },
+          { status: response.status },
+        )
       }
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true, mode: "email_passwordless" })
+    }
+
+    if (action === "inspect") {
+      const accessToken = String(body?.accessToken || "").trim()
+      if (!accessToken) return NextResponse.json({ error: "Sessão de acesso em falta." }, { status: 400 })
+
+      const inspected = await inspectAccessToken(accessToken)
+      if (!inspected) return NextResponse.json({ error: "Link inválido ou expirado." }, { status: 401 })
+      return NextResponse.json({ ok: true, ...inspected })
     }
 
     if (action === "verify") {
@@ -51,20 +108,17 @@ export async function POST(req: Request) {
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok || !data?.access_token || !data?.user?.id) {
-        return NextResponse.json({ error: data?.msg || data?.error_description || data?.message || "Código inválido ou expirado." }, { status: response.status || 400 })
+        return NextResponse.json(
+          { error: data?.msg || data?.error_description || data?.message || "Código inválido ou expirado." },
+          { status: response.status || 400 },
+        )
       }
 
-      const accountResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/lumin_accounts?user_id=eq.${encodeURIComponent(data.user.id)}&select=user_id,display_name,account_type,active_organization_id,onboarding_completed&limit=1`,
-        { headers: headers(data.access_token), cache: "no-store" },
-      )
-      const accounts = accountResponse.ok ? await accountResponse.json().catch(() => []) : []
-      const account = Array.isArray(accounts) ? accounts[0] || null : null
+      const account = await loadAccount(data.user.id, data.access_token)
 
       return NextResponse.json({
         ok: true,
         accessToken: data.access_token,
-        refreshToken: data.refresh_token,
         user: {
           id: data.user.id,
           email: data.user.email || email,
