@@ -256,7 +256,7 @@ export async function POST(req: Request) {
             organizationId: token.organizationId ? String(token.organizationId) : null,
             accessToken: token.supabaseAccessToken ? String(token.supabaseAccessToken) : null,
           })
-        : Promise.resolve({ used: false, context: "", requiresApproval: false, executor: "none" as const }),
+        : Promise.resolve({ used: false, context: "", requiresApproval: false, executor: "none" as const, steps: 0 }),
     ])
 
     const accountContext = buildAccountContext(token, userPreferences)
@@ -285,6 +285,7 @@ export async function POST(req: Request) {
         "X-Lumin-Browser": browser.used ? "1" : "0",
         "X-Lumin-Browser-Approval": browser.requiresApproval ? "1" : "0",
         "X-Lumin-Browser-Executed": browser.executed ? "1" : "0",
+        "X-Lumin-Browser-Steps": String(browser.steps || 0),
         ...(browser.sessionId ? { "X-Lumin-Browser-Session": String(browser.sessionId) } : {}),
       },
     })
