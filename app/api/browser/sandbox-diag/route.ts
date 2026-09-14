@@ -28,7 +28,7 @@ async function runCmd(input: {
     }),
     signal: AbortSignal.timeout(input.timeout + 15000),
   })
-  return { status: response.status, raw: (await response.text()).slice(0, 16000) }
+  return { status: response.status, raw: (await response.text()).slice(0, 18000) }
 }
 
 export async function GET() {
@@ -54,10 +54,8 @@ export async function GET() {
         "storage.googleapis.com",
         "chrome-for-testing-public.storage.googleapis.com",
         "edgedl.me.gvt1.com",
-        "deb.debian.org",
-        "security.debian.org",
-        "archive.ubuntu.com",
-        "security.ubuntu.com"
+        "*.amazonaws.com",
+        "*.amazonlinux.com"
       ],
       allowedCIDRs: [],
       deniedCIDRs: [],
@@ -75,7 +73,7 @@ export async function GET() {
   })
   const text = await response.text()
 
-  let os: any = null
+  let repoInfo: any = null
   let systemDeps: any = null
   let install: any = null
   let launch: any = null
@@ -85,12 +83,12 @@ export async function GET() {
       const parsed = JSON.parse(text)
       const sessionId = parsed?.session?.id || parsed?.sandbox?.currentSessionId || parsed?.sessionId || parsed?.id
       if (sessionId) {
-        os = await runCmd({
+        repoInfo = await runCmd({
           sessionId,
           token,
           teamId,
           command: "sh",
-          args: ["-lc", "cat /etc/os-release; echo '---APT---'; grep -R '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null | head -20 || true"],
+          args: ["-lc", "cat /etc/os-release; echo '---REPOS---'; cat /etc/yum.repos.d/*.repo 2>/dev/null | head -120 || true"],
           timeout: 10000,
         })
 
@@ -101,7 +99,7 @@ export async function GET() {
           command: "sh",
           args: [
             "-lc",
-            "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libdbus-1-3 libatspi2.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 libpango-1.0-0 libcairo2 libasound2 fonts-liberation"
+            "dnf install -y nspr nss atk at-spi2-atk cups-libs libdrm dbus-libs libXcomposite libXdamage libXfixes libXrandr mesa-libgbm libxkbcommon pango cairo alsa-lib liberation-fonts"
           ],
           timeout: 90000,
           sudo: true,
@@ -143,14 +141,7 @@ export async function GET() {
   }
 
   return Response.json(
-    {
-      ok: response.ok,
-      status: response.status,
-      os,
-      systemDeps,
-      install,
-      launch,
-    },
+    { ok: response.ok, status: response.status, repoInfo, systemDeps, install, launch },
     { status: response.ok ? 200 : 500, headers: { "Cache-Control": "no-store" } },
   )
 }
