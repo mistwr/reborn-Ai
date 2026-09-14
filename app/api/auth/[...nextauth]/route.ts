@@ -104,6 +104,7 @@ providers.push(
           organizationSector: organization?.sector || null,
           organizationWebsite: organization?.website || null,
           organizationPlan: organization?.plan || null,
+          supabaseAccessToken: accessToken,
         } as any
       }
 
@@ -150,6 +151,7 @@ export const authOptions = {
         token.organizationSector = user.organizationSector ?? token.organizationSector ?? null
         token.organizationWebsite = user.organizationWebsite ?? token.organizationWebsite ?? null
         token.organizationPlan = user.organizationPlan ?? token.organizationPlan ?? null
+        token.supabaseAccessToken = user.supabaseAccessToken ?? token.supabaseAccessToken ?? null
       }
 
       token.role = isFounder ? "owner" : "user"
