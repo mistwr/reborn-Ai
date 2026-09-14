@@ -1,4 +1,4 @@
-import { executeHeadlessBrowserAction } from "@/lib/lumin-browser-headless-v2"
+import { executeHeadlessBrowserAction } from "@/lib/lumin-browser-headless"
 
 export const maxDuration = 180
 
