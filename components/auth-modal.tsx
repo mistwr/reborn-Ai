@@ -30,14 +30,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [countdown, setCountdown] = useState(0)
-
-  useEffect(() => {
-    if (countdown <= 0) return
-    const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000)
-    return () => window.clearTimeout(timer)
-  }, [countdown])
-
-  if (!isOpen) return null
+  const [callbackActive, setCallbackActive] = useState(false)
 
   const reset = () => {
     setStep("email")
@@ -55,10 +48,78 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const finishSession = async (token: string) => {
     const result = await signIn("credentials", { accessToken: token, redirect: false })
-    if (result?.error) throw new Error("Não foi possível criar a sessão Lumin.")
+    if (result?.error || result?.ok === false) throw new Error("Não foi possível criar a sessão Lumin.")
+    setCallbackActive(false)
     onClose()
     reset()
+    window.location.reload()
   }
+
+  useEffect(() => {
+    if (countdown <= 0) return
+    const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [countdown])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const handleMagicLink = async () => {
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""))
+      const token = hash.get("access_token")
+      const authError = hash.get("error_description") || hash.get("error")
+
+      if (!token && !authError) return
+
+      setCallbackActive(true)
+      setLoading(true)
+      setError("")
+      window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`)
+
+      if (authError) {
+        if (!cancelled) {
+          setLoading(false)
+          setStep("email")
+          setError(decodeURIComponent(authError.replace(/\+/g, " ")))
+        }
+        return
+      }
+
+      try {
+        const response = await fetch("/api/lumin-auth/otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "inspect", accessToken: token }),
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data?.error || "O link de acesso é inválido ou expirou.")
+        if (cancelled) return
+
+        setAccessToken(token || "")
+        setEmail(data?.user?.email || "")
+        setDisplayName(data?.account?.display_name || data?.user?.name || "")
+
+        if (data?.needsOnboarding) {
+          setStep("type")
+          setLoading(false)
+          return
+        }
+
+        await finishSession(token || "")
+      } catch (err: any) {
+        if (!cancelled) {
+          setLoading(false)
+          setStep("email")
+          setError(err?.message || "Não foi possível concluir o acesso pelo link.")
+        }
+      }
+    }
+
+    void handleMagicLink()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const sendCode = async () => {
     const response = await fetch("/api/lumin-auth/otp", {
@@ -67,7 +128,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       body: JSON.stringify({ action: "send", email }),
     })
     const data = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(data?.error || "Não foi possível enviar o código.")
+    if (!response.ok) throw new Error(data?.error || "Não foi possível enviar o acesso.")
     setStep("code")
     setCountdown(60)
   }
@@ -80,7 +141,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     try {
       await sendCode()
     } catch (err: any) {
-      setError(err?.message || "Erro ao enviar o código.")
+      setError(err?.message || "Erro ao enviar o acesso.")
     } finally {
       setLoading(false)
     }
@@ -123,7 +184,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       await sendCode()
       setCode("")
     } catch (err: any) {
-      setError(err?.message || "Não foi possível reenviar o código.")
+      setError(err?.message || "Não foi possível reenviar o acesso.")
     } finally {
       setLoading(false)
     }
@@ -140,14 +201,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const response = await fetch("/api/lumin-auth/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accessToken,
-          displayName,
-          accountType,
-          companyName,
-          sector,
-          website,
-        }),
+        body: JSON.stringify({ accessToken, displayName, accountType, companyName, sector, website }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data?.error || "Não foi possível concluir o registo.")
@@ -158,6 +212,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setLoading(false)
     }
   }
+
+  if (!isOpen && !callbackActive) return null
 
   const title = step === "email"
     ? "Entrar no Lumin AI"
@@ -170,14 +226,20 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           : "Cria o teu espaço"
 
   const subtitle = step === "email"
-    ? "Recebe um código seguro e entra sem password."
+    ? "Recebe um código ou link seguro e entra sem password."
     : step === "code"
-      ? `Introduz o código de 6 dígitos enviado para ${email}.`
+      ? `Se recebeste um código, introduz os 6 dígitos enviados para ${email}. Se recebeste um link, basta abri-lo.`
       : step === "type"
         ? "O menu e o assistente adaptam-se automaticamente ao teu perfil."
         : accountType === "business"
           ? "O Lumin vai usar este contexto para trabalhar contigo e com a tua equipa."
           : "O teu assistente pessoal com Chat, Live, imagens, documentos e Lumin AI Studio."
+
+  const close = () => {
+    setCallbackActive(false)
+    onClose()
+    reset()
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-xl sm:p-6">
@@ -195,14 +257,20 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 <p className="mt-1 text-xs leading-relaxed text-zinc-500 sm:text-sm">{subtitle}</p>
               </div>
             </div>
-            <button onClick={() => { onClose(); reset() }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/[.05] hover:text-white" aria-label="Fechar">
+            <button onClick={close} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/[.05] hover:text-white" aria-label="Fechar">
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {error && <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
 
-          {step === "email" && (
+          {loading && callbackActive && step === "email" && (
+            <div className="rounded-2xl border border-amber-300/15 bg-amber-300/[.04] px-4 py-5 text-center text-sm text-zinc-300">
+              A validar o teu acesso ao Lumin...
+            </div>
+          )}
+
+          {step === "email" && !(loading && callbackActive) && (
             <form onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="lumin-email" className="text-xs uppercase tracking-[.16em] text-zinc-500">Email</Label>
@@ -212,7 +280,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </div>
               </div>
               <Button type="submit" disabled={loading} className="h-12 w-full rounded-2xl border border-amber-200/25 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white">
-                {loading ? "A enviar..." : "Enviar código"}
+                {loading ? "A enviar..." : "Enviar acesso"}
               </Button>
               <div className="grid grid-cols-3 gap-2 pt-1 text-center text-[11px] text-zinc-500">
                 <div className="rounded-xl border border-white/[.06] p-3"><Shield className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Seguro</div>
@@ -224,6 +292,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {step === "code" && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
+              <div className="rounded-2xl border border-white/[.07] bg-white/[.025] px-4 py-3 text-xs leading-relaxed text-zinc-500">
+                Verifica o teu email. O Supabase pode enviar um código de 6 dígitos ou um link seguro. Se recebeste o link, abre-o e o Lumin entra automaticamente.
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="lumin-code" className="text-xs uppercase tracking-[.16em] text-zinc-500">Código</Label>
                 <Input id="lumin-code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" className="h-14 rounded-2xl border-white/10 bg-white/[.035] text-center font-mono text-2xl tracking-[.35em] text-white" />
@@ -232,7 +303,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 {loading ? "A verificar..." : "Confirmar código"}
               </Button>
               <button type="button" disabled={countdown > 0 || loading} onClick={handleResend} className="w-full text-center text-sm text-amber-300 disabled:text-zinc-700">
-                {countdown > 0 ? `Reenviar em ${countdown}s` : "Reenviar código"}
+                {countdown > 0 ? `Reenviar em ${countdown}s` : "Reenviar acesso"}
               </button>
             </form>
           )}
