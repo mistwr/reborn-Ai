@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 
 const REPLACEMENTS: Array<[RegExp, string]> = [
+  [/REBORN AI MUSIC/gi, "Lumin AI Music"],
   [/REBORN AI/gi, "Lumin AI"],
   [/Reborn AI/gi, "Lumin AI"],
 ]
@@ -40,7 +41,7 @@ function replaceBrand(value: string) {
 }
 
 function updateElement(element: Element) {
-  for (const attribute of ["title", "aria-label", "placeholder"]) {
+  for (const attribute of ["title", "aria-label", "placeholder", "alt"]) {
     const value = element.getAttribute(attribute)
     if (!value || !/reborn ai/i.test(value)) continue
     element.setAttribute(attribute, replaceBrand(value))
@@ -67,29 +68,52 @@ function updateNode(node: Node) {
     current = walker.nextNode()
   }
 
-  node.querySelectorAll("[title], [aria-label], [placeholder]").forEach(updateElement)
+  node.querySelectorAll("[title], [aria-label], [placeholder], [alt]").forEach(updateElement)
 }
 
 function applyLuminVisualIdentity() {
   const root = document.documentElement
-  root.dataset.luminShell = "true"
+  root.dataset.luminShell = "phase-5"
 
   for (const [property, value] of Object.entries(LUMIN_PALETTE)) {
     root.style.setProperty(property, value)
   }
 
-  // A nova shell tem uma identidade única. Temas históricos continuam guardados
-  // apenas para compatibilidade, mas deixam de dominar a experiência principal.
   root.setAttribute("data-theme", "dark")
   try {
     localStorage.setItem("luminai-theme", "dark")
+    localStorage.setItem("rebornai-theme", "dark")
   } catch {}
+}
+
+function retireLegacyShellChrome() {
+  // Enquanto o app/page.tsx histórico é dividido, eliminamos da experiência
+  // elementos que já foram substituídos pela nova shell Lumin.
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>("p, span, div"))
+
+  for (const element of candidates) {
+    const text = element.textContent?.trim()
+    if (!text) continue
+
+    if (text === "Tema") {
+      const section = element.parentElement
+      if (section && section.querySelectorAll("button").length >= 3) {
+        section.style.display = "none"
+        section.dataset.luminRetired = "legacy-theme-picker"
+      }
+    }
+  }
+}
+
+function syncLuminShell() {
+  applyLuminVisualIdentity()
+  updateNode(document.body)
+  retireLegacyShellChrome()
 }
 
 export function LuminBrandBridge() {
   useEffect(() => {
-    applyLuminVisualIdentity()
-    updateNode(document.body)
+    syncLuminShell()
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -99,6 +123,7 @@ export function LuminBrandBridge() {
         }
         mutation.addedNodes.forEach(updateNode)
       }
+      retireLegacyShellChrome()
     })
 
     observer.observe(document.body, {
