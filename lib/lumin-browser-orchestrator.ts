@@ -34,11 +34,11 @@ function extractJsonObject(text: string) {
 
 export function shouldUseBrowserAgent(message: string, authenticated: boolean) {
   if (!authenticated || !message.trim()) return false
-  return /\b(abre|abrir|navega|navegar|entra no site|vai ao site|visita|website|página|pagina|clica|clicar|carrega em|preenche|preencher|formulário|formulario|submete|submeter|faz login|inicia sessão|inicia sessao|browser|chrome|chromium|site em javascript|spa|aprova|aprovar|executa|faz isso|sim faz|sim, faz|rejeita|rejeitar|cancela|cancelar)\b/i.test(message)
+  return /\b(abre|abrir|navega|navegar|entra no site|vai ao site|visita|website|página|pagina|clica|clicar|carrega em|preenche|preencher|formulário|formulario|submete|submeter|faz login|inicia sessão|inicia sessao|browser|chrome|chromium|site em javascript|spa|aprova|aprovo|aprovar|confirmo|confirmado|executa|faz isso|sim faz|sim, faz|rejeita|rejeitar|cancela|cancelar)\b/i.test(message)
 }
 
 function isApproval(message: string) {
-  return /^\s*(sim[, ]*)?(aprova|aprovar|executa|executar|faz|faz isso|podes fazer|segue|siga|confirmo|confirmado)\b/i.test(message)
+  return /^\s*(sim[, ]*)?(aprova|aprovo|aprovar|executa|executar|faz|faz isso|podes fazer|segue|siga|confirmo|confirmado)\b/i.test(message)
 }
 
 function isRejection(message: string) {
