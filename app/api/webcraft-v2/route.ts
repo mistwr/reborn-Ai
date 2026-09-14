@@ -20,6 +20,13 @@ function stripCodeFence(value: string) {
   return value.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
 }
 
+function sanitizeGeneratedTargets(value: string) {
+  return value
+    .replace(/\b(href|action)\s*=\s*(['"])(?:null|undefined|none|nan|about:blank|\s*)\2/gi, '$1="#"')
+    .replace(/\b(href|action)\s*=\s*(?:null|undefined|none|nan)(?=\s|>)/gi, '$1="#"')
+    .replace(/\bonclick\s*=\s*(['"])([^'"]*(?:location|window\.open)[^'"]*(?:null|undefined|none)[^'"]*)\1/gi, "")
+}
+
 function validateAndFixHtml(value: string) {
   const currentYear = new Date().getFullYear()
   let html = stripCodeFence(value.trim())
@@ -34,7 +41,7 @@ function validateAndFixHtml(value: string) {
     html = html.replace(/<html(\s[^>]*)?>/i, (_match, attrs = "") => `<html${attrs} lang="pt-PT">`)
   }
 
-  html = html
+  html = sanitizeGeneratedTargets(html)
     .replace(/Powered by\s+Reborn AI/gi, "Powered by Lumin AI Studio")
     .replace(/Criado com\s+Reborn AI/gi, "Criado com Lumin AI Studio")
     .replace(/REBORN AI WebCraft/gi, "Lumin AI Studio")
@@ -102,15 +109,17 @@ REGRAS DE SAÍDA:
 11. Para aplicações, privilegia layout de produto SaaS: sidebar/topbar, estados, cards, tabelas e ações funcionais.
 12. Para websites, privilegia SEO, navegação, CTA, formulários e secções comerciais.
 13. Todo o código deve estar pronto a abrir/publicar sem passos adicionais.
+14. NUNCA uses href="null", href="undefined", action="null", URLs vazios ou destinos inventados. Para navegação interna num website de uma só página usa âncoras reais como #servicos, #contacto e garante que o id correspondente existe. Para links externos usa apenas https://, mailto: ou tel: válidos.
+15. Se um CTA ainda não tiver destino real, usa um botão com comportamento local/demonstrativo ou uma âncora interna válida; nunca uses "null", "undefined", "/null" ou JavaScript que navegue para valores inexistentes.
 
 IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
-14. Antes de desenhar, infere do pedido entre 3 e 8 conceitos visuais concretos (ex.: fitness, treino funcional, halteres, personal trainer; stand automóvel, carros premium, showroom; solário, bronzeamento, cabine, wellness).
-15. Nunca uses imagens sem relação com o tema, placeholders cinzentos, gradientes a fingir fotografias ou URLs vazias quando o pedido pede um website visual/comercial.
-16. Quando não forem fornecidas imagens pelo utilizador, usa imagens remotas temáticas através de URLs contextuais no formato https://loremflickr.com/LARGURA/ALTURA/PALAVRA1,PALAVRA2?lock=NUMERO. Escolhe palavras-chave em inglês diretamente relacionadas com o pedido para melhorar os resultados. Usa valores lock diferentes para evitar repetir a mesma imagem.
-17. Hero, secções editoriais, cartões de produto/serviço, testemunhos com fotografia e galerias devem ter imagens coerentes quando visualmente apropriado.
-18. Usa sempre alt text descritivo e object-fit: cover. Garante contraste de texto sobre imagens com overlay quando necessário.
-19. Se existirem IMAGENS DE REFERÊNCIA fornecidas pelo utilizador, dá-lhes prioridade e reutiliza-as fielmente; não inventes outras para substituir imagens explicitamente fornecidas.
-20. Não uses imagens de celebridades, marcas protegidas ou pessoas identificáveis como se fossem o cliente, salvo se o utilizador tiver fornecido essas imagens.
+16. Antes de desenhar, infere do pedido entre 3 e 8 conceitos visuais concretos (ex.: fitness, treino funcional, halteres, personal trainer; stand automóvel, carros premium, showroom; solário, bronzeamento, cabine, wellness).
+17. Nunca uses imagens sem relação com o tema, placeholders cinzentos, gradientes a fingir fotografias ou URLs vazias quando o pedido pede um website visual/comercial.
+18. Quando não forem fornecidas imagens pelo utilizador, usa imagens remotas temáticas através de URLs contextuais no formato https://loremflickr.com/LARGURA/ALTURA/PALAVRA1,PALAVRA2?lock=NUMERO. Escolhe palavras-chave em inglês diretamente relacionadas com o pedido para melhorar os resultados. Usa valores lock diferentes para evitar repetir a mesma imagem.
+19. Hero, secções editoriais, cartões de produto/serviço, testemunhos com fotografia e galerias devem ter imagens coerentes quando visualmente apropriado.
+20. Usa sempre alt text descritivo e object-fit: cover. Garante contraste de texto sobre imagens com overlay quando necessário.
+21. Se existirem IMAGENS DE REFERÊNCIA fornecidas pelo utilizador, dá-lhes prioridade e reutiliza-as fielmente; não inventes outras para substituir imagens explicitamente fornecidas.
+22. Não uses imagens de celebridades, marcas protegidas ou pessoas identificáveis como se fossem o cliente, salvo se o utilizador tiver fornecido essas imagens.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
