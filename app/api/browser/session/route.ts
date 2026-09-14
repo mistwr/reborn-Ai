@@ -9,6 +9,7 @@ import {
   setPendingBrowserAction,
   updateBrowserSession,
 } from "@/lib/lumin-browser-session"
+import { executeApprovedBrowserHttpAction, type BrowserHttpAction } from "@/lib/lumin-browser-http-executor"
 
 export const maxDuration = 30
 
@@ -24,6 +25,13 @@ async function auth(req: Request) {
     organizationId: token.organizationId ? String(token.organizationId) : null,
     accessToken: token.supabaseAccessToken ? String(token.supabaseAccessToken) : null,
   }
+}
+
+function isExecutableHttpAction(value: any): value is BrowserHttpAction {
+  if (!value || typeof value !== "object") return false
+  if (value.type !== "submit_form" && value.type !== "navigate") return false
+  if (typeof value.url !== "string" || !/^https?:\/\//i.test(value.url)) return false
+  return true
 }
 
 export async function GET(req: Request) {
@@ -114,17 +122,90 @@ export async function POST(req: Request) {
       if (session.status !== "waiting_approval" || !session.pending_action) {
         return json({ error: "Não existe uma ação pendente para aprovar" }, 409)
       }
+
       const approvedAction = session.pending_action
-      const cleared = await clearPendingBrowserAction(session, user.userId, user.accessToken)
-      const updated = cleared
+      const approved = await appendBrowserHistory(
+        session,
+        user.userId,
+        { type: "action_approved", action: approvedAction },
+        user.accessToken,
+      )
+
+      if (!approved) return json({ error: "Não foi possível atualizar a sessão" }, 503)
+
+      if (!isExecutableHttpAction(approvedAction)) {
+        const cleared = await clearPendingBrowserAction(approved, user.userId, user.accessToken)
+        return json({ session: cleared, approvedAction, readyForExecution: true, executor: "headless_required" })
+      }
+
+      const execution = await executeApprovedBrowserHttpAction({
+        action: approvedAction,
+        cookies: approved.cookies,
+      })
+
+      if (!execution.ok) {
+        const failed = await updateBrowserSession(
+          approved.id,
+          user.userId,
+          {
+            status: "error",
+            pending_action: null,
+            last_result: {
+              executor: "http",
+              ok: false,
+              error: execution.error || "execution_failed",
+              action: approvedAction,
+            },
+          },
+          user.accessToken,
+        )
+        const withHistory = failed
+          ? await appendBrowserHistory(
+              failed,
+              user.userId,
+              { type: "action_execution_failed", executor: "http", error: execution.error, action: approvedAction },
+              user.accessToken,
+            )
+          : failed
+        return json({ session: withHistory, execution, executed: false }, 422)
+      }
+
+      const updated = await updateBrowserSession(
+        approved.id,
+        user.userId,
+        {
+          status: "active",
+          pending_action: null,
+          current_url: execution.finalUrl || approved.current_url || null,
+          cookies: execution.cookies || approved.cookies || [],
+          last_result: {
+            executor: "http",
+            ok: true,
+            status: execution.status,
+            url: execution.finalUrl,
+            title: execution.title,
+            text: execution.text,
+          },
+        },
+        user.accessToken,
+      )
+
+      const withHistory = updated
         ? await appendBrowserHistory(
-            cleared,
+            updated,
             user.userId,
-            { type: "action_approved", action: approvedAction },
+            {
+              type: "action_executed",
+              executor: "http",
+              action: approvedAction,
+              status: execution.status,
+              url: execution.finalUrl,
+            },
             user.accessToken,
           )
-        : cleared
-      return json({ session: updated, approvedAction, readyForExecution: true })
+        : updated
+
+      return json({ session: withHistory, execution, executed: true, executor: "http" })
     }
 
     if (action === "reject") {
