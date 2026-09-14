@@ -10,12 +10,14 @@ import { LiveVisionBridge } from "@/components/live-vision-bridge"
 import { RebornLiveAvatar } from "@/components/reborn-live-avatar"
 import { NeuralVoiceBridge } from "@/components/neural-voice-bridge"
 import { LiveInterruptControl } from "@/components/live-interrupt-control"
+import { LuminResilienceRetry } from "@/components/lumin-resilience-retry"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <ProSessionAuthority />
       <ProjectContextBridge />
+      <LuminResilienceRetry />
       <ProjectContextPanel />
       <LiveVisionBridge />
       <RebornLiveAvatar />
