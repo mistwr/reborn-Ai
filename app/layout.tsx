@@ -59,7 +59,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark">
+    <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark" data-lumin-shell="phase-5">
       <head>
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
@@ -73,19 +73,20 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                var legacyTheme = localStorage.getItem('rebornai-theme');
-                var savedTheme = localStorage.getItem('luminai-theme') || legacyTheme || 'dark';
-
-                document.documentElement.setAttribute('data-theme', savedTheme);
-                localStorage.setItem('luminai-theme', savedTheme);
-
-                // Compatibilidade temporária com código legado ainda não migrado.
-                // Estas chaves podem ser removidas quando a shell Lumin deixar de
-                // depender completamente da implementação histórica.
-                localStorage.setItem('rebornai-theme', savedTheme);
+                // A shell Lumin tem uma identidade visual única: preto + dourado.
+                // Mantemos algumas chaves antigas apenas para não quebrar módulos
+                // que ainda estão a ser extraídos do app/page.tsx histórico.
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.documentElement.setAttribute('data-lumin-shell', 'phase-5');
+                localStorage.setItem('luminai-theme', 'dark');
+                localStorage.setItem('rebornai-theme', 'dark');
                 localStorage.setItem('rebornai-tokens', '0');
                 localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
                 localStorage.setItem('rebornai-chat-guard-repair-v2', '1');
+
+                // O antigo banner musical ocupava o topo da experiência e duplicava
+                // a nova homepage Lumin. A música continua disponível no player.
+                localStorage.setItem('rebornai-music-intro-dismissed', 'true');
               })();
 
               if ('serviceWorker' in navigator) {
