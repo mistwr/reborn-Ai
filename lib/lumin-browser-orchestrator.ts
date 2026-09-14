@@ -170,6 +170,66 @@ async function executeHeadlessAndPersist(input: {
   return { session: withHistory || updated || input.session, execution, ok: true }
 }
 
+async function continueSafelyAfterApproval(input: {
+  session: BrowserSessionRow
+  userId: string
+  accessToken?: string | null
+}) {
+  let session = input.session
+  let steps = 1
+  let lastError = ""
+  const originalTask = session.task || "Continua a tarefa em curso."
+
+  for (let step = 2; step <= MAX_AUTONOMOUS_STEPS; step++) {
+    const plan = await planBrowserStep(originalTask, session, step)
+    if (!plan?.use || !plan?.action || typeof plan.action !== "object" || !isHeadlessAction(plan.action)) break
+
+    const action = plan.action as HeadlessBrowserAction
+    const planned = await appendBrowserHistory(
+      session,
+      input.userId,
+      { type: "post_approval_browser_plan", step, task: originalTask.slice(0, 1000), plan },
+      input.accessToken,
+    )
+    if (planned) session = planned
+
+    if (action.type !== "navigate") {
+      const pending = await setPendingBrowserAction({
+        session,
+        userId: input.userId,
+        action: { ...action, reason: plan.reason || "Novo passo interativo preparado após a aprovação anterior" },
+        accessToken: input.accessToken,
+      })
+      return {
+        session: pending || session,
+        steps,
+        requiresApproval: true,
+        pendingAction: action as Record<string, unknown>,
+        lastError,
+      }
+    }
+
+    const result = await executeHeadlessAndPersist({
+      session,
+      action,
+      userId: input.userId,
+      accessToken: input.accessToken,
+      historyType: "post_approval_headless_navigate",
+    })
+    session = result.session
+    steps += 1
+
+    if (!result.ok) {
+      lastError = result.execution.error || "erro desconhecido"
+      break
+    }
+
+    if (plan.done === true) break
+  }
+
+  return { session, steps, requiresApproval: false, pendingAction: null, lastError }
+}
+
 export async function orchestrateBrowserAgent(input: {
   message: string
   userId: string
@@ -208,16 +268,37 @@ export async function orchestrateBrowserAgent(input: {
           accessToken: input.accessToken,
           historyType: "headless_action_executed",
         })
+
+        if (!result.ok) {
+          return {
+            used: true,
+            sessionId: result.session.id,
+            status: result.session.status,
+            context: `${summarizeSession(result.session)}\n\nA ação aprovada falhou: ${result.execution.error || "erro desconhecido"}.`,
+            requiresApproval: false,
+            pendingAction: null,
+            executor: "headless",
+            executed: false,
+            steps: 1,
+          }
+        }
+
+        const continuation = await continueSafelyAfterApproval({
+          session: result.session,
+          userId: input.userId,
+          accessToken: input.accessToken,
+        })
+
         return {
           used: true,
-          sessionId: result.session.id,
-          status: result.session.status,
-          context: `${summarizeSession(result.session)}\n\n${result.ok ? "A ação aprovada foi executada com sucesso." : `A ação aprovada falhou: ${result.execution.error || "erro desconhecido"}.`}`,
-          requiresApproval: false,
-          pendingAction: null,
+          sessionId: continuation.session.id,
+          status: continuation.session.status,
+          context: `${summarizeSession(continuation.session)}\n\nA ação aprovada foi executada com sucesso.${continuation.lastError ? ` O passo seguinte falhou: ${continuation.lastError}.` : continuation.requiresApproval ? " O Lumin continuou a tarefa e encontrou outra ação interativa que precisa de nova aprovação." : ` O Lumin continuou automaticamente a tarefa original e completou ${continuation.steps} passo(s) nesta sequência.`}`,
+          requiresApproval: continuation.requiresApproval,
+          pendingAction: continuation.pendingAction,
           executor: "headless",
-          executed: result.ok,
-          steps: 1,
+          executed: true,
+          steps: continuation.steps,
         }
       }
 
