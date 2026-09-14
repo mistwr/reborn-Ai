@@ -7,6 +7,34 @@ const REPLACEMENTS: Array<[RegExp, string]> = [
   [/Reborn AI/gi, "Lumin AI"],
 ]
 
+const LUMIN_PALETTE: Record<string, string> = {
+  "--background": "#030303",
+  "--foreground": "#f7f3ea",
+  "--card": "#090806",
+  "--card-foreground": "#f7f3ea",
+  "--popover": "#090806",
+  "--popover-foreground": "#f7f3ea",
+  "--primary": "#d6a84b",
+  "--primary-foreground": "#080603",
+  "--secondary": "#12100c",
+  "--secondary-foreground": "#eee6d4",
+  "--muted": "#17140f",
+  "--muted-foreground": "#8f887a",
+  "--accent": "#e5bc63",
+  "--accent-foreground": "#080603",
+  "--border": "#262117",
+  "--input": "#100e0b",
+  "--ring": "#d6a84b",
+  "--sidebar": "#050504",
+  "--sidebar-foreground": "#eee8dc",
+  "--sidebar-primary": "#d6a84b",
+  "--sidebar-primary-foreground": "#080603",
+  "--sidebar-accent": "#15120d",
+  "--sidebar-accent-foreground": "#f7f3ea",
+  "--sidebar-border": "#211c14",
+  "--sidebar-ring": "#d6a84b",
+}
+
 function replaceBrand(value: string) {
   return REPLACEMENTS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value)
 }
@@ -42,8 +70,25 @@ function updateNode(node: Node) {
   node.querySelectorAll("[title], [aria-label], [placeholder]").forEach(updateElement)
 }
 
+function applyLuminVisualIdentity() {
+  const root = document.documentElement
+  root.dataset.luminShell = "true"
+
+  for (const [property, value] of Object.entries(LUMIN_PALETTE)) {
+    root.style.setProperty(property, value)
+  }
+
+  // A nova shell tem uma identidade única. Temas históricos continuam guardados
+  // apenas para compatibilidade, mas deixam de dominar a experiência principal.
+  root.setAttribute("data-theme", "dark")
+  try {
+    localStorage.setItem("luminai-theme", "dark")
+  } catch {}
+}
+
 export function LuminBrandBridge() {
   useEffect(() => {
+    applyLuminVisualIdentity()
     updateNode(document.body)
 
     const observer = new MutationObserver((mutations) => {
