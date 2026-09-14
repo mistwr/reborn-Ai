@@ -25,7 +25,7 @@ export async function GET() {
       deniedCIDRs: [],
       injectionRules: [],
     },
-    resources: { vcpus: "2", memory: "4096" },
+    resources: { vcpus: 2, memory: 4096 },
     tags: { product: "lumin-ai", purpose: "browser-diag" },
   }
 
