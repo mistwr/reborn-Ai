@@ -2,6 +2,7 @@ import { generateLuminText } from "@/lib/lumin-ai-runtime"
 import { executeHeadlessBrowserAction, type HeadlessBrowserAction } from "@/lib/lumin-browser-headless"
 import {
   appendBrowserHistory,
+  clearPendingBrowserAction,
   createBrowserSession,
   getActiveBrowserSession,
   setPendingBrowserAction,
@@ -17,6 +18,7 @@ export type LuminBrowserOrchestration = {
   requiresApproval?: boolean
   pendingAction?: Record<string, unknown> | null
   executor?: "headless" | "none"
+  executed?: boolean
 }
 
 function extractJsonObject(text: string) {
@@ -32,7 +34,15 @@ function extractJsonObject(text: string) {
 
 export function shouldUseBrowserAgent(message: string, authenticated: boolean) {
   if (!authenticated || !message.trim()) return false
-  return /\b(abre|abrir|navega|navegar|entra no site|vai ao site|visita|website|página|pagina|clica|clicar|carrega em|preenche|preencher|formulário|formulario|submete|submeter|faz login|inicia sessão|inicia sessao|browser|chrome|chromium|site em javascript|spa)\b/i.test(message)
+  return /\b(abre|abrir|navega|navegar|entra no site|vai ao site|visita|website|página|pagina|clica|clicar|carrega em|preenche|preencher|formulário|formulario|submete|submeter|faz login|inicia sessão|inicia sessao|browser|chrome|chromium|site em javascript|spa|aprova|aprovar|executa|faz isso|sim faz|sim, faz|rejeita|rejeitar|cancela|cancelar)\b/i.test(message)
+}
+
+function isApproval(message: string) {
+  return /^\s*(sim[, ]*)?(aprova|aprovar|executa|executar|faz|faz isso|podes fazer|segue|siga|confirmo|confirmado)\b/i.test(message)
+}
+
+function isRejection(message: string) {
+  return /^\s*(não|nao)?\s*(rejeita|rejeitar|cancela|cancelar|não faças|nao facas|não executar|nao executar)\b/i.test(message)
 }
 
 function summarizeSession(session: BrowserSessionRow) {
@@ -58,6 +68,12 @@ function summarizeSession(session: BrowserSessionRow) {
     .join("\n")
 }
 
+function isHeadlessAction(value: any): value is HeadlessBrowserAction {
+  if (!value || typeof value !== "object") return false
+  if (!["navigate", "click", "fill", "fill_and_click"].includes(value.type)) return false
+  return typeof value.url === "string" && /^https?:\/\//i.test(value.url)
+}
+
 async function planBrowserStep(message: string, session: BrowserSessionRow | null) {
   const state = session ? summarizeSession(session) : "Não existe sessão ativa."
   const result = await generateLuminText({
@@ -79,6 +95,81 @@ Regras:
   return extractJsonObject(result.text)
 }
 
+async function executeApprovedHeadlessAction(input: {
+  session: BrowserSessionRow
+  action: HeadlessBrowserAction
+  userId: string
+  accessToken?: string | null
+}) {
+  const execution = await executeHeadlessBrowserAction({
+    action: input.action,
+    cookies: Array.isArray(input.session.cookies) ? input.session.cookies : [],
+  })
+
+  if (!execution.ok) {
+    const failed = await updateBrowserSession(
+      input.session.id,
+      input.userId,
+      {
+        status: "active",
+        pending_action: null,
+        last_result: { executor: "headless", ok: false, error: execution.error || "browser_failed" },
+      },
+      input.accessToken,
+    )
+    const withHistory = failed
+      ? await appendBrowserHistory(
+          failed,
+          input.userId,
+          { type: "headless_action_failed", action: input.action, error: execution.error || "browser_failed" },
+          input.accessToken,
+        )
+      : failed
+    return {
+      session: withHistory || failed || input.session,
+      execution,
+      ok: false,
+    }
+  }
+
+  const updated = await updateBrowserSession(
+    input.session.id,
+    input.userId,
+    {
+      status: "active",
+      pending_action: null,
+      current_url: execution.finalUrl || input.action.url,
+      cookies: execution.cookies || input.session.cookies || [],
+      last_result: {
+        executor: "headless",
+        ok: true,
+        url: execution.finalUrl,
+        title: execution.title,
+        text: execution.text,
+        links: execution.links || [],
+        buttons: execution.buttons || [],
+        inputs: execution.inputs || [],
+      },
+    },
+    input.accessToken,
+  )
+
+  const withHistory = updated
+    ? await appendBrowserHistory(
+        updated,
+        input.userId,
+        { type: "headless_action_executed", action: input.action, url: execution.finalUrl || input.action.url },
+        input.accessToken,
+      )
+    : updated
+
+  return {
+    session: withHistory || updated || input.session,
+    execution,
+    ok: true,
+  }
+}
+
 export async function orchestrateBrowserAgent(input: {
   message: string
   userId: string
@@ -89,6 +180,55 @@ export async function orchestrateBrowserAgent(input: {
     let session = await getActiveBrowserSession(input.userId, input.accessToken).catch(() => null)
 
     if (session?.status === "waiting_approval" && session.pending_action) {
+      if (isRejection(input.message)) {
+        const rejected = session.pending_action
+        const cleared = await clearPendingBrowserAction(session, input.userId, input.accessToken)
+        const updated = cleared
+          ? await appendBrowserHistory(
+              cleared,
+              input.userId,
+              { type: "chat_action_rejected", action: rejected },
+              input.accessToken,
+            )
+          : cleared
+        return {
+          used: true,
+          sessionId: updated?.id || session.id,
+          status: updated?.status || "active",
+          context: `${summarizeSession(updated || cleared || session)}\n\nA ação pendente foi rejeitada pelo utilizador e NÃO foi executada.`,
+          requiresApproval: false,
+          pendingAction: null,
+          executor: "none",
+          executed: false,
+        }
+      }
+
+      if (isApproval(input.message) && isHeadlessAction(session.pending_action)) {
+        const approved = await appendBrowserHistory(
+          session,
+          input.userId,
+          { type: "chat_action_approved", action: session.pending_action },
+          input.accessToken,
+        )
+        const baseSession = approved || session
+        const result = await executeApprovedHeadlessAction({
+          session: baseSession,
+          action: session.pending_action,
+          userId: input.userId,
+          accessToken: input.accessToken,
+        })
+        return {
+          used: true,
+          sessionId: result.session.id,
+          status: result.session.status,
+          context: `${summarizeSession(result.session)}\n\n${result.ok ? "A ação aprovada foi executada com sucesso." : `A ação aprovada falhou: ${result.execution.error || "erro desconhecido"}.`}`,
+          requiresApproval: false,
+          pendingAction: null,
+          executor: "headless",
+          executed: result.ok,
+        }
+      }
+
       return {
         used: true,
         sessionId: session.id,
@@ -97,11 +237,12 @@ export async function orchestrateBrowserAgent(input: {
         requiresApproval: true,
         pendingAction: session.pending_action,
         executor: "none",
+        executed: false,
       }
     }
 
     const plan = await planBrowserStep(input.message, session)
-    if (!plan?.use || !plan?.action || typeof plan.action !== "object") {
+    if (!plan?.use || !plan?.action || typeof plan.action !== "object" || !isHeadlessAction(plan.action)) {
       return {
         used: Boolean(session),
         sessionId: session?.id,
@@ -118,7 +259,7 @@ export async function orchestrateBrowserAgent(input: {
         userId: input.userId,
         organizationId: input.organizationId || null,
         task: input.message,
-        currentUrl: typeof (action as any).url === "string" ? (action as any).url : null,
+        currentUrl: action.url,
         accessToken: input.accessToken,
       })
     } else {
@@ -146,70 +287,25 @@ export async function orchestrateBrowserAgent(input: {
         requiresApproval: true,
         pendingAction: action as any,
         executor: "none",
+        executed: false,
       }
     }
 
-    const execution = await executeHeadlessBrowserAction({
+    const result = await executeApprovedHeadlessAction({
+      session,
       action,
-      cookies: Array.isArray(session.cookies) ? session.cookies : [],
+      userId: input.userId,
+      accessToken: input.accessToken,
     })
-
-    if (!execution.ok) {
-      const failed = await updateBrowserSession(
-        session.id,
-        input.userId,
-        {
-          last_result: { executor: "headless", ok: false, error: execution.error || "browser_failed" },
-        },
-        input.accessToken,
-      )
-      return {
-        used: true,
-        sessionId: failed?.id || session.id,
-        status: failed?.status || session.status,
-        context: `${summarizeSession(failed || session)}\n\nO Chromium não conseguiu concluir a navegação: ${execution.error || "erro desconhecido"}.`,
-        requiresApproval: false,
-        executor: "headless",
-      }
-    }
-
-    const updated = await updateBrowserSession(
-      session.id,
-      input.userId,
-      {
-        status: "active",
-        current_url: execution.finalUrl || (action as any).url,
-        cookies: execution.cookies || session.cookies || [],
-        last_result: {
-          executor: "headless",
-          ok: true,
-          url: execution.finalUrl,
-          title: execution.title,
-          text: execution.text,
-          links: execution.links || [],
-          buttons: execution.buttons || [],
-          inputs: execution.inputs || [],
-        },
-      },
-      input.accessToken,
-    )
-
-    const withHistory = updated
-      ? await appendBrowserHistory(
-          updated,
-          input.userId,
-          { type: "headless_navigate", url: execution.finalUrl || (action as any).url },
-          input.accessToken,
-        )
-      : updated
 
     return {
       used: true,
-      sessionId: withHistory?.id || session.id,
-      status: withHistory?.status || "active",
-      context: summarizeSession(withHistory || updated || session),
+      sessionId: result.session.id,
+      status: result.session.status,
+      context: `${summarizeSession(result.session)}${result.ok ? "" : `\n\nO Chromium não conseguiu concluir a navegação: ${result.execution.error || "erro desconhecido"}.`}`,
       requiresApproval: false,
       executor: "headless",
+      executed: result.ok,
     }
   } catch (error) {
     console.warn("[Lumin Browser Orchestrator] skipped:", error)
