@@ -8,6 +8,7 @@ import { RebornAnalyticsObserver } from "@/components/reborn-analytics-observer"
 import { GrowthTracking } from "@/components/growth-tracking"
 import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminBusinessMenu } from "@/components/lumin-business-menu"
+import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -100,6 +101,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <LuminBusinessMenu />
+          <LuminSecureLoginPanel />
         </Providers>
         <LuminBrandBridge />
         <RebornAnalyticsObserver />
