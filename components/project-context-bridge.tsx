@@ -151,6 +151,44 @@ function guessActivity(body: any) {
   return "A pensar"
 }
 
+function localResilienceReply(message: string, offline: boolean) {
+  const value = String(message || "").trim()
+  const lower = value.toLowerCase()
+  const currentInfo = /\b(hoje|agora|atual|not[ií]cia|pre[çc]o|mercado|cotação|tempo|meteorologia|resultado|ranking|stock|horário|lei|governo|latest|current|today)\b/i.test(value)
+  const approval = /^\s*(aprovo|aprova|confirmo|executa|faz isso|rejeita|cancela)\b/i.test(value)
+
+  if (/^(ol[aá]|hello|hi|boas|bom dia|boa tarde|boa noite|tas ai|tás aí|estás aí|responde)[!?., ]*$/i.test(value)) {
+    return offline
+      ? "Estou aqui. Estou em **Modo Offline**: consigo manter a conversa e ajudar com conteúdo que não dependa da internet. Pesquisa web, Browser Agent e dados atuais voltam assim que houver ligação."
+      : "Estou aqui. Entrei em **Modo Resiliência** porque os modelos externos estão temporariamente indisponíveis. A conversa continua ativa e volto automaticamente ao modo completo assim que um provider responder."
+  }
+
+  if (approval) {
+    return "Recebi a tua decisão. Neste momento o motor de linguagem está em **Modo Resiliência**, por isso não vou assumir nem repetir uma ação externa sem confirmação real do servidor. Assim que o serviço normalizar, podes enviar a decisão novamente e o Browser Agent continua da sessão guardada."
+  }
+
+  if (offline && currentInfo) {
+    return `Estou em **Modo Offline**. Recebi o teu pedido — “${value.slice(0, 180)}” — mas esta resposta depende de informação atual e não seria correto inventar dados sem ligação. Assim que a internet voltar, o Lumin pesquisa e valida as fontes automaticamente.`
+  }
+
+  if (offline) {
+    return `Estou em **Modo Offline** e continuo disponível. Recebi: “${value.slice(0, 220)}”. Posso ajudar com escrita, estrutura, ideias, revisão e trabalho que não dependa de informação online. Para pesquisa web, Browser Agent ou IA remota, retomo automaticamente quando a ligação regressar.`
+  }
+
+  return `Estou em **Modo Resiliência**. Recebi o teu pedido — “${value.slice(0, 220)}” — mas os modelos externos não responderam mesmo após novas tentativas. Não perdi a conversa nem vou inventar uma resposta. Podes continuar a escrever; o Lumin volta automaticamente ao modo completo quando um provider ficar disponível.`
+}
+
+function resilienceResponse(text: string, mode: "offline" | "provider") {
+  return new Response(text, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Lumin-Resilience": mode,
+    },
+  })
+}
+
 export function ProjectContextBridge() {
   const [hud, setHud] = useState<AgentHudState>(IDLE_HUD)
 
@@ -168,6 +206,17 @@ export function ProjectContextBridge() {
           if (typeof init?.body === "string") parsedBody = JSON.parse(init.body)
         } catch {}
 
+        const userMessage = String(parsedBody?.message || "")
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setHud({
+            ...IDLE_HUD,
+            visible: true,
+            label: "Modo Offline",
+            detail: "Sem ligação. O Lumin mantém o chat vivo e evita inventar informação atual.",
+          })
+          return resilienceResponse(localResilienceReply(userMessage, true), "offline")
+        }
+
         setHud((prev) => ({
           ...prev,
           visible: true,
@@ -180,6 +229,17 @@ export function ProjectContextBridge() {
 
         try {
           const response = await originalFetch(targetInput, init)
+
+          if (!response.ok && response.status >= 500) {
+            setHud({
+              ...IDLE_HUD,
+              visible: true,
+              label: "Modo Resiliência",
+              detail: "Os providers não responderam. O chat continua ativo sem mostrar erro técnico.",
+            })
+            return resilienceResponse(localResilienceReply(userMessage, false), "provider")
+          }
+
           const web = response.headers.get("X-Lumin-Web-Search") === "1"
           const sandbox = response.headers.get("X-Lumin-Sandbox") === "1"
           const browser = response.headers.get("X-Lumin-Browser") === "1"
@@ -187,10 +247,14 @@ export function ProjectContextBridge() {
           const executed = response.headers.get("X-Lumin-Browser-Executed") === "1"
           const sessionId = response.headers.get("X-Lumin-Browser-Session") || undefined
           const opened = response.headers.get("X-Lumin-Web-Opened") || "0"
+          const resilience = response.headers.get("X-Lumin-Resilience")
 
           let label = "Concluído"
           let detail = "Resposta pronta"
-          if (approval) {
+          if (resilience) {
+            label = resilience === "offline" ? "Modo Offline" : "Modo Resiliência"
+            detail = resilience === "offline" ? "Resposta local sem ligação." : "Resposta local de segurança."
+          } else if (approval) {
             label = "Aprovação necessária"
             detail = "O Lumin preparou uma ação no browser e está à espera da tua decisão."
           } else if (executed) {
@@ -208,7 +272,7 @@ export function ProjectContextBridge() {
           }
 
           setHud({
-            visible: web || sandbox || browser || approval || executed,
+            visible: Boolean(resilience) || web || sandbox || browser || approval || executed,
             busy: false,
             label,
             detail,
@@ -220,9 +284,14 @@ export function ProjectContextBridge() {
             browser,
           })
           return response
-        } catch (error) {
-          setHud((prev) => ({ ...prev, visible: true, busy: false, label: "Falha temporária", detail: "Não foi possível concluir a operação agentic." }))
-          throw error
+        } catch {
+          setHud({
+            ...IDLE_HUD,
+            visible: true,
+            label: "Modo Resiliência",
+            detail: "Falha de rede/provider. O chat continua com resposta local segura.",
+          })
+          return resilienceResponse(localResilienceReply(userMessage, typeof navigator !== "undefined" && navigator.onLine === false), "provider")
         }
       }
 
@@ -283,12 +352,13 @@ export function ProjectContextBridge() {
       })
       if (!response.ok) throw new Error("decision_failed")
       const text = await response.text()
+      const resilience = response.headers.get("X-Lumin-Resilience")
       setHud((prev) => ({
         ...prev,
         visible: true,
         busy: false,
-        approval: false,
-        label: decision === "Aprovo" ? "Ação concluída" : "Ação rejeitada",
+        approval: resilience ? prev.approval : false,
+        label: resilience ? "Modo Resiliência" : decision === "Aprovo" ? "Ação concluída" : "Ação rejeitada",
         detail: text.trim().slice(0, 260) || (decision === "Aprovo" ? "A ação foi processada." : "A ação não foi executada."),
       }))
     } catch {
