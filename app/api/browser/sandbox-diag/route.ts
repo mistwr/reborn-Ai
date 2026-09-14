@@ -1,7 +1,7 @@
 const DEFAULT_PROJECT_ID = "prj_h0JhWRWBtf1DhpveHzsVDVdlQyV8"
 const DEFAULT_TEAM_ID = "team_JnCeZC9Btsn8DLiOsbLMguxk"
 
-export const maxDuration = 120
+export const maxDuration = 180
 
 async function runCmd(input: {
   sessionId: string
@@ -10,6 +10,7 @@ async function runCmd(input: {
   command: string
   args: string[]
   timeout: number
+  sudo?: boolean
 }) {
   const url = `https://api.vercel.com/v2/sandboxes/sessions/${encodeURIComponent(input.sessionId)}/cmd?cmdId=${crypto.randomUUID()}&teamId=${encodeURIComponent(input.teamId)}`
   const response = await fetch(url, {
@@ -20,14 +21,14 @@ async function runCmd(input: {
       args: input.args,
       cwd: "/vercel/sandbox",
       env: {},
-      sudo: false,
+      sudo: input.sudo === true,
       wait: true,
       logs: true,
       timeout: input.timeout,
     }),
     signal: AbortSignal.timeout(input.timeout + 15000),
   })
-  return { status: response.status, raw: (await response.text()).slice(0, 12000) }
+  return { status: response.status, raw: (await response.text()).slice(0, 16000) }
 }
 
 export async function GET() {
@@ -53,6 +54,10 @@ export async function GET() {
         "storage.googleapis.com",
         "chrome-for-testing-public.storage.googleapis.com",
         "edgedl.me.gvt1.com",
+        "deb.debian.org",
+        "security.debian.org",
+        "archive.ubuntu.com",
+        "security.ubuntu.com"
       ],
       allowedCIDRs: [],
       deniedCIDRs: [],
@@ -70,6 +75,8 @@ export async function GET() {
   })
   const text = await response.text()
 
+  let os: any = null
+  let systemDeps: any = null
   let install: any = null
   let launch: any = null
 
@@ -78,6 +85,28 @@ export async function GET() {
       const parsed = JSON.parse(text)
       const sessionId = parsed?.session?.id || parsed?.sandbox?.currentSessionId || parsed?.sessionId || parsed?.id
       if (sessionId) {
+        os = await runCmd({
+          sessionId,
+          token,
+          teamId,
+          command: "sh",
+          args: ["-lc", "cat /etc/os-release; echo '---APT---'; grep -R '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null | head -20 || true"],
+          timeout: 10000,
+        })
+
+        systemDeps = await runCmd({
+          sessionId,
+          token,
+          teamId,
+          command: "sh",
+          args: [
+            "-lc",
+            "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libdbus-1-3 libatspi2.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 libpango-1.0-0 libcairo2 libasound2 fonts-liberation"
+          ],
+          timeout: 90000,
+          sudo: true,
+        })
+
         install = await runCmd({
           sessionId,
           token,
@@ -117,7 +146,8 @@ export async function GET() {
     {
       ok: response.ok,
       status: response.status,
-      sandboxResponse: text.slice(0, 4000),
+      os,
+      systemDeps,
       install,
       launch,
     },
