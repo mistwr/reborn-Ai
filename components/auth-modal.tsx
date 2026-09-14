@@ -128,14 +128,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       body: JSON.stringify({ action: "send", email }),
     })
     const data = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(data?.error || "Não foi possível enviar o acesso.")
+
+    if (!response.ok) {
+      if (response.status === 429 || data?.code === "EMAIL_RATE_LIMIT") {
+        const retry = Number(data?.retryAfter || 0)
+        setCountdown(Number.isFinite(retry) && retry > 0 ? Math.max(retry, 60) : 60)
+      }
+      throw new Error(data?.error || "Não foi possível enviar o acesso.")
+    }
+
     setStep("code")
     setCountdown(60)
   }
 
   const handleSendCode = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!email.trim()) return
+    if (!email.trim() || countdown > 0) return
     setLoading(true)
     setError("")
     try {
@@ -228,7 +236,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const subtitle = step === "email"
     ? "Recebe um código ou link seguro e entra sem password."
     : step === "code"
-      ? `Se recebeste um código, introduz os 6 dígitos enviados para ${email}. Se recebeste um link, basta abri-lo.`
+      ? `Verifica o email enviado pelo Lumin para ${email}. Podes usar o código ou abrir o link seguro.`
       : step === "type"
         ? "O menu e o assistente adaptam-se automaticamente ao teu perfil."
         : accountType === "business"
@@ -279,8 +287,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   <Input id="lumin-email" type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teu@email.com" className="h-12 rounded-2xl border-white/10 bg-white/[.035] pl-11 text-white placeholder:text-zinc-600" />
                 </div>
               </div>
-              <Button type="submit" disabled={loading} className="h-12 w-full rounded-2xl border border-amber-200/25 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white">
-                {loading ? "A enviar..." : "Enviar acesso"}
+              <Button type="submit" disabled={loading || countdown > 0} className="h-12 w-full rounded-2xl border border-amber-200/25 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white">
+                {loading ? "A enviar..." : countdown > 0 ? `Tenta novamente em ${countdown}s` : "Enviar acesso"}
               </Button>
               <div className="grid grid-cols-3 gap-2 pt-1 text-center text-[11px] text-zinc-500">
                 <div className="rounded-xl border border-white/[.06] p-3"><Shield className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Seguro</div>
@@ -293,7 +301,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {step === "code" && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
               <div className="rounded-2xl border border-white/[.07] bg-white/[.025] px-4 py-3 text-xs leading-relaxed text-zinc-500">
-                Verifica o teu email. O Supabase pode enviar um código de 6 dígitos ou um link seguro. Se recebeste o link, abre-o e o Lumin entra automaticamente.
+                Verifica o email enviado pelo Lumin. Se recebeste um código, introduz os 6 dígitos. Se recebeste um link seguro, abre-o e o Lumin entra automaticamente.
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lumin-code" className="text-xs uppercase tracking-[.16em] text-zinc-500">Código</Label>
