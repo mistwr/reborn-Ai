@@ -19,7 +19,10 @@ export type LuminBrowserOrchestration = {
   pendingAction?: Record<string, unknown> | null
   executor?: "headless" | "none"
   executed?: boolean
+  steps?: number
 }
+
+const MAX_AUTONOMOUS_STEPS = 3
 
 function extractJsonObject(text: string) {
   const start = text.indexOf("{")
@@ -74,20 +77,24 @@ function isHeadlessAction(value: any): value is HeadlessBrowserAction {
   return typeof value.url === "string" && /^https?:\/\//i.test(value.url)
 }
 
-async function planBrowserStep(message: string, session: BrowserSessionRow | null) {
+async function planBrowserStep(message: string, session: BrowserSessionRow | null, step: number) {
   const state = session ? summarizeSession(session) : "Não existe sessão ativa."
   const result = await generateLuminText({
     system: `És o planeador do Lumin Browser Agent. Decide APENAS o próximo passo seguro para cumprir o pedido do utilizador.
 Responde APENAS JSON válido neste formato:
-{"use":boolean,"action":{"type":"navigate"|"click"|"fill"|"fill_and_click","url":"https://...","selector":"...","fields":{}},"reason":"..."}
+{"use":boolean,"action":{"type":"navigate"|"click"|"fill"|"fill_and_click","url":"https://...","selector":"...","fields":{}},"reason":"...","done":boolean}
 Regras:
 - Para apenas abrir/ler uma página, usa navigate.
+- Se a informação necessária já estiver no estado atual, usa {"use":false,"action":null,"reason":"...","done":true}.
+- Para continuar a investigar, escolhe preferencialmente um URL que esteja em Links disponíveis.
+- Não repitas a mesma navegação sem motivo.
 - Para clicar ou preencher, usa apenas seletores presentes no estado da página quando existirem.
 - Nunca peças nem uses passwords, OTP/2FA, cartões, CVV/CVC, IBAN, API keys, tokens ou segredos.
 - Nunca planeies pagamento, compra, transferência, delete, remoção, cancelamento de conta ou outra ação irreversível.
-- Se faltar URL/selector/dados suficientes, responde {"use":false,"action":null,"reason":"..."}.
-- Uma ação de click/fill/fill_and_click requer aprovação humana antes de execução. navigate pode executar automaticamente.
-- Não inventes que uma ação foi executada.`,
+- Se faltar URL/selector/dados suficientes, responde {"use":false,"action":null,"reason":"...","done":true}.
+- click/fill/fill_and_click requer aprovação humana antes de execução. navigate pode executar automaticamente.
+- Não inventes que uma ação foi executada.
+- Estás no passo ${step} de no máximo ${MAX_AUTONOMOUS_STEPS} passos automáticos.`,
     prompt: `PEDIDO:\n${message}\n\nESTADO ATUAL:\n${state}`,
     maxOutputTokens: 1400,
     temperature: 0,
@@ -95,11 +102,12 @@ Regras:
   return extractJsonObject(result.text)
 }
 
-async function executeApprovedHeadlessAction(input: {
+async function executeHeadlessAndPersist(input: {
   session: BrowserSessionRow
   action: HeadlessBrowserAction
   userId: string
   accessToken?: string | null
+  historyType: string
 }) {
   const execution = await executeHeadlessBrowserAction({
     action: input.action,
@@ -121,15 +129,11 @@ async function executeApprovedHeadlessAction(input: {
       ? await appendBrowserHistory(
           failed,
           input.userId,
-          { type: "headless_action_failed", action: input.action, error: execution.error || "browser_failed" },
+          { type: `${input.historyType}_failed`, action: input.action, error: execution.error || "browser_failed" },
           input.accessToken,
         )
       : failed
-    return {
-      session: withHistory || failed || input.session,
-      execution,
-      ok: false,
-    }
+    return { session: withHistory || failed || input.session, execution, ok: false }
   }
 
   const updated = await updateBrowserSession(
@@ -158,16 +162,12 @@ async function executeApprovedHeadlessAction(input: {
     ? await appendBrowserHistory(
         updated,
         input.userId,
-        { type: "headless_action_executed", action: input.action, url: execution.finalUrl || input.action.url },
+        { type: input.historyType, action: input.action, url: execution.finalUrl || input.action.url },
         input.accessToken,
       )
     : updated
 
-  return {
-    session: withHistory || updated || input.session,
-    execution,
-    ok: true,
-  }
+  return { session: withHistory || updated || input.session, execution, ok: true }
 }
 
 export async function orchestrateBrowserAgent(input: {
@@ -184,12 +184,7 @@ export async function orchestrateBrowserAgent(input: {
         const rejected = session.pending_action
         const cleared = await clearPendingBrowserAction(session, input.userId, input.accessToken)
         const updated = cleared
-          ? await appendBrowserHistory(
-              cleared,
-              input.userId,
-              { type: "chat_action_rejected", action: rejected },
-              input.accessToken,
-            )
+          ? await appendBrowserHistory(cleared, input.userId, { type: "chat_action_rejected", action: rejected }, input.accessToken)
           : cleared
         return {
           used: true,
@@ -200,22 +195,18 @@ export async function orchestrateBrowserAgent(input: {
           pendingAction: null,
           executor: "none",
           executed: false,
+          steps: 0,
         }
       }
 
       if (isApproval(input.message) && isHeadlessAction(session.pending_action)) {
-        const approved = await appendBrowserHistory(
-          session,
-          input.userId,
-          { type: "chat_action_approved", action: session.pending_action },
-          input.accessToken,
-        )
-        const baseSession = approved || session
-        const result = await executeApprovedHeadlessAction({
-          session: baseSession,
+        const approved = await appendBrowserHistory(session, input.userId, { type: "chat_action_approved", action: session.pending_action }, input.accessToken)
+        const result = await executeHeadlessAndPersist({
+          session: approved || session,
           action: session.pending_action,
           userId: input.userId,
           accessToken: input.accessToken,
+          historyType: "headless_action_executed",
         })
         return {
           used: true,
@@ -226,6 +217,7 @@ export async function orchestrateBrowserAgent(input: {
           pendingAction: null,
           executor: "headless",
           executed: result.ok,
+          steps: 1,
         }
       }
 
@@ -238,77 +230,101 @@ export async function orchestrateBrowserAgent(input: {
         pendingAction: session.pending_action,
         executor: "none",
         executed: false,
+        steps: 0,
       }
     }
 
-    const plan = await planBrowserStep(input.message, session)
-    if (!plan?.use || !plan?.action || typeof plan.action !== "object" || !isHeadlessAction(plan.action)) {
-      return {
-        used: Boolean(session),
-        sessionId: session?.id,
-        status: session?.status,
-        context: session ? summarizeSession(session) : "",
-        requiresApproval: false,
-        executor: "none",
-      }
-    }
+    let completedSteps = 0
+    let lastError = ""
 
-    const action = plan.action as HeadlessBrowserAction
-    if (!session) {
-      session = await createBrowserSession({
-        userId: input.userId,
-        organizationId: input.organizationId || null,
-        task: input.message,
-        currentUrl: action.url,
-        accessToken: input.accessToken,
-      })
-    } else {
-      const continued = await appendBrowserHistory(
+    for (let step = 1; step <= MAX_AUTONOMOUS_STEPS; step++) {
+      const plan = await planBrowserStep(input.message, session, step)
+      if (!plan?.use || !plan?.action || typeof plan.action !== "object" || !isHeadlessAction(plan.action)) {
+        return {
+          used: Boolean(session),
+          sessionId: session?.id,
+          status: session?.status,
+          context: session
+            ? `${summarizeSession(session)}${lastError ? `\n\nÚltimo erro de navegação: ${lastError}` : ""}`
+            : "",
+          requiresApproval: false,
+          executor: completedSteps ? "headless" : "none",
+          executed: completedSteps > 0,
+          steps: completedSteps,
+        }
+      }
+
+      const action = plan.action as HeadlessBrowserAction
+      if (!session) {
+        session = await createBrowserSession({
+          userId: input.userId,
+          organizationId: input.organizationId || null,
+          task: input.message,
+          currentUrl: action.url,
+          accessToken: input.accessToken,
+        })
+      } else {
+        const continued = await appendBrowserHistory(
+          session,
+          input.userId,
+          { type: "chat_browser_plan", step, request: input.message.slice(0, 1000), plan },
+          input.accessToken,
+        )
+        if (continued) session = continued
+      }
+
+      if (action.type !== "navigate") {
+        const pending = await setPendingBrowserAction({
+          session,
+          userId: input.userId,
+          action: { ...action, reason: plan.reason || "Ação interativa preparada pelo Lumin" },
+          accessToken: input.accessToken,
+        })
+        return {
+          used: true,
+          sessionId: pending?.id || session.id,
+          status: pending?.status || "waiting_approval",
+          context: `${summarizeSession(pending || session)}\n\nAÇÃO PREPARADA, NÃO EXECUTADA:\n${JSON.stringify(action)}\nPrecisa de aprovação explícita do utilizador.`,
+          requiresApproval: true,
+          pendingAction: action as any,
+          executor: completedSteps ? "headless" : "none",
+          executed: completedSteps > 0,
+          steps: completedSteps,
+        }
+      }
+
+      const result = await executeHeadlessAndPersist({
         session,
-        input.userId,
-        { type: "chat_browser_plan", request: input.message.slice(0, 1000), plan },
-        input.accessToken,
-      )
-      if (continued) session = continued
-    }
-
-    if (action.type !== "navigate") {
-      const pending = await setPendingBrowserAction({
-        session,
+        action,
         userId: input.userId,
-        action: { ...action, reason: plan.reason || "Ação interativa preparada pelo Lumin" },
         accessToken: input.accessToken,
+        historyType: "headless_navigate",
       })
-      return {
-        used: true,
-        sessionId: pending?.id || session.id,
-        status: pending?.status || "waiting_approval",
-        context: `${summarizeSession(pending || session)}\n\nAÇÃO PREPARADA, NÃO EXECUTADA:\n${JSON.stringify(action)}\nPrecisa de aprovação explícita do utilizador.`,
-        requiresApproval: true,
-        pendingAction: action as any,
-        executor: "none",
-        executed: false,
-      }
-    }
+      session = result.session
+      completedSteps += 1
 
-    const result = await executeApprovedHeadlessAction({
-      session,
-      action,
-      userId: input.userId,
-      accessToken: input.accessToken,
-    })
+      if (!result.ok) {
+        lastError = result.execution.error || "erro desconhecido"
+        break
+      }
+
+      if (plan.done === true) break
+    }
 
     return {
-      used: true,
-      sessionId: result.session.id,
-      status: result.session.status,
-      context: `${summarizeSession(result.session)}${result.ok ? "" : `\n\nO Chromium não conseguiu concluir a navegação: ${result.execution.error || "erro desconhecido"}.`}`,
+      used: Boolean(session),
+      sessionId: session?.id,
+      status: session?.status,
+      context: session
+        ? `${summarizeSession(session)}${lastError ? `\n\nO Chromium não conseguiu concluir o último passo: ${lastError}.` : `\n\nForam concluídos ${completedSteps} passo(s) automáticos de navegação nesta tarefa.`}`
+        : "",
       requiresApproval: false,
-      executor: "headless",
-      executed: result.ok,
+      executor: completedSteps ? "headless" : "none",
+      executed: completedSteps > 0,
+      steps: completedSteps,
     }
   } catch (error) {
     console.warn("[Lumin Browser Orchestrator] skipped:", error)
-    return { used: false, context: "", requiresApproval: false, executor: "none" }
+    return { used: false, context: "", requiresApproval: false, executor: "none", steps: 0 }
   }
 }
