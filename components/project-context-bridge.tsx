@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import type { ProjectBrief } from "@/lib/content-brief"
 
 const STORAGE_KEY = "reborn-project-brief-v1"
@@ -14,6 +14,31 @@ const CONTEXT_ENDPOINTS = [
 const ENDPOINT_OVERRIDES: Record<string, string> = {
   "/api/generate-presentation": "/api/generate-presentation-v2",
   "/api/generate-ebook": "/api/generate-ebook-v2",
+}
+
+type AgentHudState = {
+  visible: boolean
+  busy: boolean
+  label: string
+  detail: string
+  approval: boolean
+  sessionId?: string
+  executed: boolean
+  web: boolean
+  sandbox: boolean
+  browser: boolean
+}
+
+const IDLE_HUD: AgentHudState = {
+  visible: false,
+  busy: false,
+  label: "Lumin Agent",
+  detail: "",
+  approval: false,
+  executed: false,
+  web: false,
+  sandbox: false,
+  browser: false,
 }
 
 function readStoredBrief(): ProjectBrief | null {
@@ -117,7 +142,18 @@ function rerouteInput(input: RequestInfo | URL, path: string): RequestInfo | URL
   }
 }
 
+function guessActivity(body: any) {
+  const message = String(body?.message || "").toLowerCase()
+  if (/\b(aprova|aprovo|confirmo|rejeita|cancela)\b/.test(message)) return "A executar decisão aprovada"
+  if (/\b(abre|navega|site|website|página|pagina|clica|preenche|formulário|formulario|browser)\b/.test(message)) return "A navegar no browser"
+  if (/\b(calcula|cálculo|python|javascript|csv|excel|dados|simula|estatística)\b/.test(message)) return "A executar na sandbox"
+  if (/\b(hoje|agora|atual|últim|recent|notícia|preço|mercado|pesquisa|procura|internet)\b/.test(message)) return "A pesquisar e cruzar fontes"
+  return "A pensar"
+}
+
 export function ProjectContextBridge() {
+  const [hud, setHud] = useState<AgentHudState>(IDLE_HUD)
+
   useEffect(() => {
     const originalFetch = window.fetch.bind(window)
 
@@ -125,6 +161,70 @@ export function ProjectContextBridge() {
       const path = endpointPath(input)
       const shouldEnhance = CONTEXT_ENDPOINTS.includes(path)
       const targetInput = rerouteInput(input, path)
+
+      if (path === "/api/chat") {
+        let parsedBody: any = null
+        try {
+          if (typeof init?.body === "string") parsedBody = JSON.parse(init.body)
+        } catch {}
+
+        setHud((prev) => ({
+          ...prev,
+          visible: true,
+          busy: true,
+          label: guessActivity(parsedBody),
+          detail: "Lumin Agent está a trabalhar no pedido…",
+          approval: false,
+          executed: false,
+        }))
+
+        try {
+          const response = await originalFetch(targetInput, init)
+          const web = response.headers.get("X-Lumin-Web-Search") === "1"
+          const sandbox = response.headers.get("X-Lumin-Sandbox") === "1"
+          const browser = response.headers.get("X-Lumin-Browser") === "1"
+          const approval = response.headers.get("X-Lumin-Browser-Approval") === "1"
+          const executed = response.headers.get("X-Lumin-Browser-Executed") === "1"
+          const sessionId = response.headers.get("X-Lumin-Browser-Session") || undefined
+          const opened = response.headers.get("X-Lumin-Web-Opened") || "0"
+
+          let label = "Concluído"
+          let detail = "Resposta pronta"
+          if (approval) {
+            label = "Aprovação necessária"
+            detail = "O Lumin preparou uma ação no browser e está à espera da tua decisão."
+          } else if (executed) {
+            label = "Ação executada"
+            detail = "A ação aprovada foi executada e o estado da página foi atualizado."
+          } else if (browser) {
+            label = "Browser Agent concluído"
+            detail = "O Lumin navegou e analisou a página."
+          } else if (sandbox) {
+            label = "Sandbox concluída"
+            detail = "O Lumin executou o cálculo/código numa sandbox isolada."
+          } else if (web) {
+            label = "Pesquisa concluída"
+            detail = `${opened} página(s) aberta(s) e analisada(s).`
+          }
+
+          setHud({
+            visible: web || sandbox || browser || approval || executed,
+            busy: false,
+            label,
+            detail,
+            approval,
+            sessionId,
+            executed,
+            web,
+            sandbox,
+            browser,
+          })
+          return response
+        } catch (error) {
+          setHud((prev) => ({ ...prev, visible: true, busy: false, label: "Falha temporária", detail: "Não foi possível concluir a operação agentic." }))
+          throw error
+        }
+      }
 
       if (!shouldEnhance || !init?.body || typeof init.body !== "string") {
         return originalFetch(targetInput, init)
@@ -173,7 +273,59 @@ export function ProjectContextBridge() {
     }
   }, [])
 
-  return null
+  const decide = async (decision: "Aprovo" | "Rejeita") => {
+    setHud((prev) => ({ ...prev, busy: true, label: decision === "Aprovo" ? "A executar ação" : "A rejeitar ação", detail: "A atualizar a sessão do Browser Agent…" }))
+    try {
+      const response = await window.fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: decision, history: [], enableSearch: false }),
+      })
+      if (!response.ok) throw new Error("decision_failed")
+      const text = await response.text()
+      setHud((prev) => ({
+        ...prev,
+        visible: true,
+        busy: false,
+        approval: false,
+        label: decision === "Aprovo" ? "Ação concluída" : "Ação rejeitada",
+        detail: text.trim().slice(0, 260) || (decision === "Aprovo" ? "A ação foi processada." : "A ação não foi executada."),
+      }))
+    } catch {
+      setHud((prev) => ({ ...prev, busy: false, label: "Não foi possível concluir", detail: "Tenta novamente pelo chat." }))
+    }
+  }
+
+  if (!hud.visible) return null
+
+  return (
+    <div className="fixed bottom-24 left-1/2 z-[90] w-[calc(100%-24px)] max-w-md -translate-x-1/2 rounded-2xl border border-amber-400/20 bg-black/90 p-3 text-white shadow-2xl backdrop-blur-xl sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0">
+      <div className="flex items-start gap-3">
+        <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${hud.busy ? "animate-pulse bg-amber-400" : hud.approval ? "bg-orange-400" : "bg-emerald-400"}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-amber-100">{hud.label}</p>
+            {!hud.busy && !hud.approval && (
+              <button onClick={() => setHud(IDLE_HUD)} className="text-xs text-white/50 hover:text-white" aria-label="Fechar estado do agente">Fechar</button>
+            )}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-white/65">{hud.detail}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-wide text-white/45">
+            {hud.web && <span className="rounded-full border border-white/10 px-2 py-1">Web</span>}
+            {hud.browser && <span className="rounded-full border border-white/10 px-2 py-1">Browser</span>}
+            {hud.sandbox && <span className="rounded-full border border-white/10 px-2 py-1">Sandbox</span>}
+            {hud.sessionId && <span className="rounded-full border border-white/10 px-2 py-1">Sessão ativa</span>}
+          </div>
+          {hud.approval && !hud.busy && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button onClick={() => decide("Rejeita")} className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10">Rejeitar</button>
+              <button onClick={() => decide("Aprovo")} className="rounded-xl bg-amber-400 px-3 py-2 text-sm font-semibold text-black hover:bg-amber-300">Aprovar</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function getStoredProjectBrief(): ProjectBrief | null {
