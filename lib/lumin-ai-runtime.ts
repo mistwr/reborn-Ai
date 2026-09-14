@@ -9,6 +9,7 @@ const DEFAULT_FALLBACK_MODELS = [
 
 const DEFAULT_RETRY_ROUNDS = 2
 const BASE_RETRY_DELAY_MS = 450
+const DIRECT_OPENAI_MODEL = process.env.OPENAI_DIRECT_MODEL || "gpt-5.6-luna"
 const DIRECT_GEMINI_MODEL = process.env.GOOGLE_DIRECT_MODEL || "gemini-2.5-flash-lite"
 const DIRECT_HF_MODEL = process.env.HUGGINGFACE_MODEL || "Qwen/Qwen2.5-7B-Instruct"
 
@@ -89,6 +90,58 @@ function normalizedMessages(options: { system: string; messages?: any[]; prompt?
   return messages
 }
 
+function extractOpenAIResponseText(data: any) {
+  if (typeof data?.output_text === "string" && data.output_text.trim()) return data.output_text.trim()
+  const chunks: string[] = []
+  for (const item of Array.isArray(data?.output) ? data.output : []) {
+    if (item?.type !== "message" || !Array.isArray(item?.content)) continue
+    for (const part of item.content) {
+      if ((part?.type === "output_text" || part?.type === "text") && typeof part?.text === "string") chunks.push(part.text)
+    }
+  }
+  return chunks.join("\n").trim()
+}
+
+async function tryDirectOpenAI(options: {
+  system: string
+  messages?: any[]
+  prompt?: string
+  maxOutputTokens?: number
+  temperature?: number
+}) {
+  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  if (!apiKey) return null
+
+  const messages = normalizedMessages({ ...options, system: "" })
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }))
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: DIRECT_OPENAI_MODEL,
+      instructions: options.system || undefined,
+      input: messages.length ? messages : options.prompt || "Responde ao pedido do utilizador.",
+      max_output_tokens: options.maxOutputTokens || 2048,
+    }),
+    signal: AbortSignal.timeout(35_000),
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const err = new Error(String(data?.error?.message || `OpenAI HTTP ${response.status}`))
+    ;(err as any).status = response.status
+    throw err
+  }
+
+  const text = extractOpenAIResponseText(data)
+  return text ? { text, model: `openai-direct/${DIRECT_OPENAI_MODEL}` } : null
+}
+
 async function tryDirectGemini(options: {
   system: string
   messages?: any[]
@@ -159,6 +212,7 @@ async function tryDirectProviders(
   round: number,
 ) {
   const providers = [
+    { name: `openai-direct/${DIRECT_OPENAI_MODEL}`, run: () => tryDirectOpenAI(options) },
     { name: `google-direct/${DIRECT_GEMINI_MODEL}`, run: () => tryDirectGemini(options) },
     { name: `huggingface-direct/${DIRECT_HF_MODEL}`, run: () => tryDirectHuggingFace(options) },
   ]
@@ -222,7 +276,6 @@ export async function generateLuminText(options: {
           break
         }
 
-        // Provider/model configuration errors should not prevent trying the next candidate.
         if (!retryable) {
           sawRetryableFailure = true
           continue
@@ -240,7 +293,6 @@ export async function generateLuminText(options: {
       continue
     }
 
-    // If the Gateway free tier is globally limited, repeating the same Gateway models is wasteful.
     if (gatewayGloballyLimited) break
   }
 
