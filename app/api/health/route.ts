@@ -10,10 +10,12 @@ function configured(...keys: string[]) {
 export async function GET() {
   const vercelOidcAvailable = Boolean(process.env.VERCEL_OIDC_TOKEN?.trim())
   const explicitGatewayKey = configured("AI_GATEWAY_API_KEY")
+  const openAIKey = configured("OPENAI_API_KEY")
   const googleKey = configured("GOOGLE_GENERATIVE_AI_API_KEY")
+  const huggingFaceKey = configured("HUGGINGFACE_API_KEY")
   const vercelManagedGateway = Boolean(process.env.VERCEL_ENV)
 
-  const aiAvailable = vercelManagedGateway || vercelOidcAvailable || explicitGatewayKey || googleKey
+  const aiAvailable = vercelManagedGateway || vercelOidcAvailable || explicitGatewayKey || openAIKey || googleKey || huggingFaceKey
 
   const checks = {
     auth:
@@ -25,11 +27,20 @@ export async function GET() {
       ? "vercel_oidc"
       : explicitGatewayKey
         ? "gateway_api_key"
-        : googleKey
-          ? "google_api_key"
-          : vercelManagedGateway
-            ? "vercel_managed_gateway"
-            : "missing",
+        : openAIKey
+          ? "openai_api_key"
+          : googleKey
+            ? "google_api_key"
+            : huggingFaceKey
+              ? "huggingface_api_key"
+              : vercelManagedGateway
+                ? "vercel_managed_gateway"
+                : "missing",
+    aiDirectProviders: {
+      openai: openAIKey,
+      google: googleKey,
+      huggingface: huggingFaceKey,
+    },
     stripeCheckout: configured("STRIPE_SECRET_KEY", "STRIPE_PRICE_ID"),
     stripeWebhook: configured("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"),
     billingStore: configured("REBORN_SUPABASE_URL", "REBORN_SUPABASE_SERVICE_ROLE_KEY"),
