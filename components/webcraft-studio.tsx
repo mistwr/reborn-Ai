@@ -12,11 +12,13 @@ function hardenPreviewHtml(source: string) {
   let safe = source
 
   // Preview code must never navigate the iframe back into the Lumin application.
-  // Keep the downloaded/generated HTML untouched; this only affects the in-app preview.
+  // Invalid generated targets such as href="null" must also never escape to localhost/null.
   safe = safe
     .replace(/(?:window\.)?location\.href\s*=\s*([^;\n]+);?/gi, "console.warn('[Lumin Preview] navigation blocked', $1);")
     .replace(/(?:window\.)?location\.assign\s*\(([^)]*)\)/gi, "console.warn('[Lumin Preview] navigation blocked', $1)")
     .replace(/(?:window\.)?location\.replace\s*\(([^)]*)\)/gi, "console.warn('[Lumin Preview] navigation blocked', $1)")
+    .replace(/\b(href|action)\s*=\s*(['"])(?:null|undefined|none|nan|about:blank|\s*)\2/gi, '$1="#"')
+    .replace(/\b(href|action)\s*=\s*(?:null|undefined|none|nan)(?=\s|>)/gi, '$1="#"')
     .replace(/href=(['"])\/(?!\/)/gi, "href=$1#/")
     .replace(/action=(['"])\/(?!\/)/gi, "action=$1#/")
 
@@ -36,6 +38,10 @@ function hardenPreviewHtml(source: string) {
       document.body && document.body.appendChild(box);
     } catch (_) {}
   }
+  function invalidTarget(value) {
+    var v = String(value || '').trim().toLowerCase();
+    return !v || v === 'null' || v === 'undefined' || v === 'none' || v === 'nan' || v === 'about:blank';
+  }
   window.addEventListener('error', function (event) {
     console.warn('[Lumin Preview] erro isolado:', event && event.message);
     showPreviewError(event && event.message);
@@ -50,15 +56,15 @@ function hardenPreviewHtml(source: string) {
     var anchor = event.target && event.target.closest ? event.target.closest('a') : null;
     if (!anchor) return;
     var href = anchor.getAttribute('href') || '';
-    if (href.charAt(0) === '/' || href === '#/') {
+    if (invalidTarget(href) || href.charAt(0) === '/' || href === '#/') {
       event.preventDefault();
-      console.info('[Lumin Preview] navegação interna bloqueada:', href);
+      console.info('[Lumin Preview] navegação inválida/interna bloqueada:', href);
     }
   }, true);
   document.addEventListener('submit', function (event) {
     var form = event.target;
     var action = form && form.getAttribute ? (form.getAttribute('action') || '') : '';
-    if (!action || action.charAt(0) === '/' || action === '#/') {
+    if (invalidTarget(action) || action.charAt(0) === '/' || action === '#/') {
       event.preventDefault();
       console.info('[Lumin Preview] submit demonstrativo bloqueado:', action);
     }
