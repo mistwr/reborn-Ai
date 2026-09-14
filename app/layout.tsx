@@ -59,7 +59,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt" suppressHydrationWarning className="bg-background" data-theme="dark">
+    <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark">
       <head>
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
@@ -73,11 +73,16 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                var savedTheme = localStorage.getItem('rebornai-theme') || 'dark';
-                document.documentElement.setAttribute('data-theme', savedTheme);
+                var legacyTheme = localStorage.getItem('rebornai-theme');
+                var savedTheme = localStorage.getItem('luminai-theme') || legacyTheme || 'dark';
 
-                // Keep historical storage keys for backwards compatibility while
-                // presenting the product publicly as Lumin AI.
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                localStorage.setItem('luminai-theme', savedTheme);
+
+                // Compatibilidade temporária com código legado ainda não migrado.
+                // Estas chaves podem ser removidas quando a shell Lumin deixar de
+                // depender completamente da implementação histórica.
+                localStorage.setItem('rebornai-theme', savedTheme);
                 localStorage.setItem('rebornai-tokens', '0');
                 localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
                 localStorage.setItem('rebornai-chat-guard-repair-v2', '1');
@@ -87,9 +92,9 @@ export default function RootLayout({
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(registration) {
                     registration.update();
-                    console.log('[PWA] Service Worker registered:', registration.scope);
+                    console.log('[Lumin PWA] Service Worker registered:', registration.scope);
                   }).catch(function(error) {
-                    console.log('[PWA] Service Worker registration failed:', error);
+                    console.log('[Lumin PWA] Service Worker registration failed:', error);
                   });
                 });
               }
