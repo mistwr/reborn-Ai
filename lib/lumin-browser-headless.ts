@@ -3,6 +3,7 @@ import net from "node:net"
 
 const DEFAULT_PROJECT_ID = "prj_h0JhWRWBtf1DhpveHzsVDVdlQyV8"
 const DEFAULT_TEAM_ID = "team_JnCeZC9Btsn8DLiOsbLMguxk"
+const SYSTEM_DEPS_TIMEOUT_MS = 90_000
 const INSTALL_TIMEOUT_MS = 95_000
 const RUN_TIMEOUT_MS = 45_000
 
@@ -115,12 +116,30 @@ async function stopSandbox(name: string, token: string, projectId: string, teamI
   } catch {}
 }
 
-async function runCommand(input: { sessionId: string; token: string; teamId: string; command: string; args: string[]; timeout: number; env?: Record<string, string> }) {
+async function runCommand(input: {
+  sessionId: string
+  token: string
+  teamId: string
+  command: string
+  args: string[]
+  timeout: number
+  env?: Record<string, string>
+  sudo?: boolean
+}) {
   const url = `https://api.vercel.com/v2/sandboxes/sessions/${encodeURIComponent(input.sessionId)}/cmd?cmdId=${crypto.randomUUID()}&teamId=${encodeURIComponent(input.teamId)}`
   const response = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${input.token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ command: input.command, args: input.args, cwd: "/vercel/sandbox", env: input.env || {}, sudo: false, wait: true, logs: true, timeout: input.timeout }),
+    body: JSON.stringify({
+      command: input.command,
+      args: input.args,
+      cwd: "/vercel/sandbox",
+      env: input.env || {},
+      sudo: input.sudo === true,
+      wait: true,
+      logs: true,
+      timeout: input.timeout,
+    }),
     signal: AbortSignal.timeout(input.timeout + 15_000),
   })
   const raw = await response.text()
@@ -143,6 +162,8 @@ export async function executeHeadlessBrowserAction(input: { action: HeadlessBrow
         "storage.googleapis.com",
         "chrome-for-testing-public.storage.googleapis.com",
         "edgedl.me.gvt1.com",
+        "*.amazonaws.com",
+        "*.amazonlinux.com",
       ]
       const q = new URLSearchParams({ teamId })
       const create = await fetch(`https://api.vercel.com/v2/sandboxes?${q}`, {
@@ -170,6 +191,23 @@ export async function executeHeadlessBrowserAction(input: { action: HeadlessBrow
       const sessionId = createdData?.sessionId || createdData?.id || createdData?.session?.id || createdData?.sandbox?.currentSessionId
       if (!sessionId) return { ok: false, error: "Browser sandbox sem sessão", code: "HEADLESS_NO_SESSION" }
 
+      const systemDeps = await runCommand({
+        sessionId,
+        token,
+        teamId,
+        command: "sh",
+        args: [
+          "-lc",
+          "dnf install -y nspr nss atk at-spi2-atk cups-libs libdrm dbus-libs libXcomposite libXdamage libXfixes libXrandr mesa-libgbm libxkbcommon pango cairo alsa-lib liberation-fonts",
+        ],
+        timeout: SYSTEM_DEPS_TIMEOUT_MS,
+        sudo: true,
+      })
+      if (!systemDeps.ok || (systemDeps.exitCode !== null && systemDeps.exitCode !== 0)) {
+        console.error("[Lumin Headless] system deps failed", systemDeps.stderr || systemDeps.raw)
+        return { ok: false, error: "Não foi possível preparar as bibliotecas do Chromium", code: "HEADLESS_SYSTEM_DEPS_FAILED" }
+      }
+
       const install = await runCommand({
         sessionId,
         token,
@@ -183,7 +221,7 @@ export async function executeHeadlessBrowserAction(input: { action: HeadlessBrow
         return { ok: false, error: "Não foi possível preparar Chromium na sandbox", code: "HEADLESS_INSTALL_FAILED" }
       }
 
-      const script = `const puppeteer=require('puppeteer');(async()=>{const action=JSON.parse(process.env.LUMIN_ACTION||'{}');const savedCookies=JSON.parse(process.env.LUMIN_COOKIES||'[]');const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']});try{const page=await browser.newPage();await page.setViewport({width:1280,height:900});if(Array.isArray(savedCookies)&&savedCookies.length){const safe=savedCookies.filter(c=>c&&c.name&&c.value&&(c.domain||c.url));if(safe.length)await page.setCookie(...safe).catch(()=>{});}await page.goto(action.url,{waitUntil:'domcontentloaded',timeout:30000});await new Promise(r=>setTimeout(r,1000));if(action.type==='fill'||action.type==='fill_and_click'){for(const [selector,value] of Object.entries(action.fields||{})){await page.waitForSelector(selector,{timeout:8000});await page.focus(selector);await page.evaluate(s=>{const el=document.querySelector(s);if(el&&'value'in el)el.value='';},selector);await page.type(selector,String(value),{delay:8});}}if(action.type==='click'||action.type==='fill_and_click'){await page.waitForSelector(action.selector,{timeout:8000});await Promise.allSettled([page.waitForNavigation({waitUntil:'domcontentloaded',timeout:12000}),page.click(action.selector)]);await new Promise(r=>setTimeout(r,900));}const snapshot=await page.evaluate(()=>{const txt=(document.body?.innerText||'').replace(/\\s+/g,' ').trim().slice(0,12000);const links=[...document.querySelectorAll('a[href]')].slice(0,40).map(a=>({text:(a.innerText||a.textContent||'').trim().slice(0,140),href:a.href}));const buttons=[...document.querySelectorAll('button,input[type=button],input[type=submit],[role=button]')].slice(0,30).map((el,i)=>({text:(el.innerText||el.value||el.getAttribute('aria-label')||'').trim().slice(0,120),selector:el.id?'#'+CSS.escape(el.id):el.name?'[name="'+CSS.escape(el.name)+'"]':el.tagName.toLowerCase()+':nth-of-type('+(i+1)+')'}));const inputs=[...document.querySelectorAll('input,textarea,select')].slice(0,40).map((el,i)=>({name:el.getAttribute('name')||'',type:el.getAttribute('type')||el.tagName.toLowerCase(),placeholder:el.getAttribute('placeholder')||'',selector:el.id?'#'+CSS.escape(el.id):el.getAttribute('name')?'[name="'+CSS.escape(el.getAttribute('name'))+'"]':el.tagName.toLowerCase()+':nth-of-type('+(i+1)+')'}));return{title:document.title,text:txt,links,buttons,inputs};});const cookies=await page.cookies();console.log('__LUMIN_BROWSER_RESULT__'+JSON.stringify({ok:true,finalUrl:page.url(),...snapshot,cookies}));}catch(e){console.log('__LUMIN_BROWSER_RESULT__'+JSON.stringify({ok:false,error:String(e&&e.message||e)}));}finally{await browser.close();}})();`
+      const script = `const puppeteer=require('puppeteer');(async()=>{const action=JSON.parse(process.env.LUMIN_ACTION||'{}');const savedCookies=JSON.parse(process.env.LUMIN_COOKIES||'[]');const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']});try{const page=await browser.newPage();await page.setViewport({width:1280,height:900});if(Array.isArray(savedCookies)&&savedCookies.length){const safe=savedCookies.filter(c=>c&&c.name&&c.value&&(c.domain||c.url));if(safe.length)await page.setCookie(...safe).catch(()=>{});}await page.goto(action.url,{waitUntil:'domcontentloaded',timeout:30000});await new Promise(r=>setTimeout(r,1000));if(action.type==='fill'||action.type==='fill_and_click'){for(const [selector,value] of Object.entries(action.fields||{})){await page.waitForSelector(selector,{timeout:8000});await page.focus(selector);await page.evaluate(s=>{const el=document.querySelector(s);if(el&&'value'in el)el.value='';},selector);await page.type(selector,String(value),{delay:8});}}if(action.type==='click'||action.type==='fill_and_click'){await page.waitForSelector(action.selector,{timeout:8000});await Promise.allSettled([page.waitForNavigation({waitUntil:'domcontentloaded',timeout:12000}),page.click(action.selector)]);await new Promise(r=>setTimeout(r,900));}const snapshot=await page.evaluate(()=>{const txt=(document.body?.innerText||'').replace(/\\s+/g,' ').trim().slice(0,12000);const links=[...document.querySelectorAll('a[href]')].slice(0,40).map(a=>({text:(a.innerText||a.textContent||'').trim().slice(0,140),href:a.href}));const buttons=[...document.querySelectorAll('button,input[type=button],input[type=submit],[role=button]')].slice(0,30).map((el,i)=>({text:(el.innerText||el.value||el.getAttribute('aria-label')||'').trim().slice(0,120),selector:el.id?'#'+CSS.escape(el.id):el.name?'[name="'+CSS.escape(el.name)+'"]':el.tagName.toLowerCase()+':nth-of-type('+(i+1)+')'}));const inputs=[...document.querySelectorAll('input,textarea,select')].slice(0,40).map((el,i)=>({name:el.getAttribute('name')||'',type:el.getAttribute('type')||el.tagName.toLowerCase(),placeholder:el.getAttribute('placeholder')||'',selector:el.id?'#'+CSS.escape(el.id):el.getAttribute('name')?'[name="'+CSS.escape(el.getAttribute('name'))+'"]':el.tagName.toLowerCase()+':nth-of-type('+(i+1)+')'}));return{title:document.title,text:txt,links,buttons,inputs};});const cookies=await page.cookies();console.log('__LUMIN_BROWSER_RESULT__'+JSON.stringify({ok:true,finalUrl:page.url(),...snapshot,cookies}));}catch(e){console.log('__LUMIN_BROWSER_RESULT__'+JSON.stringify({ok:false,error:String(e&&e.message||e)}));process.exitCode=1;}finally{await browser.close();}})();`
 
       const run = await runCommand({
         sessionId,
@@ -197,7 +235,10 @@ export async function executeHeadlessBrowserAction(input: { action: HeadlessBrow
           LUMIN_COOKIES: JSON.stringify(Array.isArray(input.cookies) ? input.cookies : []),
         },
       })
-      if (!run.ok) return { ok: false, error: "Falha ao executar Chromium", code: "HEADLESS_RUN_FAILED" }
+      if (!run.ok || (run.exitCode !== null && run.exitCode !== 0)) {
+        console.error("[Lumin Headless] run failed", run.stderr || run.raw)
+        return { ok: false, error: run.stderr?.slice(0, 1000) || "Falha ao executar Chromium", code: "HEADLESS_RUN_FAILED" }
+      }
       const result = extractJson(run.stdout || run.raw)
       if (!result) return { ok: false, error: "Chromium não devolveu resultado legível", code: "HEADLESS_BAD_RESULT" }
       return result as HeadlessBrowserResult
