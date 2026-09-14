@@ -4,10 +4,7 @@ export const runtime = "nodejs"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_URL?.trim() || "https://yqninaripblwhcfcwwnr.supabase.co"
 const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_PUBLISHABLE_KEY?.trim() || "sb_publishable_zlhSNpfeS3gjBDPsxOPiCQ_DYkKwgb_"
-const AUTH_REDIRECT_URL =
-  process.env.LUMIN_AUTH_REDIRECT_URL?.trim() ||
-  process.env.NEXTAUTH_URL?.trim() ||
-  "https://rebornaaqi.vercel.app"
+const CANONICAL_LUMIN_URL = "https://rebornaaqi.vercel.app"
 
 function headers(accessToken?: string) {
   return {
@@ -17,15 +14,49 @@ function headers(accessToken?: string) {
   }
 }
 
-function safeRedirectUrl() {
+function normalizeHttpsUrl(value?: string | null) {
+  if (!value) return null
   try {
-    const url = new URL(AUTH_REDIRECT_URL)
-    if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("invalid protocol")
+    const url = new URL(value.trim())
+    if (url.protocol !== "https:") return null
+    const host = url.hostname.toLowerCase()
+    if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return null
     url.hash = ""
     return url.toString().replace(/\/$/, "")
   } catch {
-    return "https://rebornaaqi.vercel.app"
+    return null
   }
+}
+
+function safeRedirectUrl(req: Request) {
+  // Production must never inherit an old localhost NEXTAUTH_URL.
+  // Prefer an explicit public Lumin URL, then the public site URL, then the canonical production alias.
+  if (process.env.NODE_ENV === "production") {
+    return (
+      normalizeHttpsUrl(process.env.LUMIN_AUTH_REDIRECT_URL) ||
+      normalizeHttpsUrl(process.env.NEXT_PUBLIC_SITE_URL) ||
+      CANONICAL_LUMIN_URL
+    )
+  }
+
+  // Local development may intentionally use localhost.
+  const explicit = process.env.LUMIN_AUTH_REDIRECT_URL?.trim() || process.env.NEXTAUTH_URL?.trim()
+  if (explicit) {
+    try {
+      const url = new URL(explicit)
+      if (url.protocol === "https:" || (url.protocol === "http:" && url.hostname === "localhost")) {
+        url.hash = ""
+        return url.toString().replace(/\/$/, "")
+      }
+    } catch {}
+  }
+
+  try {
+    const origin = new URL(req.url).origin
+    if (origin.startsWith("http://localhost")) return origin
+  } catch {}
+
+  return CANONICAL_LUMIN_URL
 }
 
 async function loadAccount(userId: string, accessToken: string) {
@@ -66,7 +97,7 @@ export async function POST(req: Request) {
     if (action === "send") {
       if (!email) return NextResponse.json({ error: "Email obrigatório." }, { status: 400 })
 
-      const redirectTo = safeRedirectUrl()
+      const redirectTo = safeRedirectUrl(req)
       const response = await fetch(`${SUPABASE_URL}/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`, {
         method: "POST",
         headers: headers(),
@@ -84,7 +115,7 @@ export async function POST(req: Request) {
           { status: response.status },
         )
       }
-      return NextResponse.json({ ok: true, mode: "email_passwordless" })
+      return NextResponse.json({ ok: true, mode: "email_passwordless", redirectTo })
     }
 
     if (action === "inspect") {
