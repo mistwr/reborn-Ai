@@ -15,7 +15,7 @@ export async function GET() {
     name,
     projectId,
     runtime: "node24",
-    timeout: "180000",
+    timeout: 180000,
     persistent: false,
     ports: [],
     networkPolicy: {
