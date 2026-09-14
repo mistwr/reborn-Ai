@@ -1,30 +1,49 @@
-# Reborn AI (2)
+# Lumin AI Studio
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+Lumin AI Studio é a evolução do antigo Reborn AI para uma plataforma multimodal de IA orientada a criação, produtividade e agentes.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/masters-projects-cfe5d65d/v0-ai-gateway-starter)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/UqsWU52H1U2)
+## Estado atual
 
-## Overview
+O projeto está em consolidação ativa. A base já inclui:
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+- chat multimodal com runtime resiliente e fallback entre providers
+- Live/voz e análise de imagens/documentos
+- geração de imagens
+- WebCraft V2 para criar e refinar websites e aplicações web
+- apresentações, ebooks, marketing e messaging
+- Clipper e ferramentas de exportação
+- autenticação e gestão de sessão
+- Browser Agent com sessões persistentes, aprovação de ações e Chromium em sandbox
+- interface Lumin AI Studio responsiva para mobile, tablet e desktop
 
-## Deployment
+## Stack principal
 
-Your project is live at:
+- Next.js 15
+- React 19
+- TypeScript
+- Tailwind CSS
+- Vercel AI SDK
+- NextAuth
+- Zustand
+- FFmpeg.wasm
+- JSZip / html2pdf
 
-**[https://vercel.com/masters-projects-cfe5d65d/v0-ai-gateway-starter](https://vercel.com/masters-projects-cfe5d65d/v0-ai-gateway-starter)**
+## Direção do produto
 
-## Build your app
+A prioridade atual é consolidar todas as funcionalidades numa única experiência Lumin AI Studio, remover restos visuais e documentais do Reborn AI, simplificar a shell principal e reforçar o WebCraft e os agentes.
 
-Continue building your app on:
+## Estrutura principal
 
-**[https://v0.app/chat/UqsWU52H1U2](https://v0.app/chat/UqsWU52H1U2)**
+- `app/` — aplicação Next.js e rotas API
+- `components/` — interface e módulos
+- `lib/` — runtime, integrações, stores e utilitários
+- `docs/` — documentação histórica e técnica
+- `public/` — assets públicos
 
-## How It Works
+## Deploy
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+O projeto é publicado automaticamente através dos ambientes ligados ao repositório. Antes de alterações grandes, são usados branches e previews para validar a experiência sem quebrar `main`.
+
+## Nota sobre documentação antiga
+
+Alguns ficheiros em `docs/` ainda descrevem fases anteriores do produto e podem conter referências a Reborn AI, versões antigas de dependências ou providers já substituídos. Considera `package.json`, o código em `main` e este README como referências mais atuais durante a migração.
