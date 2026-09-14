@@ -11,7 +11,7 @@ const DEFAULT_RETRY_ROUNDS = 2
 const BASE_RETRY_DELAY_MS = 450
 const DIRECT_OPENAI_MODEL = process.env.OPENAI_DIRECT_MODEL || "gpt-5.6-luna"
 const DIRECT_GEMINI_MODEL = process.env.GOOGLE_DIRECT_MODEL || "gemini-2.5-flash-lite"
-const DIRECT_HF_MODEL = process.env.HUGGINGFACE_MODEL || "Qwen/Qwen2.5-7B-Instruct"
+const DIRECT_HF_MODEL = process.env.HUGGINGFACE_MODEL || "openai/gpt-oss-120b:fastest"
 
 function unique(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
