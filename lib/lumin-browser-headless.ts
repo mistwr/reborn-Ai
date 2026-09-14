@@ -152,7 +152,7 @@ export async function executeHeadlessBrowserAction(input: { action: HeadlessBrow
           name,
           projectId,
           runtime: "node24",
-          timeout: "180000",
+          timeout: 180000,
           persistent: false,
           ports: [],
           networkPolicy: { mode: "custom", allowedDomains, allowedCIDRs: [], deniedCIDRs: [], injectionRules: [] },
