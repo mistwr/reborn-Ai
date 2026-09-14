@@ -29,8 +29,6 @@ function normalizeHttpsUrl(value?: string | null) {
 }
 
 function safeRedirectUrl(req: Request) {
-  // Production must never inherit an old localhost NEXTAUTH_URL.
-  // Prefer an explicit public Lumin URL, then the public site URL, then the canonical production alias.
   if (process.env.NODE_ENV === "production") {
     return (
       normalizeHttpsUrl(process.env.LUMIN_AUTH_REDIRECT_URL) ||
@@ -39,7 +37,6 @@ function safeRedirectUrl(req: Request) {
     )
   }
 
-  // Local development may intentionally use localhost.
   const explicit = process.env.LUMIN_AUTH_REDIRECT_URL?.trim() || process.env.NEXTAUTH_URL?.trim()
   if (explicit) {
     try {
@@ -88,6 +85,37 @@ async function inspectAccessToken(accessToken: string) {
   }
 }
 
+function authSendError(response: Response, data: any) {
+  const raw = String(data?.msg || data?.error_description || data?.message || "").toLowerCase()
+  const retryAfter = Number(response.headers.get("retry-after") || "0") || null
+
+  if (response.status === 429 || raw.includes("rate limit") || raw.includes("too many")) {
+    return NextResponse.json(
+      {
+        error: "Já pediste vários acessos em pouco tempo. Usa o último email que recebeste; se já expirou, espera um pouco antes de pedir outro.",
+        code: "EMAIL_RATE_LIMIT",
+        retryAfter,
+      },
+      { status: 429 },
+    )
+  }
+
+  if (raw.includes("not authorized") || raw.includes("email address not authorized")) {
+    return NextResponse.json(
+      {
+        error: "Este email ainda não pode receber acessos. O envio de autenticação precisa de SMTP próprio para produção.",
+        code: "EMAIL_NOT_AUTHORIZED",
+      },
+      { status: 503 },
+    )
+  }
+
+  return NextResponse.json(
+    { error: data?.msg || data?.error_description || data?.message || "Não foi possível enviar o acesso." },
+    { status: response.status },
+  )
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}))
@@ -109,12 +137,8 @@ export async function POST(req: Request) {
         cache: "no-store",
       })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        return NextResponse.json(
-          { error: data?.msg || data?.error_description || data?.message || "Não foi possível enviar o acesso." },
-          { status: response.status },
-        )
-      }
+      if (!response.ok) return authSendError(response, data)
+
       return NextResponse.json({ ok: true, mode: "email_passwordless", redirectTo })
     }
 
