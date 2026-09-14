@@ -36,8 +36,35 @@ export async function GET() {
     signal: AbortSignal.timeout(15000),
   })
   const text = await response.text()
+  let commandStatus: number | null = null
+  let commandRaw = ""
 
   if (response.ok) {
+    try {
+      const parsed = JSON.parse(text)
+      const sessionId = parsed?.session?.id || parsed?.sandbox?.currentSessionId || parsed?.sessionId || parsed?.id
+      if (sessionId) {
+        const commandUrl = `https://api.vercel.com/v2/sandboxes/sessions/${encodeURIComponent(sessionId)}/cmd?cmdId=${crypto.randomUUID()}&teamId=${encodeURIComponent(teamId)}`
+        const cmd = await fetch(commandUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            command: "node",
+            args: ["-e", "console.log('__LUMIN_DIAG__'+JSON.stringify({ok:true,title:'diag'}))"],
+            cwd: "/vercel/sandbox",
+            env: {},
+            sudo: false,
+            wait: true,
+            logs: true,
+            timeout: 15000,
+          }),
+          signal: AbortSignal.timeout(30000),
+        })
+        commandStatus = cmd.status
+        commandRaw = (await cmd.text()).slice(0, 8000)
+      }
+    } catch {}
+
     try {
       const cleanupQ = new URLSearchParams({ projectId, teamId })
       await fetch(`https://api.vercel.com/v2/sandboxes/${encodeURIComponent(name)}?${cleanupQ}`, {
@@ -48,5 +75,15 @@ export async function GET() {
     } catch {}
   }
 
-  return Response.json({ ok: response.ok, status: response.status, response: text.slice(0, 4000), payload: { ...payload, name: "redacted" } }, { status: response.ok ? 200 : 500, headers: { "Cache-Control": "no-store" } })
+  return Response.json(
+    {
+      ok: response.ok,
+      status: response.status,
+      response: text.slice(0, 4000),
+      commandStatus,
+      commandRaw,
+      payload: { ...payload, name: "redacted" },
+    },
+    { status: response.ok ? 200 : 500, headers: { "Cache-Control": "no-store" } },
+  )
 }
