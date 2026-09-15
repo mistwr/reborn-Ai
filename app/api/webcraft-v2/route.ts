@@ -16,6 +16,24 @@ type WebCraftRequest = {
   referenceImages?: string[]
 }
 
+type ContextImage = {
+  url: string
+  thumbnail?: string
+  title?: string
+  creator?: string
+  source?: string
+  license?: string
+  licenseUrl?: string
+  query: string
+}
+
+const STOP_WORDS = new Set([
+  "para", "com", "uma", "um", "uns", "umas", "de", "do", "da", "dos", "das", "e", "ou", "o", "a", "os", "as",
+  "que", "cria", "criar", "faz", "fazer", "site", "website", "pagina", "landing", "page", "app", "aplicacao", "aplicação",
+  "meu", "minha", "nosso", "nossa", "cliente", "negocio", "negócio", "empresa", "marca", "moderno", "moderna", "profissional",
+  "completo", "completa", "responsive", "responsivo", "bonito", "bonita", "quero", "preciso", "tem", "ter", "sobre", "mais",
+])
+
 function stripCodeFence(value: string) {
   return value.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
 }
@@ -59,6 +77,108 @@ function cleanReferenceImages(input: unknown) {
     .slice(0, 12)
 }
 
+function extractVisualQueries(value: string) {
+  const cleaned = value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, " ")
+
+  const words = cleaned
+    .split(/\s+/)
+    .filter((word) => word.length >= 4 && !STOP_WORDS.has(word))
+
+  const unique = Array.from(new Set(words)).slice(0, 8)
+  const queries: string[] = []
+
+  if (unique.length >= 2) queries.push(unique.slice(0, 3).join(" "))
+  if (unique.length >= 4) queries.push(unique.slice(2, 5).join(" "))
+  if (unique.length >= 6) queries.push(unique.slice(5, 8).join(" "))
+  if (!queries.length && unique.length) queries.push(unique.join(" "))
+
+  return Array.from(new Set(queries)).slice(0, 3)
+}
+
+async function searchOpenverse(query: string, limit = 4): Promise<ContextImage[]> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 4500)
+
+  try {
+    const url = new URL("https://api.openverse.org/v1/images/")
+    url.searchParams.set("q", query)
+    url.searchParams.set("page_size", String(Math.min(limit, 10)))
+    url.searchParams.set("mature", "false")
+
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
+      signal: controller.signal,
+      cache: "no-store",
+    })
+
+    if (!response.ok) return []
+    const data = await response.json().catch(() => null)
+    const results = Array.isArray(data?.results) ? data.results : []
+
+    return results
+      .map((item: any): ContextImage | null => {
+        const usableUrl = typeof item?.thumbnail === "string" && /^https?:\/\//i.test(item.thumbnail)
+          ? item.thumbnail
+          : typeof item?.url === "string" && /^https?:\/\//i.test(item.url)
+            ? item.url
+            : null
+
+        if (!usableUrl) return null
+
+        return {
+          url: usableUrl,
+          thumbnail: typeof item?.thumbnail === "string" ? item.thumbnail : undefined,
+          title: typeof item?.title === "string" ? item.title : undefined,
+          creator: typeof item?.creator === "string" ? item.creator : undefined,
+          source: typeof item?.source === "string" ? item.source : undefined,
+          license: typeof item?.license === "string" ? item.license : undefined,
+          licenseUrl: typeof item?.license_url === "string" ? item.license_url : undefined,
+          query,
+        }
+      })
+      .filter((item: ContextImage | null): item is ContextImage => Boolean(item))
+      .slice(0, limit)
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function resolveContextImages(prompt: string, businessName?: string) {
+  const seed = `${businessName || ""} ${prompt}`.trim()
+  const queries = extractVisualQueries(seed)
+  if (!queries.length) return [] as ContextImage[]
+
+  const groups = await Promise.all(queries.map((query) => searchOpenverse(query, 3)))
+  const seen = new Set<string>()
+  const output: ContextImage[] = []
+
+  for (const image of groups.flat()) {
+    if (seen.has(image.url)) continue
+    seen.add(image.url)
+    output.push(image)
+    if (output.length >= 8) break
+  }
+
+  return output
+}
+
+function buildContextImageBlock(images: ContextImage[]) {
+  if (!images.length) return ""
+
+  return `\nIMAGENS CONTEXTUAIS PESQUISADAS AUTOMATICAMENTE PELO LUMIN:\n${images
+    .map((image, index) => {
+      const attribution = [image.creator, image.license].filter(Boolean).join(" · ")
+      return `${index + 1}. ${image.url}\n   Tema pesquisado: ${image.query}${image.title ? `\n   Título: ${image.title}` : ""}${attribution ? `\n   Crédito/licença: ${attribution}` : ""}${image.licenseUrl ? `\n   Licença: ${image.licenseUrl}` : ""}`
+    })
+    .join("\n")}\nUsa estas imagens nas secções visualmente adequadas. Quando houver crédito/licença, preserva uma atribuição discreta no HTML (por exemplo no rodapé ou legenda) sem prejudicar o design.`
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as WebCraftRequest
@@ -75,9 +195,14 @@ export async function POST(req: Request) {
     }
 
     const isRefinement = Boolean(currentHtml && refinement)
+    const contextImages = !isRefinement && referenceImages.length === 0 && prompt
+      ? await resolveContextImages(prompt, body.businessName)
+      : []
+
     const referenceBlock = referenceImages.length
       ? `\nIMAGENS DE REFERÊNCIA FORNECIDAS PELO UTILIZADOR:\n${referenceImages.map((url, index) => `${index + 1}. ${url}`).join("\n")}\nUsa estas imagens prioritariamente nas secções onde fizerem sentido. Não as substituas por imagens genéricas salvo se o utilizador pedir.`
       : ""
+    const contextImageBlock = buildContextImageBlock(contextImages)
 
     const system = `És o motor interno do Lumin AI Studio, um agente de criação de aplicações e websites prontos a usar.
 
@@ -113,13 +238,15 @@ REGRAS DE SAÍDA:
 15. Se um CTA ainda não tiver destino real, usa um botão com comportamento local/demonstrativo ou uma âncora interna válida; nunca uses "null", "undefined", "/null" ou JavaScript que navegue para valores inexistentes.
 
 IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
-16. Antes de desenhar, infere do pedido entre 3 e 8 conceitos visuais concretos (ex.: fitness, treino funcional, halteres, personal trainer; stand automóvel, carros premium, showroom; solário, bronzeamento, cabine, wellness).
+16. Antes de desenhar, infere do pedido entre 3 e 8 conceitos visuais concretos.
 17. Nunca uses imagens sem relação com o tema, placeholders cinzentos, gradientes a fingir fotografias ou URLs vazias quando o pedido pede um website visual/comercial.
-18. Quando não forem fornecidas imagens pelo utilizador, usa imagens remotas temáticas através de URLs contextuais no formato https://loremflickr.com/LARGURA/ALTURA/PALAVRA1,PALAVRA2?lock=NUMERO. Escolhe palavras-chave em inglês diretamente relacionadas com o pedido para melhorar os resultados. Usa valores lock diferentes para evitar repetir a mesma imagem.
-19. Hero, secções editoriais, cartões de produto/serviço, testemunhos com fotografia e galerias devem ter imagens coerentes quando visualmente apropriado.
-20. Usa sempre alt text descritivo e object-fit: cover. Garante contraste de texto sobre imagens com overlay quando necessário.
-21. Se existirem IMAGENS DE REFERÊNCIA fornecidas pelo utilizador, dá-lhes prioridade e reutiliza-as fielmente; não inventes outras para substituir imagens explicitamente fornecidas.
-22. Não uses imagens de celebridades, marcas protegidas ou pessoas identificáveis como se fossem o cliente, salvo se o utilizador tiver fornecido essas imagens.
+18. Se receberes IMAGENS CONTEXTUAIS PESQUISADAS AUTOMATICAMENTE PELO LUMIN, usa-as prioritariamente e associa cada uma a uma secção coerente com o respetivo tema pesquisado.
+19. Só quando não houver imagens fornecidas nem imagens pesquisadas disponíveis, usa fallback temático através de https://loremflickr.com/LARGURA/ALTURA/PALAVRA1,PALAVRA2?lock=NUMERO.
+20. Hero, secções editoriais, cartões de produto/serviço, testemunhos com fotografia e galerias devem ter imagens coerentes quando visualmente apropriado.
+21. Usa sempre alt text descritivo e object-fit: cover. Garante contraste de texto sobre imagens com overlay quando necessário.
+22. Se existirem IMAGENS DE REFERÊNCIA fornecidas pelo utilizador, dá-lhes prioridade absoluta e reutiliza-as fielmente.
+23. Não uses imagens de celebridades, marcas protegidas ou pessoas identificáveis como se fossem o cliente, salvo se o utilizador tiver fornecido essas imagens.
+24. Quando uma imagem pesquisada trouxer crédito/licença, mantém atribuição discreta e legível no HTML.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
@@ -128,7 +255,7 @@ PRESERVAÇÃO:
 
     const userPrompt = isRefinement
       ? `HTML ATUAL:\n${stripCodeFence(currentHtml!)}\n\nALTERAÇÃO PEDIDA:\n${refinement}${referenceBlock}\n\nDevolve o HTML completo atualizado.`
-      : `Cria ${mode === "app" ? "uma aplicação web" : "um website"} completo para este pedido:\n${prompt}\n\n${body.businessName ? `Nome do negócio/projeto: ${body.businessName}\n` : ""}${body.businessEmail ? `Contacto: ${body.businessEmail}\n` : ""}${referenceBlock}\nDevolve o HTML completo.`
+      : `Cria ${mode === "app" ? "uma aplicação web" : "um website"} completo para este pedido:\n${prompt}\n\n${body.businessName ? `Nome do negócio/projeto: ${body.businessName}\n` : ""}${body.businessEmail ? `Contacto: ${body.businessEmail}\n` : ""}${referenceBlock}${contextImageBlock}\nDevolve o HTML completo.`
 
     const result = await generateText({
       model: getAIModel(),
@@ -137,7 +264,12 @@ PRESERVAÇÃO:
     })
 
     const fixedHtml = validateAndFixHtml(result.text)
-    return new Response(fixedHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } })
+    return new Response(fixedHtml, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "X-Lumin-Context-Images": String(contextImages.length),
+      },
+    })
   } catch (error: any) {
     console.error("[lumin-studio] generation error:", error)
     return Response.json({ error: error?.message || "Erro ao gerar projeto" }, { status: 500 })
