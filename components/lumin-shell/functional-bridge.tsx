@@ -134,8 +134,9 @@ export function LuminShellFunctionalBridge() {
       if (!composer) return
 
       setComposerValue((current) => (current === composer.input.value ? current : composer.input.value))
-      const submitButton = composer.form.querySelector('button[type="submit"]')
-      setComposerDisabled(submitButton instanceof HTMLButtonElement ? submitButton.disabled : false)
+      // The legacy submit button is disabled whenever the input is empty. That is not a loading state.
+      // Mirror only the real input disabled state so the new Lumin composer stays tappable and editable.
+      setComposerDisabled(composer.input.disabled)
       const fileInput = composer.form.querySelector('input[type="file"]')
       setHasAttachment(fileInput instanceof HTMLInputElement ? Boolean(fileInput.files?.length) : false)
       const micButton = findButtonByIcon(composer.form, "lucide-mic") ?? findButtonByIcon(composer.form, "lucide-mic-off")
