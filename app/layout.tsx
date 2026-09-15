@@ -68,6 +68,18 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Lumin AI" />
         <meta name="application-name" content="Lumin AI" />
         <meta name="msapplication-TileImage" content="/icons/icon-512x512.jpg" />
+        <style>{`
+          @media (max-width: 1023px) {
+            div.fixed.inset-y-0.left-0.z-50.w-72.translate-x-0 {
+              display: flex !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+              pointer-events: auto !important;
+              transform: translateX(0) !important;
+              z-index: 60 !important;
+            }
+          }
+        `}</style>
 
         <script
           dangerouslySetInnerHTML={{
