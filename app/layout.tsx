@@ -10,6 +10,7 @@ import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminBusinessMenu } from "@/components/lumin-business-menu"
 import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
 import { LuminShellChromeBridge } from "@/components/lumin-shell/chrome-bridge"
+import { LuminShellFunctionalBridge } from "@/components/lumin-shell/functional-bridge"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -60,7 +61,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark" data-lumin-shell="phase-7">
+    <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark" data-lumin-shell="phase-8">
       <head>
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
@@ -75,7 +76,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 document.documentElement.setAttribute('data-theme', 'dark');
-                document.documentElement.setAttribute('data-lumin-shell', 'phase-7');
+                document.documentElement.setAttribute('data-lumin-shell', 'phase-8');
                 localStorage.setItem('luminai-theme', 'dark');
                 localStorage.setItem('rebornai-theme', 'dark');
                 localStorage.setItem('rebornai-tokens', '0');
@@ -102,6 +103,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <LuminShellChromeBridge />
+          <LuminShellFunctionalBridge />
           <LuminBusinessMenu />
           <LuminSecureLoginPanel />
         </Providers>
