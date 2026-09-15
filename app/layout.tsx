@@ -10,6 +10,7 @@ import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminBusinessMenu } from "@/components/lumin-business-menu"
 import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
 import { LuminMobileOverlayGuard } from "@/components/lumin-shell/mobile-overlay-guard"
+import { LuminNativeComposerFocusGuard } from "@/components/lumin-shell/native-composer-focus-guard"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -102,6 +103,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <LuminMobileOverlayGuard />
+          <LuminNativeComposerFocusGuard />
           <LuminBusinessMenu />
           <LuminSecureLoginPanel />
         </Providers>
