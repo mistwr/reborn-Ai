@@ -9,7 +9,6 @@ import { GrowthTracking } from "@/components/growth-tracking"
 import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminBusinessMenu } from "@/components/lumin-business-menu"
 import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
-import { LuminShellClientBridge } from "@/components/lumin-shell/client-bridge"
 import { LuminMobileOverlayGuard } from "@/components/lumin-shell/mobile-overlay-guard"
 import "./globals.css"
 
@@ -102,7 +101,6 @@ export default function RootLayout({
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
         <Providers>
           {children}
-          <LuminShellClientBridge />
           <LuminMobileOverlayGuard />
           <LuminBusinessMenu />
           <LuminSecureLoginPanel />
