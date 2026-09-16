@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { WebCraftStudioV2 } from "@/components/webcraft-studio-v2"
 
 const PREVIEW_TITLE = "Lumin AI Studio Preview"
@@ -33,9 +33,22 @@ function hardenPreviewHtml(source: string) {
       if (existing) return;
       var box = document.createElement('div');
       box.id = 'lumin-preview-error';
-      box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:12px 14px;border-radius:14px;background:rgba(10,10,12,.94);border:1px solid rgba(245,190,80,.35);color:#f4d27a;font:12px/1.4 system-ui,sans-serif;box-shadow:0 14px 40px rgba(0,0,0,.45)';
-      box.textContent = 'O preview encontrou um erro de JavaScript, mas o Lumin Studio continua ativo. Podes corrigir em Código ou pedir ao Lumin para reparar.';
+      box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:12px 42px 12px 14px;border-radius:14px;background:rgba(10,10,12,.94);border:1px solid rgba(245,190,80,.35);color:#f4d27a;font:12px/1.4 system-ui,sans-serif;box-shadow:0 14px 40px rgba(0,0,0,.45)';
+
+      var text = document.createElement('div');
+      text.textContent = 'O preview encontrou um erro de JavaScript, mas o site continua disponível. Podes transferir já ou pedir ao Lumin para reparar.';
+      box.appendChild(text);
+
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Fechar aviso');
+      close.textContent = '×';
+      close.style.cssText = 'position:absolute;right:12px;top:7px;border:0;background:transparent;color:#f4d27a;font:22px/1 system-ui;cursor:pointer';
+      close.onclick = function () { box.remove(); };
+      box.appendChild(close);
+
       document.body && document.body.appendChild(box);
+      setTimeout(function () { try { box.remove(); } catch (_) {} }, 9000);
     } catch (_) {}
   }
   function invalidTarget(value) {
@@ -85,12 +98,20 @@ function hardenPreviewHtml(source: string) {
 
 export function WebCraftStudio() {
   const rootRef = useRef<HTMLDivElement>(null)
+  const [hasProject, setHasProject] = useState(false)
 
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
 
+    const syncProjectState = () => {
+      const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>("button"))
+      setHasProject(buttons.some((button) => button.textContent?.trim() === "HTML"))
+    }
+
     const patchPreview = () => {
+      syncProjectState()
+
       const iframe = root.querySelector<HTMLIFrameElement>(`iframe[title="${PREVIEW_TITLE}"]`)
       if (!iframe) return
 
@@ -109,9 +130,42 @@ export function WebCraftStudio() {
     return () => observer.disconnect()
   }, [])
 
+  const triggerStudioAction = (label: string) => {
+    const root = rootRef.current
+    if (!root) return
+
+    const button = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
+      (candidate) => candidate.textContent?.replace(/\s+/g, " ").trim() === label,
+    )
+
+    button?.click()
+  }
+
   return (
     <div ref={rootRef} className="contents">
       <WebCraftStudioV2 />
+
+      {hasProject && (
+        <div className="fixed inset-x-3 bottom-24 z-[95] grid grid-cols-2 gap-2 rounded-2xl border border-primary/25 bg-background/95 p-2 shadow-2xl backdrop-blur md:hidden">
+          <button
+            type="button"
+            onClick={() => triggerStudioAction("HTML")}
+            className="rounded-xl border border-primary/30 bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground shadow-sm active:scale-[0.98]"
+          >
+            ↓ Transferir site
+          </button>
+          <button
+            type="button"
+            onClick={() => triggerStudioAction("Full-Stack ZIP")}
+            className="rounded-xl border border-border bg-card px-3 py-3 text-sm font-semibold text-foreground shadow-sm active:scale-[0.98]"
+          >
+            ZIP completo
+          </button>
+          <p className="col-span-2 px-1 text-center text-[11px] text-muted-foreground">
+            O download HTML está disponível diretamente no Lumin AI Studio.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
