@@ -62,15 +62,18 @@ export default function RootLayout({
   return (
     <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark" data-lumin-shell="phase-8">
       <head>
-        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-512x512.jpg" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-512x512.jpg" />
+        <link rel="icon" type="image/svg+xml" href="/icons/lumin-ai-icon.svg?v=2" />
         <link rel="apple-touch-icon" href="/icons/icon-512x512.jpg" />
-        <link rel="mask-icon" href="/icons/icon-512x512.jpg" color="#d6a84b" />
         <meta name="apple-mobile-web-app-title" content="Lumin AI" />
         <meta name="application-name" content="Lumin AI" />
         <meta name="msapplication-TileImage" content="/icons/icon-512x512.jpg" />
         <style>{`
           @media (max-width: 1023px) {
+            html, body {
+              max-width: 100%;
+              overflow-x: clip;
+            }
+
             div.fixed.inset-y-0.left-0.z-50.w-72.translate-x-0 {
               display: flex !important;
               visibility: visible !important;
@@ -78,6 +81,8 @@ export default function RootLayout({
               pointer-events: auto !important;
               transform: translateX(0) !important;
               z-index: 60 !important;
+              width: clamp(18rem, 72vw, 42rem) !important;
+              max-width: calc(100vw - 3rem) !important;
             }
           }
         `}</style>
