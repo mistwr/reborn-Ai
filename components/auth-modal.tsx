@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 type Step = "email" | "code" | "type" | "profile"
 type AccountType = "personal" | "business"
 
+const OTP_LENGTH = 6
+
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
@@ -157,7 +159,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const handleVerifyCode = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (code.length !== 6) return
+    if (code.length !== OTP_LENGTH) return
     setLoading(true)
     setError("")
     try {
@@ -250,22 +252,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-xl sm:p-6">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-2 backdrop-blur-xl sm:p-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(230,177,75,.15),transparent_34%),radial-gradient(circle_at_85%_85%,rgba(92,54,170,.10),transparent_30%)]" />
-      <Card className="relative max-h-[92dvh] w-full max-w-[500px] overflow-y-auto rounded-[28px] border border-amber-300/15 bg-[#08080b]/95 shadow-[0_30px_100px_rgba(0,0,0,.68)]">
+      <Card className="relative max-h-[calc(100dvh-1rem)] w-full max-w-[500px] overflow-y-auto rounded-[24px] border border-amber-300/15 bg-[#08080b]/95 shadow-[0_30px_100px_rgba(0,0,0,.68)] sm:max-h-[92dvh] sm:rounded-[28px]">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
-        <div className="p-5 sm:p-7">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div className="flex gap-3">
+        <div className="p-4 sm:p-7">
+          <div className="mb-5 flex items-start justify-between gap-3 sm:mb-6 sm:gap-4">
+            <div className="flex min-w-0 gap-3">
               <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/[.06]">
                 <Sparkles className="h-5 w-5 text-amber-300" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h2>
-                <p className="mt-1 text-xs leading-relaxed text-zinc-500 sm:text-sm">{subtitle}</p>
+                <p className="mt-1 break-words text-xs leading-relaxed text-zinc-500 sm:text-sm">{subtitle}</p>
               </div>
             </div>
-            <button onClick={close} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/[.05] hover:text-white" aria-label="Fechar">
+            <button onClick={close} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/[.05] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/40" aria-label="Fechar">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -284,16 +286,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 <Label htmlFor="lumin-email" className="text-xs uppercase tracking-[.16em] text-zinc-500">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
-                  <Input id="lumin-email" type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teu@email.com" className="h-12 rounded-2xl border-white/10 bg-white/[.035] pl-11 text-white placeholder:text-zinc-600" />
+                  <Input id="lumin-email" type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teu@email.com" className="h-12 rounded-2xl border-white/10 bg-white/[.035] pl-11 text-white placeholder:text-zinc-600 focus-visible:ring-2 focus-visible:ring-amber-300/30" />
                 </div>
               </div>
-              <Button type="submit" disabled={loading || countdown > 0} className="h-12 w-full rounded-2xl border border-amber-200/25 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white">
+              <Button type="submit" disabled={loading || countdown > 0} className="h-12 w-full rounded-2xl border border-amber-200/25 bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] font-semibold text-white transition active:scale-[.99]">
                 {loading ? "A enviar..." : countdown > 0 ? `Tenta novamente em ${countdown}s` : "Enviar acesso"}
               </Button>
               <div className="grid grid-cols-3 gap-2 pt-1 text-center text-[11px] text-zinc-500">
-                <div className="rounded-xl border border-white/[.06] p-3"><Shield className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Seguro</div>
-                <div className="rounded-xl border border-white/[.06] p-3"><Check className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Sem password</div>
-                <div className="rounded-xl border border-white/[.06] p-3"><Sparkles className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Lumin</div>
+                <div className="rounded-xl border border-white/[.06] p-2.5 sm:p-3"><Shield className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Seguro</div>
+                <div className="rounded-xl border border-white/[.06] p-2.5 sm:p-3"><Check className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Sem password</div>
+                <div className="rounded-xl border border-white/[.06] p-2.5 sm:p-3"><Sparkles className="mx-auto mb-1.5 h-4 w-4 text-amber-300" />Lumin</div>
               </div>
             </form>
           )}
@@ -301,16 +303,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {step === "code" && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
               <div className="rounded-2xl border border-white/[.07] bg-white/[.025] px-4 py-3 text-xs leading-relaxed text-zinc-500">
-                Verifica o email enviado pelo Lumin. Se recebeste um código, introduz os 6 dígitos. Se recebeste um link seguro, abre-o e o Lumin entra automaticamente.
+                Verifica o email enviado pelo Lumin. Introduz os {OTP_LENGTH} dígitos recebidos ou abre o link seguro.
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lumin-code" className="text-xs uppercase tracking-[.16em] text-zinc-500">Código</Label>
-                <Input id="lumin-code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" className="h-14 rounded-2xl border-white/10 bg-white/[.035] text-center font-mono text-2xl tracking-[.35em] text-white" />
+                <Input id="lumin-code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={OTP_LENGTH} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH))} placeholder="000000" className="h-14 rounded-2xl border-white/10 bg-white/[.035] text-center font-mono text-xl tracking-[.24em] text-white focus-visible:ring-2 focus-visible:ring-amber-300/30 sm:text-2xl sm:tracking-[.35em]" />
               </div>
-              <Button type="submit" disabled={loading || code.length !== 6} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] text-white">
+              <Button type="submit" disabled={loading || code.length !== OTP_LENGTH} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] text-white transition active:scale-[.99]">
                 {loading ? "A verificar..." : "Confirmar código"}
               </Button>
-              <button type="button" disabled={countdown > 0 || loading} onClick={handleResend} className="w-full text-center text-sm text-amber-300 disabled:text-zinc-700">
+              <button type="button" disabled={countdown > 0 || loading} onClick={handleResend} className="min-h-11 w-full rounded-xl text-center text-sm text-amber-300 transition hover:bg-amber-300/[.04] active:scale-[.99] disabled:text-zinc-700">
                 {countdown > 0 ? `Reenviar em ${countdown}s` : "Reenviar acesso"}
               </button>
             </form>
@@ -318,12 +320,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {step === "type" && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <button onClick={() => { setAccountType("personal"); setStep("profile") }} className="group rounded-3xl border border-white/10 bg-white/[.025] p-5 text-left transition hover:border-amber-300/35 hover:bg-amber-300/[.04]">
+              <button onClick={() => { setAccountType("personal"); setStep("profile") }} className="group rounded-3xl border border-white/10 bg-white/[.025] p-5 text-left transition hover:border-amber-300/35 hover:bg-amber-300/[.04] active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/30">
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-300"><User className="h-6 w-6" /></div>
                 <div className="text-lg font-semibold text-white">Para mim</div>
                 <p className="mt-2 text-sm leading-relaxed text-zinc-500">Chat tipo GPT, Live, imagens, documentos, websites, apps e todas as ferramentas criativas.</p>
               </button>
-              <button onClick={() => { setAccountType("business"); setStep("profile") }} className="group rounded-3xl border border-amber-300/20 bg-amber-300/[.025] p-5 text-left transition hover:border-amber-300/45 hover:bg-amber-300/[.05]">
+              <button onClick={() => { setAccountType("business"); setStep("profile") }} className="group rounded-3xl border border-amber-300/20 bg-amber-300/[.025] p-5 text-left transition hover:border-amber-300/45 hover:bg-amber-300/[.05] active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/30">
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-300/10 text-amber-300"><Building2 className="h-6 w-6" /></div>
                 <div className="text-lg font-semibold text-white">Para a empresa</div>
                 <p className="mt-2 text-sm leading-relaxed text-zinc-500">Lumin empresarial com CRM, SD Dialer, leads, vendas, marketing, websites, equipa e automações.</p>
@@ -336,28 +338,28 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <div className="flex items-center gap-2 rounded-2xl border border-white/[.07] bg-white/[.025] px-4 py-3 text-sm text-zinc-400">
                 {accountType === "business" ? <Building2 className="h-4 w-4 text-amber-300" /> : <Users className="h-4 w-4 text-violet-300" />}
                 {accountType === "business" ? "Conta Empresa" : "Conta Pessoal"}
-                <button type="button" onClick={() => setStep("type")} className="ml-auto text-xs text-amber-300">Alterar</button>
+                <button type="button" onClick={() => setStep("type")} className="ml-auto min-h-10 rounded-xl px-2 text-xs text-amber-300 transition hover:bg-amber-300/[.04] active:scale-95">Alterar</button>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="display-name" className="text-xs uppercase tracking-[.16em] text-zinc-500">O teu nome</Label>
-                <Input id="display-name" required autoFocus value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Como te devemos chamar?" className="h-12 rounded-2xl border-white/10 bg-white/[.035] text-white" />
+                <Input id="display-name" required autoFocus value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Como te devemos chamar?" className="h-12 rounded-2xl border-white/10 bg-white/[.035] text-white focus-visible:ring-2 focus-visible:ring-amber-300/30" />
               </div>
 
               {accountType === "business" && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="company-name" className="text-xs uppercase tracking-[.16em] text-zinc-500">Empresa</Label>
-                    <Input id="company-name" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Nome da empresa" className="h-12 rounded-2xl border-white/10 bg-white/[.035] text-white" />
+                    <Input id="company-name" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Nome da empresa" className="h-12 rounded-2xl border-white/10 bg-white/[.035] text-white focus-visible:ring-2 focus-visible:ring-amber-300/30" />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Setor (opcional)" className="h-11 rounded-2xl border-white/10 bg-white/[.035] text-white" />
-                    <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Website (opcional)" className="h-11 rounded-2xl border-white/10 bg-white/[.035] text-white" />
+                    <Input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Setor (opcional)" className="h-11 rounded-2xl border-white/10 bg-white/[.035] text-white focus-visible:ring-2 focus-visible:ring-amber-300/30" />
+                    <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Website (opcional)" className="h-11 rounded-2xl border-white/10 bg-white/[.035] text-white focus-visible:ring-2 focus-visible:ring-amber-300/30" />
                   </div>
                 </>
               )}
 
-              <Button type="submit" disabled={loading || !displayName.trim() || (accountType === "business" && !companyName.trim())} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] text-white">
+              <Button type="submit" disabled={loading || !displayName.trim() || (accountType === "business" && !companyName.trim())} className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#6b4a16] via-[#b87a22] to-[#6a4514] text-white transition active:scale-[.99]">
                 {loading ? "A preparar o teu Lumin..." : accountType === "business" ? "Criar espaço da empresa" : "Entrar no Lumin"}
               </Button>
             </form>
