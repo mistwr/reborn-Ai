@@ -38,6 +38,13 @@ function shouldUseSandbox(message: string, authenticated: boolean) {
   return /\b(calcula|calcular|cálculo|faz as contas|soma|média|mediana|percentagem|percentual|juros|simula|simulação|projeção|forecast|estatística|analisa estes dados|csv|json|excel|tabela|dataset|python|javascript|typescript|node|executa código|run code|regex|converter dados|transformar dados)\b/i.test(message)
 }
 
+function isLocalResilienceAssistantMessage(message: any) {
+  if (message?.role !== "assistant" || typeof message?.content !== "string") return false
+  const content = message.content
+  if (!/\bModo (?:Resiliência|Offline)\b/i.test(content)) return false
+  return /(modelos externos|provider|sem ligação|resposta local|não responderam|temporariamente indisponíveis|chat continua)/i.test(content)
+}
+
 function extractJsonObject(text: string) {
   const start = text.indexOf("{")
   const end = text.lastIndexOf("}")
@@ -231,6 +238,8 @@ export async function POST(req: Request) {
       })
     }
 
+    formattedMessages = formattedMessages.filter((message) => !isLocalResilienceAssistantMessage(message))
+
     if (formattedMessages.length === 0) {
       return new Response(JSON.stringify({ error: "Nenhuma mensagem fornecida" }), {
         status: 400,
@@ -259,6 +268,7 @@ export async function POST(req: Request) {
         : Promise.resolve({ used: false, context: "", requiresApproval: false, executor: "none" as const, steps: 0 }),
     ])
 
+    const webSucceeded = Boolean(web.context?.trim() || web.sources.length > 0 || web.openedPages > 0)
     const accountContext = buildAccountContext(token, userPreferences)
     const system = buildSystemPrompt({
       contextInfo,
@@ -271,6 +281,12 @@ export async function POST(req: Request) {
     })
 
     const result = await generateLuminText({ system, messages: formattedMessages, maxOutputTokens: 4096 })
+    console.info("[Lumin Chat] completion", {
+      model: result.model,
+      fallbacks: result.failures.length,
+      webAttempted: useSearch,
+      webSucceeded,
+    })
 
     return new Response(result.text, {
       status: 200,
@@ -278,7 +294,7 @@ export async function POST(req: Request) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
         "X-Lumin-Fallbacks": String(result.failures.length),
-        "X-Lumin-Web-Search": useSearch ? "1" : "0",
+        "X-Lumin-Web-Search": webSucceeded ? "1" : "0",
         "X-Lumin-Web-Sources": String(web.sources.length),
         "X-Lumin-Web-Opened": String(web.openedPages),
         "X-Lumin-Sandbox": sandboxContext ? "1" : "0",
