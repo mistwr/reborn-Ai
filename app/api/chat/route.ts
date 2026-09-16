@@ -24,8 +24,8 @@ async function getContextInfo(baseUrl: string): Promise<string> {
   }
 }
 
-function shouldSearchWeb(message: string, explicitSearch?: boolean) {
-  if (explicitSearch === true) return true
+function shouldSearchWeb(message: string, searchEnabled?: boolean) {
+  if (searchEnabled === false) return false
   if (!message.trim()) return false
 
   return /\b(hoje|agora|atual|atualmente|últim[oa]s?|recent[ea]s?|not[ií]cias?|pre[çc]o|cotação|mercado|tempo|meteorologia|resultado|classificação|ranking|lançamento|versão|update|atualização|lei|legislação|governo|eleição|presidente|empresa|CEO|fundador|site|website|produto|serviço|concorrente|campanha|promoção|disponível|stock|horário|morada|telefone|contacto|evento|agenda|202[5-9]|latest|current|today|news|price|weather|search|pesquisa|procura na web|vai à internet|abre o site|abre a página|lê o site|le o site|consulta o site|compara fontes)\b/i.test(message)
