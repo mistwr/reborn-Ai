@@ -58,7 +58,7 @@ function isRetryableAIError(error: unknown) {
   ].some((needle) => message.includes(needle))
 }
 
-function isGatewayFreeTierLimited(error: unknown) {
+function isGatewayModelLimited(error: unknown) {
   const message = errorMessage(error).toLowerCase()
   return message.includes("free tier requests on this model are rate-limited") || message.includes("upgrade to paid credits")
 }
@@ -245,10 +245,8 @@ export async function generateLuminText(options: {
 
   for (let round = 1; round <= retryRounds; round++) {
     let sawRetryableFailure = false
-    let gatewayGloballyLimited = false
 
     for (const model of models) {
-      if (gatewayGloballyLimited) break
       try {
         const result = await generateText({
           model,
@@ -270,10 +268,11 @@ export async function generateLuminText(options: {
         failures.push({ model, error: message.slice(0, 260), round })
         console.warn(`[Lumin AI] model ${model} failed on round ${round}:`, message)
 
-        if (isGatewayFreeTierLimited(error)) {
-          gatewayGloballyLimited = true
+        if (isGatewayModelLimited(error)) {
+          // This limit belongs to the current gateway model. Keep walking the
+          // candidate list instead of treating it as a global gateway outage.
           sawRetryableFailure = true
-          break
+          continue
         }
 
         if (!retryable) {
@@ -287,13 +286,11 @@ export async function generateLuminText(options: {
     const direct = await tryDirectProviders(options, failures, round)
     if (direct) return direct
 
-    if (round < retryRounds && sawRetryableFailure && !gatewayGloballyLimited) {
+    if (round < retryRounds && sawRetryableFailure) {
       const jitter = Math.floor(Math.random() * 250)
       await sleep(BASE_RETRY_DELAY_MS * round + jitter)
       continue
     }
-
-    if (gatewayGloballyLimited) break
   }
 
   const lastError = failures.at(-1)?.error || "Todos os modelos estão temporariamente indisponíveis."
