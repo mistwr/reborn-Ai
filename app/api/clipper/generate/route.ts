@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getToken } from "next-auth/jwt"
 import { generateLuminText } from "@/lib/lumin-ai-runtime"
 
 export const runtime = "nodejs"
@@ -79,6 +80,10 @@ function absoluteVideoUrl(value: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET }).catch(() => null)
+    if (!token?.email) {
+      return NextResponse.json({ error: "Inicia sessão no Lumin para criar vídeos.", code: "AUTH_REQUIRED" }, { status: 401 })
+    }
     const body = await request.json()
     const subject = String(body?.subject || "").trim()
     if (!subject) return NextResponse.json({ error: "Indica o tema do vídeo." }, { status: 400 })
@@ -166,6 +171,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET }).catch(() => null)
+    if (!token?.email) {
+      return NextResponse.json({ error: "Inicia sessão no Lumin para consultar o vídeo.", code: "AUTH_REQUIRED" }, { status: 401 })
+    }
     const taskId = request.nextUrl.searchParams.get("taskId")?.trim()
     if (!taskId) return NextResponse.json({ error: "taskId em falta" }, { status: 400 })
 
