@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     params.set("mode", "payment")
     params.set("line_items[0][price]", priceId)
     params.set("line_items[0][quantity]", "1")
-    params.set("success_url", `${origin}/billing/success?credits=1&session_id={CHECKOUT_SESSION_ID}`)
+    params.set("success_url", `${origin}/api/stripe/credits/fulfill?session_id={CHECKOUT_SESSION_ID}`)
     params.set("cancel_url", `${origin}/billing/cancel`)
     params.set("customer_email", email)
     params.set("metadata[product]", "lumin-credits")
