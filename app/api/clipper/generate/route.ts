@@ -50,15 +50,10 @@ async function generateVisualPrompts(subject: string, script: string) {
   return prompts.length ? prompts : [subject]
 }
 
-async function uploadFreeImage(prompt: string, index: number, aspect: string) {
-  const { width, height } = aspectResolution(aspect)
-  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${Date.now() + index}`
-  const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(35_000), cache: "no-store" })
-  if (!imageResponse.ok) throw new Error(`Falha a gerar imagem gratuita ${index + 1}`)
-
-  const bytes = await imageResponse.arrayBuffer()
+async function uploadToMpt(bytes: ArrayBuffer, contentType: string, index: number) {
+  const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg"
   const form = new FormData()
-  form.append("file", new Blob([bytes], { type: "image/jpeg" }), `scene-${index + 1}.jpg`)
+  form.append("file", new Blob([bytes], { type: contentType || "image/jpeg" }), `scene-${index + 1}.${ext}`)
 
   const uploadResponse = await fetch(`${MPT_BASE_URL}/api/v1/video_materials`, {
     method: "POST",
@@ -70,6 +65,89 @@ async function uploadFreeImage(prompt: string, index: number, aspect: string) {
     throw new Error(uploadData?.message || `MoneyPrinterTurbo recusou a imagem ${index + 1}`)
   }
   return String(uploadData.data.file)
+}
+
+function compactSearchQuery(prompt: string) {
+  return prompt
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 2)
+    .slice(0, 8)
+    .join(" ")
+}
+
+async function fetchOpenverseImage(prompt: string) {
+  const url = new URL("https://api.openverse.org/v1/images/")
+  url.searchParams.set("q", compactSearchQuery(prompt))
+  url.searchParams.set("page_size", "8")
+  url.searchParams.set("mature", "false")
+
+  const searchResponse = await fetch(url, {
+    headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  })
+  if (!searchResponse.ok) throw new Error("Openverse search failed")
+  const data = await searchResponse.json().catch(() => null)
+  const results = Array.isArray(data?.results) ? data.results : []
+
+  for (const item of results) {
+    const candidate =
+      typeof item?.thumbnail === "string" && /^https?:\/\//i.test(item.thumbnail)
+        ? item.thumbnail
+        : typeof item?.url === "string" && /^https?:\/\//i.test(item.url)
+          ? item.url
+          : ""
+    if (!candidate) continue
+    try {
+      const imageResponse = await fetch(candidate, {
+        headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!imageResponse.ok) continue
+      const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
+      if (!contentType.startsWith("image/")) continue
+      return {
+        bytes: await imageResponse.arrayBuffer(),
+        contentType,
+      }
+    } catch {
+      continue
+    }
+  }
+
+  throw new Error("Openverse returned no usable image")
+}
+
+async function fetchPollinationsImage(prompt: string, index: number, aspect: string) {
+  const { width, height } = aspectResolution(aspect)
+  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${Date.now() + index}`
+  const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(35_000), cache: "no-store" })
+  if (!imageResponse.ok) throw new Error(`Pollinations failed with ${imageResponse.status}`)
+  const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
+  return { bytes: await imageResponse.arrayBuffer(), contentType }
+}
+
+async function uploadFreeImage(prompt: string, index: number, aspect: string) {
+  const errors: string[] = []
+
+  try {
+    const image = await fetchOpenverseImage(prompt)
+    return await uploadToMpt(image.bytes, image.contentType, index)
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Openverse failed")
+  }
+
+  try {
+    const image = await fetchPollinationsImage(prompt, index, aspect)
+    return await uploadToMpt(image.bytes, image.contentType, index)
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Pollinations failed")
+  }
+
+  console.error(`[Clipper/MPT] image ${index + 1} failed`, errors)
+  throw new Error(`Falha a obter imagem ${index + 1}`)
 }
 
 function absoluteVideoUrl(value: string) {
