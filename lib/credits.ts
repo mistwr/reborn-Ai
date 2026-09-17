@@ -5,6 +5,8 @@ export type CreditStatus = {
   plan: "free" | "pro"
   limit: number
   used: number
+  dailyRemaining: number
+  bonusCredits: number
   remaining: number
   resetAt: string
 }
@@ -48,7 +50,6 @@ async function planFor(email: string) {
   const pro = await isUserPro(email)
   if (pro) return { plan: "pro" as const, limit: PRO_PLAN.tokensPerDay }
 
-  // Preserve any future custom daily allowance stored with the subscription.
   const subscription = await getSubscriptionByEmail(email).catch(() => null)
   if (subscription?.tokensPerDay && subscription.tokensPerDay > FREE_PLAN.tokensPerDay && subscription.status !== "canceled") {
     return { plan: "pro" as const, limit: subscription.tokensPerDay }
@@ -56,18 +57,31 @@ async function planFor(email: string) {
   return { plan: "free" as const, limit: FREE_PLAN.tokensPerDay }
 }
 
+async function bonusFor(email: string) {
+  const rows = await request(
+    `lumin_credit_wallets?email=eq.${encodeURIComponent(email)}&select=bonus_credits&limit=1`,
+  )
+  return Math.max(0, Number(rows?.[0]?.bonus_credits || 0))
+}
+
 export async function getCreditStatus(email: string): Promise<CreditStatus> {
   const normalized = email.trim().toLowerCase()
   const { plan, limit } = await planFor(normalized)
-  const rows = await request(
-    `lumin_credit_usage?email=eq.${encodeURIComponent(normalized)}&usage_date=eq.${utcDateString()}&select=credits_used&limit=1`,
-  )
+  const [rows, bonusCredits] = await Promise.all([
+    request(
+      `lumin_credit_usage?email=eq.${encodeURIComponent(normalized)}&usage_date=eq.${utcDateString()}&select=credits_used&limit=1`,
+    ),
+    bonusFor(normalized),
+  ])
   const used = Math.max(0, Number(rows?.[0]?.credits_used || 0))
+  const dailyRemaining = Math.max(0, limit - used)
   return {
     plan,
     limit,
     used,
-    remaining: Math.max(0, limit - used),
+    dailyRemaining,
+    bonusCredits,
+    remaining: dailyRemaining + bonusCredits,
     resetAt: nextUtcMidnight(),
   }
 }
@@ -82,14 +96,41 @@ export async function consumeCredits(email: string, amount: number): Promise<Cre
   })
   const row = rows?.[0] || {}
   const used = Math.max(0, Number(row.used || 0))
-  const remaining = Math.max(0, Number(row.remaining ?? limit - used))
+  const bonusCredits = await bonusFor(normalized)
+  const dailyRemaining = Math.max(0, limit - used)
   return {
     allowed: Boolean(row.allowed),
     plan,
     limit,
     used,
-    remaining,
+    dailyRemaining,
+    bonusCredits,
+    remaining: dailyRemaining + bonusCredits,
     resetAt: nextUtcMidnight(),
+  }
+}
+
+export async function grantBonusCredits(params: {
+  email: string
+  amount: number
+  sourceId: string
+  amountTotal?: number | null
+  currency?: string | null
+}) {
+  const rows = await request("rpc/grant_lumin_bonus_credits", {
+    method: "POST",
+    body: JSON.stringify({
+      p_email: params.email.trim().toLowerCase(),
+      p_amount: Math.max(1, Math.ceil(params.amount)),
+      p_source_id: params.sourceId,
+      p_amount_total: params.amountTotal ?? null,
+      p_currency: params.currency ?? null,
+    }),
+  })
+  const row = rows?.[0] || {}
+  return {
+    granted: Boolean(row.granted),
+    bonusBalance: Math.max(0, Number(row.bonus_balance || 0)),
   }
 }
 
