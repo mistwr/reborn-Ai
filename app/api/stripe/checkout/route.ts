@@ -12,14 +12,50 @@ import {
 
 export const runtime = "nodejs"
 
+const PERSONAL_PRO_PAYMENT_LINK = "https://buy.stripe.com/00w5kDevP7vEbGEdsh5Rm0a"
 const META_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid"] as const
 
 function safeMeta(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 200) : ""
 }
 
+function safeClientReference(value: unknown) {
+  return String(value || "")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 160)
+}
+
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions as any)
+    const sessionUser = (session?.user || {}) as any
+    if (!sessionUser?.email) {
+      return NextResponse.json({ error: "Inicia sessão antes de escolher um plano." }, { status: 401 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const requestedPlan: BillingPlan =
+      body?.plan === "business_team" ? "business_team" : body?.plan === "business" ? "business" : "personal_pro"
+
+    const isBusinessAccount = sessionUser.accountType === "business"
+    if ((requestedPlan === "business" || requestedPlan === "business_team") && !isBusinessAccount) {
+      return NextResponse.json({ error: "Este plano requer uma conta Empresa." }, { status: 400 })
+    }
+
+    const email = String(sessionUser.email).trim().toLowerCase()
+    const userId = safeClientReference(sessionUser.id)
+
+    // Personal Pro uses the canonical Stripe Payment Link. We still attach the
+    // logged-in Lumin user through client_reference_id so the webhook can
+    // activate the correct account after payment.
+    if (requestedPlan === "personal_pro") {
+      const url = new URL(PERSONAL_PRO_PAYMENT_LINK)
+      url.searchParams.set("locked_prefilled_email", email)
+      if (userId) url.searchParams.set("client_reference_id", `lumin_pro_${userId}`)
+      return NextResponse.json({ url: url.toString(), plan: requestedPlan, mode: "payment_link" })
+    }
+
+    // Keep the existing API-created Checkout Session flow for business plans.
     const secretKey = getStripeSecretKey()
     if (!secretKey) {
       return NextResponse.json(
@@ -40,21 +76,6 @@ export async function POST(req: Request) {
       )
     }
 
-    const session = await getServerSession(authOptions as any)
-    const sessionUser = (session?.user || {}) as any
-    if (!sessionUser?.email) {
-      return NextResponse.json({ error: "Inicia sessão antes de escolher um plano." }, { status: 401 })
-    }
-
-    const body = await req.json().catch(() => ({}))
-    const requestedPlan: BillingPlan =
-      body?.plan === "business_team" ? "business_team" : body?.plan === "business" ? "business" : "personal_pro"
-
-    const isBusinessAccount = sessionUser.accountType === "business"
-    if ((requestedPlan === "business" || requestedPlan === "business_team") && !isBusinessAccount) {
-      return NextResponse.json({ error: "Este plano requer uma conta Empresa." }, { status: 400 })
-    }
-
     const priceId = resolveStripePriceId(requestedPlan)
     if (!priceId) {
       return NextResponse.json(
@@ -65,8 +86,6 @@ export async function POST(req: Request) {
 
     const attribution = body?.attribution && typeof body.attribution === "object" ? body.attribution : {}
     const origin = getLuminOrigin(req.headers.get("origin"))
-    const email = String(sessionUser.email).trim().toLowerCase()
-    const userId = String(sessionUser.id || "").trim()
     const organizationId = String(sessionUser.organizationId || "").trim()
 
     const params = new URLSearchParams()
