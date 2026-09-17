@@ -27,7 +27,7 @@ function cleanJsonArray(text: string): string[] {
 }
 
 async function generateScript(subject: string, seconds: number, language: string) {
-  const targetWords = Math.max(45, Math.min(180, Math.round(seconds * 2.2)))
+  const targetWords = Math.max(24, Math.min(130, Math.round(seconds * 1.9)))
   const result = await generateLuminText({
     system:
       "És um argumentista de vídeos curtos. Escreve apenas o texto que será narrado, sem títulos, markdown, notas de produção ou indicações de narrador.",
@@ -48,6 +48,17 @@ async function generateVisualPrompts(subject: string, script: string) {
   })
   const prompts = cleanJsonArray(result.text)
   return prompts.length ? prompts : [subject]
+}
+
+async function generateStockQueries(subject: string, script: string, count: number) {
+  const result = await generateLuminText({
+    system:
+      "Cria pesquisas curtas para bancos de imagens. Responde apenas com um array JSON de strings em inglês, 2 a 5 palavras cada, visualmente concretas e diretamente ligadas ao guião. Nunca uses nomes de pessoas, documentos, texto, entrevistas ou termos abstratos.",
+    prompt: `Tema: ${subject}\nGuião: ${script}\n\nCria exatamente ${count} pesquisas de stock diferentes. Exemplo para poupar energia: ["turning off lights home","LED light bulb","unplugging charger","home thermostat heating"].`,
+    maxOutputTokens: 300,
+    temperature: 0.2,
+  })
+  return cleanJsonArray(result.text).slice(0, count)
 }
 
 async function uploadToMpt(bytes: ArrayBuffer, contentType: string, index: number) {
@@ -74,58 +85,6 @@ function compactSearchQuery(prompt: string) {
     .filter((word) => word.length > 2)
     .slice(0, 4)
     .join(" ")
-}
-
-async function fetchWikimediaImage(prompt: string) {
-  const url = new URL("https://commons.wikimedia.org/w/api.php")
-  url.searchParams.set("action", "query")
-  url.searchParams.set("format", "json")
-  url.searchParams.set("generator", "search")
-  url.searchParams.set("gsrsearch", compactSearchQuery(prompt))
-  url.searchParams.set("gsrnamespace", "6")
-  url.searchParams.set("gsrlimit", "8")
-  url.searchParams.set("prop", "imageinfo")
-  url.searchParams.set("iiprop", "url|mime")
-  url.searchParams.set("iiurlwidth", "1280")
-  url.searchParams.set("origin", "*")
-
-  const response = await fetch(url, {
-    headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
-    cache: "no-store",
-    signal: AbortSignal.timeout(12_000),
-  })
-  if (!response.ok) throw new Error("Wikimedia search failed")
-  const data = await response.json().catch(() => null)
-  const pages = data?.query?.pages && typeof data.query.pages === "object"
-    ? Object.values(data.query.pages)
-    : []
-
-  for (const page of pages as any[]) {
-    const info = Array.isArray(page?.imageinfo) ? page.imageinfo[0] : null
-    const candidate =
-      typeof info?.thumburl === "string" && /^https?:\/\//i.test(info.thumburl)
-        ? info.thumburl
-        : typeof info?.url === "string" && /^https?:\/\//i.test(info.url)
-          ? info.url
-          : ""
-    if (!candidate) continue
-
-    try {
-      const imageResponse = await fetch(candidate, {
-        headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
-        cache: "no-store",
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (!imageResponse.ok) continue
-      const contentType = imageResponse.headers.get("content-type") || info?.mime || "image/jpeg"
-      if (!contentType.startsWith("image/")) continue
-      return { bytes: await imageResponse.arrayBuffer(), contentType }
-    } catch {
-      continue
-    }
-  }
-
-  throw new Error("Wikimedia returned no usable image")
 }
 
 async function fetchOpenverseImage(prompt: string) {
@@ -181,31 +140,24 @@ async function fetchPollinationsImage(prompt: string, index: number, aspect: str
   return { bytes: await imageResponse.arrayBuffer(), contentType }
 }
 
-async function uploadFreeImage(prompt: string, index: number, aspect: string) {
+async function uploadFreeImage(searchQuery: string, visualPrompt: string, index: number, aspect: string) {
   const errors: string[] = []
 
   try {
-    const image = await fetchWikimediaImage(prompt)
-    return await uploadToMpt(image.bytes, image.contentType, index)
-  } catch (error) {
-    errors.push(error instanceof Error ? error.message : "Wikimedia failed")
-  }
-
-  try {
-    const image = await fetchOpenverseImage(prompt)
+    const image = await fetchOpenverseImage(searchQuery)
     return await uploadToMpt(image.bytes, image.contentType, index)
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Openverse failed")
   }
 
   try {
-    const image = await fetchPollinationsImage(prompt, index, aspect)
+    const image = await fetchPollinationsImage(visualPrompt, index, aspect)
     return await uploadToMpt(image.bytes, image.contentType, index)
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Pollinations failed")
   }
 
-  console.error(`[Clipper/MPT] image ${index + 1} failed`, errors)
+  console.error(`[Clipper/MPT] image ${index + 1} failed`, { searchQuery, errors })
   throw new Error(`Falha a obter imagem ${index + 1}`)
 }
 
@@ -233,9 +185,13 @@ export async function POST(request: NextRequest) {
     const allPrompts = await generateVisualPrompts(subject, script)
     const wantedScenes = seconds <= 15 ? 3 : seconds <= 30 ? 4 : 5
     const prompts = allPrompts.slice(0, wantedScenes)
+    const generatedQueries = await generateStockQueries(subject, script, wantedScenes)
+    const stockQueries = Array.from({ length: wantedScenes }, (_, index) =>
+      generatedQueries[index] || subject,
+    )
 
     const uploaded = await Promise.allSettled(
-      prompts.map((prompt, index) => uploadFreeImage(prompt, index, aspect)),
+      prompts.map((prompt, index) => uploadFreeImage(stockQueries[index], prompt, index, aspect)),
     )
     const materialFiles = uploaded
       .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
@@ -294,6 +250,7 @@ export async function POST(request: NextRequest) {
       taskId: data.data.task_id,
       script,
       visualPrompts: prompts,
+      stockQueries,
       engine: "MoneyPrinterTurbo",
       renderBaseUrl: MPT_BASE_URL,
     })
