@@ -1,33 +1,41 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import {
+  getLuminOrigin,
+  getStripeMode,
+  getStripeSecretKey,
+  requiresLiveStripe,
+  resolveStripePriceId,
+  type BillingPlan,
+} from "@/lib/stripe/config"
 
 export const runtime = "nodejs"
 
 const META_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid"] as const
 
-type BillingPlan = "personal_pro" | "business" | "business_team"
-
 function safeMeta(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 200) : ""
 }
 
-function resolvePriceId(plan: BillingPlan) {
-  if (plan === "business_team") {
-    return process.env.STRIPE_PRICE_BUSINESS_TEAM?.trim() || process.env.STRIPE_PRICE_BUSINESS?.trim() || process.env.STRIPE_PRICE_ID?.trim()
-  }
-  if (plan === "business") {
-    return process.env.STRIPE_PRICE_BUSINESS?.trim() || process.env.STRIPE_PRICE_ID?.trim()
-  }
-  return process.env.STRIPE_PRICE_PERSONAL_PRO?.trim() || process.env.STRIPE_PRICE_ID?.trim()
-}
-
 export async function POST(req: Request) {
   try {
-    const secretKey = process.env.STRIPE_SECRET_KEY?.trim()
+    const secretKey = getStripeSecretKey()
     if (!secretKey) {
       return NextResponse.json(
-        { error: "Stripe ainda nao esta configurado neste ambiente.", code: "STRIPE_NOT_CONFIGURED" },
+        { error: "Stripe ainda não está configurado neste ambiente.", code: "STRIPE_NOT_CONFIGURED" },
+        { status: 503 },
+      )
+    }
+
+    const stripeMode = getStripeMode(secretKey)
+    if (requiresLiveStripe() && stripeMode !== "live") {
+      return NextResponse.json(
+        {
+          error: "O ambiente de produção exige uma chave Stripe LIVE.",
+          code: "STRIPE_LIVE_KEY_REQUIRED",
+          mode: stripeMode,
+        },
         { status: 503 },
       )
     }
@@ -47,7 +55,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Este plano requer uma conta Empresa." }, { status: 400 })
     }
 
-    const priceId = resolvePriceId(requestedPlan)
+    const priceId = resolveStripePriceId(requestedPlan)
     if (!priceId) {
       return NextResponse.json(
         { error: "O preço Stripe deste plano ainda não está configurado.", code: "STRIPE_PRICE_NOT_CONFIGURED" },
@@ -56,7 +64,7 @@ export async function POST(req: Request) {
     }
 
     const attribution = body?.attribution && typeof body.attribution === "object" ? body.attribution : {}
-    const origin = req.headers.get("origin") || process.env.NEXTAUTH_URL || "http://localhost:3000"
+    const origin = getLuminOrigin(req.headers.get("origin"))
     const email = String(sessionUser.email).trim().toLowerCase()
     const userId = String(sessionUser.id || "").trim()
     const organizationId = String(sessionUser.organizationId || "").trim()
@@ -69,11 +77,13 @@ export async function POST(req: Request) {
     params.set("cancel_url", `${origin}/billing/cancel`)
     params.set("allow_promotion_codes", "true")
     params.set("customer_email", email)
+    if (userId) params.set("client_reference_id", userId)
 
     const metadata: Record<string, string> = {
       product: "lumin-ai",
       billing_plan: requestedPlan,
       account_type: isBusinessAccount ? "business" : "personal",
+      stripe_mode: stripeMode,
     }
     if (userId) metadata.user_id = userId
     if (organizationId) metadata.organization_id = organizationId
@@ -103,12 +113,12 @@ export async function POST(req: Request) {
     if (!stripeResponse.ok || !data?.url) {
       console.error("[Lumin Stripe] checkout error", data)
       return NextResponse.json(
-        { error: data?.error?.message || "Nao foi possivel criar o checkout." },
+        { error: data?.error?.message || "Não foi possível criar o checkout." },
         { status: stripeResponse.status || 500 },
       )
     }
 
-    return NextResponse.json({ url: data.url, id: data.id, plan: requestedPlan })
+    return NextResponse.json({ url: data.url, id: data.id, plan: requestedPlan, mode: stripeMode })
   } catch (error) {
     console.error("[Lumin Stripe] unexpected error", error)
     return NextResponse.json({ error: "Erro interno ao iniciar o pagamento." }, { status: 500 })
