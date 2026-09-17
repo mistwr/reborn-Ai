@@ -1,689 +1,466 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Textarea } from "@/components/ui/textarea"
 import {
-  Scissors, Upload, Sparkles, Download, Play, Pause, Clock, Zap,
-  TrendingUp, Instagram, Youtube, Video, Loader2, CheckCircle2,
-  Music, Subtitles, Crop, Film, Share2, SkipForward, SkipBack,
-  Volume2, VolumeX, Maximize2, RefreshCw, Trash2, Eye
+  CheckCircle2,
+  Download,
+  Film,
+  Loader2,
+  Scissors,
+  Sparkles,
+  Upload,
+  Video,
+  Wand2,
 } from "lucide-react"
 
-const PLATFORMS = [
-  { id: "tiktok", name: "TikTok", ratio: "9:16", maxDuration: 60, color: "#000000", icon: Video },
-  { id: "reels", name: "Reels", ratio: "9:16", maxDuration: 90, color: "#E4405F", icon: Instagram },
-  { id: "shorts", name: "Shorts", ratio: "9:16", maxDuration: 60, color: "#FF0000", icon: Youtube },
-  { id: "story", name: "Story", ratio: "9:16", maxDuration: 15, color: "#833AB4", icon: Instagram },
-]
+type WorkspaceMode = "clipper" | "generate"
+type ClipFormat = "vertical" | "horizontal" | "square"
 
-const FEATURES = [
-  { id: "auto-detect", label: "Detecao Automatica", icon: Zap, desc: "IA detecta os melhores momentos" },
-  { id: "smart-crop", label: "Crop Inteligente", icon: Crop, desc: "Ajusta ao formato vertical" },
-  { id: "highlights", label: "Momentos Virais", icon: TrendingUp, desc: "Prioriza cenas dinamicas" },
-]
+const CLIP_DURATIONS = [15, 30, 60] as const
+const VIDEO_DURATIONS = [5, 8] as const
+const VIDEO_RATIOS = ["16:9", "9:16", "1:1"] as const
 
-type Step = "upload" | "preview" | "clips" | "export"
-
-interface DetectedScene {
-  id: string
-  startTime: number
-  endTime: number
-  thumbnail: string
-  score: number
-  selected: boolean
-}
-
-interface ClipResult {
-  id: string
-  title: string
-  startTime: number
-  endTime: number
-  duration: number
-  thumbnail: string
-  platform: string
-  videoBlob?: Blob
-}
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, "0")}`
+function buttonClass(active: boolean) {
+  return active
+    ? "border-[#d2a643]/70 bg-[#d2a643]/15 text-[#f4cf73]"
+    : "border-white/10 bg-white/[0.025] text-zinc-400 hover:border-[#d2a643]/40 hover:text-zinc-100"
 }
 
 export function ClipperStudio() {
-  const [step, setStep] = useState<Step>("upload")
+  const [mode, setMode] = useState<WorkspaceMode>("clipper")
+
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [videoTitle, setVideoTitle] = useState("")
-  const [videoDuration, setVideoDuration] = useState(0)
-  
-  const [selectedPlatform, setSelectedPlatform] = useState("tiktok")
-  const [clipDuration, setClipDuration] = useState([30])
-  const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["auto-detect", "highlights"])
-  
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [analysisProgress, setAnalysisProgress] = useState(0)
-  const [scenes, setScenes] = useState<DetectedScene[]>([])
-  const [clips, setClips] = useState<ClipResult[]>([])
-  
-  const [currentTime, setCurrentTime] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
-  const [previewClip, setPreviewClip] = useState<ClipResult | null>(null)
-  
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [clipDuration, setClipDuration] = useState<(typeof CLIP_DURATIONS)[number]>(15)
+  const [clipFormat, setClipFormat] = useState<ClipFormat>("vertical")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [clipProgress, setClipProgress] = useState(0)
+  const [clipResult, setClipResult] = useState<string | null>(null)
+  const [clipError, setClipError] = useState<string | null>(null)
 
-  // Handle file selection
-  const handleFileSelect = useCallback((file: File) => {
+  const [prompt, setPrompt] = useState("")
+  const [aiDuration, setAiDuration] = useState<(typeof VIDEO_DURATIONS)[number]>(5)
+  const [aspectRatio, setAspectRatio] = useState<(typeof VIDEO_RATIOS)[number]>("16:9")
+  const [resolution, setResolution] = useState<"720p" | "1080p">("720p")
+  const [generateAudio, setGenerateAudio] = useState(true)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generationStatus, setGenerationStatus] = useState("")
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null)
+  const [generationError, setGenerationError] = useState<string | null>(null)
+
+  const ffmpegRef = useRef<any>(null)
+  const ffmpegLoadedRef = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cancelledRef = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      cancelledRef.current = true
+      if (videoUrl) URL.revokeObjectURL(videoUrl)
+      if (clipResult) URL.revokeObjectURL(clipResult)
+    }
+  }, [videoUrl, clipResult])
+
+  const chooseFile = (file: File | null) => {
+    if (!file) return
     if (!file.type.startsWith("video/")) {
-      alert("Por favor seleciona um ficheiro de video valido.")
+      setClipError("Seleciona um ficheiro de vídeo válido.")
       return
     }
-    
-    const url = URL.createObjectURL(file)
+
+    if (videoUrl) URL.revokeObjectURL(videoUrl)
+    if (clipResult) URL.revokeObjectURL(clipResult)
     setVideoFile(file)
-    setVideoUrl(url)
-    setVideoTitle(file.name.replace(/\.[^/.]+$/, ""))
-    setStep("preview")
-    setScenes([])
-    setClips([])
-  }, [])
+    setVideoUrl(URL.createObjectURL(file))
+    setClipResult(null)
+    setClipError(null)
+    setClipProgress(0)
+  }
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file) handleFileSelect(file)
-  }, [handleFileSelect])
+  const ensureFfmpeg = async () => {
+    if (ffmpegLoadedRef.current && ffmpegRef.current) return ffmpegRef.current
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleFileSelect(file)
-  }, [handleFileSelect])
+    setGenerationStatus("")
+    setClipProgress(2)
 
-  // Video loaded - get duration
-  const handleVideoLoaded = useCallback(() => {
-    if (videoRef.current) {
-      setVideoDuration(videoRef.current.duration)
+    const [{ FFmpeg }, { toBlobURL }] = await Promise.all([
+      import("@ffmpeg/ffmpeg"),
+      import("@ffmpeg/util"),
+    ])
+
+    const ffmpeg = new FFmpeg()
+    ffmpeg.on("progress", ({ progress }: { progress: number }) => {
+      setClipProgress(Math.max(3, Math.min(99, Math.round(progress * 100))))
+    })
+
+    const coreBase = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd"
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${coreBase}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, "application/wasm"),
+    })
+
+    ffmpegRef.current = ffmpeg
+    ffmpegLoadedRef.current = true
+    return ffmpeg
+  }
+
+  const processClip = async () => {
+    if (!videoFile) return
+
+    setIsProcessing(true)
+    setClipError(null)
+    setClipProgress(1)
+
+    try {
+      const [{ fetchFile }] = await Promise.all([import("@ffmpeg/util")])
+      const ffmpeg = await ensureFfmpeg()
+      const extension = videoFile.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
+      const inputName = `lumin-input.${extension}`
+      const outputName = "lumin-clip.mp4"
+
+      await ffmpeg.writeFile(inputName, await fetchFile(videoFile))
+
+      const dimensions: Record<ClipFormat, [number, number]> = {
+        vertical: [720, 1280],
+        horizontal: [1280, 720],
+        square: [1080, 1080],
+      }
+      const [width, height] = dimensions[clipFormat]
+      const filter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`
+
+      await ffmpeg.exec([
+        "-i",
+        inputName,
+        "-t",
+        String(clipDuration),
+        "-vf",
+        filter,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "27",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        outputName,
+      ])
+
+      const data = await ffmpeg.readFile(outputName)
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data
+      const blob = new Blob([bytes as BlobPart], { type: "video/mp4" })
+      if (clipResult) URL.revokeObjectURL(clipResult)
+      setClipResult(URL.createObjectURL(blob))
+      setClipProgress(100)
+
+      try {
+        await ffmpeg.deleteFile(inputName)
+        await ffmpeg.deleteFile(outputName)
+      } catch {
+        // Cleanup is best effort.
+      }
+    } catch (error: any) {
+      console.error("[Lumin Clipper] local processing failed", error)
+      setClipError(
+        error?.message?.includes("SharedArrayBuffer")
+          ? "O navegador bloqueou o motor local de vídeo. Abre o Lumin numa janela normal do Chrome e tenta novamente."
+          : "Não foi possível processar este vídeo neste dispositivo. Tenta um MP4 mais curto ou mais leve.",
+      )
+    } finally {
+      setIsProcessing(false)
     }
-  }, [])
+  }
 
-  // Capture thumbnail at specific time
-  const captureThumbnail = useCallback((time: number): Promise<string> => {
-    return new Promise((resolve) => {
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      if (!video || !canvas) {
-        resolve("")
+  const pollGeneration = async (operation: unknown, model: string) => {
+    const maxAttempts = 120
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (cancelledRef.current) return
+      setGenerationStatus(`A gerar vídeo… ${Math.min(99, Math.max(8, attempt * 2))}%`)
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+
+      const response = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "status", operation, model }),
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) throw new Error(data?.error || "Falha ao consultar a geração")
+      if (data?.status === "completed") {
+        const url = data?.videos?.[0]?.url
+        if (!url) throw new Error("O provider terminou mas não devolveu um vídeo")
+        setGeneratedVideo(url)
+        setGenerationStatus("Vídeo pronto")
         return
       }
-
-      const wasPlaying = !video.paused
-      const originalTime = video.currentTime
-
-      const captureFrame = () => {
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          // 9:16 aspect ratio for vertical clips
-          canvas.width = 270
-          canvas.height = 480
-          
-          // Calculate crop for center-weighted vertical frame
-          const videoRatio = video.videoWidth / video.videoHeight
-          const targetRatio = 9 / 16
-          
-          let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight
-          
-          if (videoRatio > targetRatio) {
-            // Video is wider - crop sides
-            sw = video.videoHeight * targetRatio
-            sx = (video.videoWidth - sw) / 2
-          } else {
-            // Video is taller - crop top/bottom
-            sh = video.videoWidth / targetRatio
-            sy = (video.videoHeight - sh) / 2
-          }
-          
-          ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
-          resolve(canvas.toDataURL("image/jpeg", 0.8))
-        } else {
-          resolve("")
-        }
-
-        // Restore video state
-        video.currentTime = originalTime
-        if (wasPlaying) video.play()
-      }
-
-      video.currentTime = time
-      video.onseeked = captureFrame
-    })
-  }, [])
-
-  // Analyze video for scene changes
-  const analyzeVideo = useCallback(async () => {
-    if (!videoRef.current || !videoDuration) return
-
-    setIsAnalyzing(true)
-    setAnalysisProgress(0)
-    setScenes([])
-
-    const video = videoRef.current
-    const detectedScenes: DetectedScene[] = []
-    
-    // Sample frames at intervals to detect scene changes
-    const sampleInterval = Math.max(1, videoDuration / 30) // ~30 samples max
-    const maxClipDur = clipDuration[0]
-    
-    let lastFrameData: ImageData | null = null
-    const canvas = document.createElement("canvas")
-    canvas.width = 160
-    canvas.height = 90
-    const ctx = canvas.getContext("2d")
-
-    if (!ctx) {
-      setIsAnalyzing(false)
-      return
+      if (data?.status === "error") throw new Error(data?.error || "A geração de vídeo falhou")
     }
 
-    // Pause video for analysis
-    video.pause()
+    throw new Error("A geração demorou demasiado tempo. Tenta novamente.")
+  }
 
-    for (let time = 0; time < videoDuration; time += sampleInterval) {
-      // Update progress
-      setAnalysisProgress(Math.round((time / videoDuration) * 100))
+  const generateVideo = async () => {
+    if (!prompt.trim()) return
 
-      // Seek to time
-      await new Promise<void>((resolve) => {
-        video.currentTime = time
-        video.onseeked = () => resolve()
+    cancelledRef.current = false
+    setIsGenerating(true)
+    setGenerationError(null)
+    setGeneratedVideo(null)
+    setGenerationStatus("A iniciar o modelo de vídeo…")
+
+    try {
+      const response = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start",
+          prompt: prompt.trim(),
+          duration: aiDuration,
+          aspectRatio,
+          resolution,
+          generateAudio,
+        }),
       })
+      const data = await response.json().catch(() => ({}))
 
-      // Capture frame
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      const currentFrameData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-      // Compare with previous frame
-      if (lastFrameData) {
-        const diff = calculateFrameDifference(lastFrameData, currentFrameData)
-        
-        // If significant change detected, mark as potential scene
-        if (diff > 0.15) { // 15% pixel change threshold
-          const thumbnail = await captureThumbnail(time)
-          
-          // Calculate a "virality" score based on motion and visual interest
-          const score = Math.min(99, Math.round(60 + diff * 200 + Math.random() * 20))
-          
-          detectedScenes.push({
-            id: `scene-${detectedScenes.length}`,
-            startTime: Math.max(0, time - maxClipDur / 2),
-            endTime: Math.min(videoDuration, time + maxClipDur / 2),
-            thumbnail,
-            score,
-            selected: detectedScenes.length < 5, // Auto-select first 5
-          })
+      if (!response.ok) {
+        if (data?.code === "PRO_REQUIRED") {
+          throw new Error("Gerar vídeo com IA é uma função Lumin Pro. Ativa o Pro para usar modelos de vídeo reais.")
         }
+        if (data?.code === "AUTH_REQUIRED") {
+          throw new Error("Inicia sessão no Lumin para gerar vídeo com IA.")
+        }
+        throw new Error(data?.error || "Não foi possível iniciar a geração")
       }
 
-      lastFrameData = currentFrameData
-    }
-
-    // If no scenes detected, create evenly spaced clips
-    if (detectedScenes.length === 0) {
-      const numClips = Math.floor(videoDuration / maxClipDur)
-      for (let i = 0; i < Math.min(numClips, 5); i++) {
-        const startTime = i * maxClipDur
-        const thumbnail = await captureThumbnail(startTime + maxClipDur / 2)
-        
-        detectedScenes.push({
-          id: `scene-${i}`,
-          startTime,
-          endTime: Math.min(startTime + maxClipDur, videoDuration),
-          thumbnail,
-          score: Math.round(70 + Math.random() * 20),
-          selected: true,
-        })
-      }
-    }
-
-    // Sort by score
-    detectedScenes.sort((a, b) => b.score - a.score)
-
-    setScenes(detectedScenes)
-    setAnalysisProgress(100)
-    setIsAnalyzing(false)
-    setStep("clips")
-  }, [videoDuration, clipDuration, captureThumbnail])
-
-  // Calculate difference between two frames
-  function calculateFrameDifference(frame1: ImageData, frame2: ImageData): number {
-    const data1 = frame1.data
-    const data2 = frame2.data
-    let diffPixels = 0
-    const threshold = 30 // Color difference threshold
-
-    for (let i = 0; i < data1.length; i += 4) {
-      const rDiff = Math.abs(data1[i] - data2[i])
-      const gDiff = Math.abs(data1[i + 1] - data2[i + 1])
-      const bDiff = Math.abs(data1[i + 2] - data2[i + 2])
-      
-      if (rDiff > threshold || gDiff > threshold || bDiff > threshold) {
-        diffPixels++
-      }
-    }
-
-    return diffPixels / (frame1.width * frame1.height)
-  }
-
-  // Toggle scene selection
-  const toggleSceneSelection = (id: string) => {
-    setScenes(prev => prev.map(s => 
-      s.id === id ? { ...s, selected: !s.selected } : s
-    ))
-  }
-
-  // Generate clips from selected scenes
-  const generateClips = useCallback(() => {
-    const selectedScenes = scenes.filter(s => s.selected)
-    const platform = PLATFORMS.find(p => p.id === selectedPlatform)!
-    
-    const newClips: ClipResult[] = selectedScenes.map((scene, idx) => ({
-      id: `clip-${idx}`,
-      title: `${videoTitle} - Clip ${idx + 1}`,
-      startTime: scene.startTime,
-      endTime: Math.min(scene.endTime, scene.startTime + platform.maxDuration),
-      duration: Math.min(scene.endTime - scene.startTime, platform.maxDuration),
-      thumbnail: scene.thumbnail,
-      platform: selectedPlatform,
-    }))
-
-    setClips(newClips)
-    setStep("export")
-  }, [scenes, selectedPlatform, videoTitle])
-
-  // Preview a clip
-  const previewClipVideo = (clip: ClipResult) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = clip.startTime
-      videoRef.current.play()
-      setPreviewClip(clip)
-      setIsPlaying(true)
+      if (!data?.operation) throw new Error("O modelo não devolveu uma operação válida")
+      await pollGeneration(data.operation, data.model)
+    } catch (error: any) {
+      console.error("[Lumin Video] generation failed", error)
+      setGenerationError(error?.message || "Não foi possível gerar o vídeo")
+      setGenerationStatus("")
+    } finally {
+      setIsGenerating(false)
     }
   }
 
-  // Monitor playback for clip preview bounds
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video || !previewClip) return
-
-    const handleTimeUpdate = () => {
-      if (video.currentTime >= previewClip.endTime) {
-        video.pause()
-        video.currentTime = previewClip.startTime
-        setIsPlaying(false)
-      }
-      setCurrentTime(video.currentTime)
-    }
-
-    video.addEventListener("timeupdate", handleTimeUpdate)
-    return () => video.removeEventListener("timeupdate", handleTimeUpdate)
-  }, [previewClip])
-
-  // Download clip (creates a trimmed version using MediaRecorder)
-  const downloadClip = async (clip: ClipResult) => {
-    // For now, download a link to timestamp
-    const link = document.createElement("a")
-    link.href = videoUrl!
-    link.download = `${clip.title}.mp4`
-    
-    // Note: Actual video trimming requires server-side FFmpeg or client-side processing
-    alert(`Para fazer download do clip (${formatTime(clip.startTime)} - ${formatTime(clip.endTime)}), podes usar um editor de video externo com estes timestamps.`)
+  const download = (url: string, name: string) => {
+    const a = document.createElement("a")
+    a.href = url
+    a.download = name
+    a.target = "_blank"
+    a.rel = "noreferrer"
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
   }
-
-  // Reset everything
-  const reset = () => {
-    if (videoUrl) URL.revokeObjectURL(videoUrl)
-    setVideoFile(null)
-    setVideoUrl(null)
-    setVideoTitle("")
-    setVideoDuration(0)
-    setScenes([])
-    setClips([])
-    setStep("upload")
-    setPreviewClip(null)
-  }
-
-  const toggleFeature = (id: string) =>
-    setEnabledFeatures(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id])
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* Hidden canvas for thumbnail capture */}
-      <canvas ref={canvasRef} className="hidden" />
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-4 space-y-4">
-          {/* Header */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Scissors className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg">Clipper AI</h2>
-                <p className="text-xs text-muted-foreground">Transforma videos em clips virais</p>
-              </div>
+    <div className="flex-1 min-h-0 overflow-y-auto bg-[#050506] text-zinc-100">
+      <div className="mx-auto w-full max-w-6xl p-3 sm:p-5 lg:p-7 space-y-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d2a643]/30 bg-[#d2a643]/10">
+              <Scissors className="h-5 w-5 text-[#e2bb59]" />
             </div>
-            {step !== "upload" && (
-              <Button variant="outline" size="sm" onClick={reset} className="gap-1.5">
-                <RefreshCw className="h-3.5 w-3.5" />
-                Novo Video
-              </Button>
-            )}
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Lumin Video Studio</h2>
+              <p className="text-sm text-zinc-500">Corta vídeos no dispositivo ou cria novos vídeos com IA.</p>
+            </div>
           </div>
 
-          {/* Step: Upload */}
-          {step === "upload" && (
-            <Card
-              className="border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+          <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-white/[0.025] p-1 sm:w-auto">
+            <button
+              onClick={() => setMode("clipper")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${mode === "clipper" ? "bg-[#d2a643] text-black" : "text-zinc-400"}`}
             >
-              <div className="flex flex-col items-center justify-center py-16 px-4 gap-4 text-center">
-                <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center">
-                  <Film className="h-10 w-10 text-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-lg">Arrasta o teu video aqui</p>
-                  <p className="text-sm text-muted-foreground mt-1">ou clica para selecionar — MP4, MOV, WebM</p>
-                </div>
-                <Button className="gap-2 mt-2">
-                  <Upload className="h-4 w-4" />
-                  Selecionar Video
-                </Button>
-                <input 
-                  ref={fileInputRef} 
-                  type="file" 
-                  accept="video/*" 
-                  className="hidden" 
-                  onChange={handleInputChange} 
-                />
-              </div>
-            </Card>
-          )}
-
-          {/* Step: Preview & Configure */}
-          {step === "preview" && videoUrl && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Video Preview */}
-              <Card className="lg:col-span-2 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <Video className="h-4 w-4 text-primary" />
-                    Preview
-                  </h3>
-                  <Badge variant="outline" className="text-xs">
-                    {formatTime(videoDuration)}
-                  </Badge>
-                </div>
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  controls
-                  className="w-full rounded-lg aspect-video bg-black"
-                  onLoadedMetadata={handleVideoLoaded}
-                />
-                <div>
-                  <Label className="text-xs text-muted-foreground">Titulo</Label>
-                  <Input
-                    value={videoTitle}
-                    onChange={(e) => setVideoTitle(e.target.value)}
-                    className="mt-1 text-sm h-9"
-                  />
-                </div>
-              </Card>
-
-              {/* Settings */}
-              <div className="space-y-4">
-                {/* Platform */}
-                <Card className="p-4 space-y-3">
-                  <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <Share2 className="h-4 w-4 text-primary" />
-                    Plataforma
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PLATFORMS.map(({ id, name, ratio, maxDuration, color, icon: Icon }) => (
-                      <button
-                        key={id}
-                        onClick={() => setSelectedPlatform(id)}
-                        className={`flex items-center gap-2 p-2.5 rounded-lg border-2 transition-all text-left ${
-                          selectedPlatform === id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/40"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" style={{ color }} />
-                        <div>
-                          <p className="text-xs font-semibold">{name}</p>
-                          <p className="text-[10px] text-muted-foreground">{ratio} max {maxDuration}s</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </Card>
-
-                {/* Clip Duration */}
-                <Card className="p-4 space-y-3">
-                  <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
-                    Duracao do Clip
-                  </h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Segundos</span>
-                      <span className="text-xs font-medium text-primary">{clipDuration[0]}s</span>
-                    </div>
-                    <Slider value={clipDuration} onValueChange={setClipDuration} min={10} max={60} step={5} />
-                  </div>
-                </Card>
-
-                {/* Features */}
-                <Card className="p-4 space-y-3">
-                  <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Funcionalidades
-                  </h3>
-                  <div className="space-y-2">
-                    {FEATURES.map(({ id, label, icon: Icon, desc }) => (
-                      <button
-                        key={id}
-                        onClick={() => toggleFeature(id)}
-                        className={`w-full flex items-center gap-2 p-2 rounded-lg border transition-all text-left ${
-                          enabledFeatures.includes(id)
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/30"
-                        }`}
-                      >
-                        <Icon className={`h-3.5 w-3.5 shrink-0 ${enabledFeatures.includes(id) ? "text-primary" : "text-muted-foreground"}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium">{label}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </Card>
-
-                <Button 
-                  onClick={analyzeVideo} 
-                  className="w-full h-11 gap-2" 
-                  disabled={isAnalyzing || !videoDuration}
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      A analisar... {analysisProgress}%
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Analisar Video
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Step: Select Clips */}
-          {step === "clips" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="font-semibold">Momentos Detectados</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {scenes.filter(s => s.selected).length} de {scenes.length} selecionados
-                  </p>
-                </div>
-                <Button onClick={generateClips} disabled={!scenes.some(s => s.selected)} className="gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Gerar {scenes.filter(s => s.selected).length} Clip{scenes.filter(s => s.selected).length !== 1 ? "s" : ""}
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {scenes.map((scene) => (
-                  <Card 
-                    key={scene.id} 
-                    className={`overflow-hidden cursor-pointer transition-all ${
-                      scene.selected ? "ring-2 ring-primary" : "opacity-60 hover:opacity-100"
-                    }`}
-                    onClick={() => toggleSceneSelection(scene.id)}
-                  >
-                    <div className="relative aspect-[9/16] bg-muted">
-                      <img
-                        src={scene.thumbnail}
-                        alt={`Cena ${scene.id}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-2 right-2">
-                        <Badge className={`text-[10px] ${scene.score >= 80 ? "bg-green-500" : scene.score >= 60 ? "bg-yellow-500" : "bg-gray-500"} text-white border-0`}>
-                          {scene.score}%
-                        </Badge>
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent">
-                        <p className="text-[10px] text-white">
-                          {formatTime(scene.startTime)} — {formatTime(scene.endTime)}
-                        </p>
-                      </div>
-                      {scene.selected && (
-                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                          <CheckCircle2 className="h-8 w-8 text-primary" />
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step: Export */}
-          {step === "export" && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                <p className="font-semibold">
-                  {clips.length} clip{clips.length !== 1 ? "s" : ""} pronto{clips.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {clips.map((clip) => (
-                  <Card key={clip.id} className="overflow-hidden group">
-                    <div className="relative aspect-[9/16] bg-muted max-h-64">
-                      <img
-                        src={clip.thumbnail}
-                        alt={clip.title}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
-                          onClick={() => previewClipVideo(clip)}
-                        >
-                          <Play className="h-5 w-5 ml-0.5" />
-                        </Button>
-                      </div>
-                      <div className="absolute top-2 left-2">
-                        <Badge variant="secondary" className="text-[10px] capitalize">
-                          {clip.platform}
-                        </Badge>
-                      </div>
-                      <div className="absolute bottom-2 left-2">
-                        <Badge className="text-[10px] bg-black/50 text-white border-0">
-                          {formatTime(clip.duration)}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <p className="text-xs font-medium truncate">{clip.title}</p>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="flex-1 h-8 text-xs gap-1"
-                          onClick={() => previewClipVideo(clip)}
-                        >
-                          <Eye className="h-3 w-3" />
-                          Preview
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          className="flex-1 h-8 text-xs gap-1"
-                          onClick={() => downloadClip(clip)}
-                        >
-                          <Download className="h-3 w-3" />
-                          Export
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Video player for preview */}
-              {videoUrl && (
-                <Card className="p-4">
-                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                    <Video className="h-4 w-4 text-primary" />
-                    {previewClip ? `Preview: ${previewClip.title}` : "Player"}
-                  </h4>
-                  <video
-                    ref={videoRef}
-                    src={videoUrl}
-                    controls
-                    className="w-full rounded-lg aspect-video bg-black"
-                  />
-                  {previewClip && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Clip: {formatTime(previewClip.startTime)} — {formatTime(previewClip.endTime)}
-                    </p>
-                  )}
-                </Card>
-              )}
-            </div>
-          )}
+              Clipper
+            </button>
+            <button
+              onClick={() => setMode("generate")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${mode === "generate" ? "bg-[#d2a643] text-black" : "text-zinc-400"}`}
+            >
+              Gerar vídeo IA
+            </button>
+          </div>
         </div>
+
+        {mode === "clipper" ? (
+          <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+            <Card className="border-white/10 bg-[#0b0b0d] p-4 sm:p-5 space-y-5">
+              <div>
+                <h3 className="flex items-center gap-2 font-semibold"><Film className="h-4 w-4 text-[#d2a643]" />Clipper local</h3>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-500">O vídeo é processado no teu próprio dispositivo com FFmpeg. Não precisa de upload para um servidor.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vídeo</Label>
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={(event) => chooseFile(event.target.files?.[0] || null)}
+                  className="border-white/10 bg-black/30 file:text-zinc-200"
+                />
+                {videoFile && <p className="truncate text-xs text-zinc-500">{videoFile.name}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Duração</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {CLIP_DURATIONS.map((duration) => (
+                    <button key={duration} onClick={() => setClipDuration(duration)} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(clipDuration === duration)}`}>
+                      {duration}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Formato</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["vertical", "horizontal", "square"] as ClipFormat[]).map((format) => (
+                    <button key={format} onClick={() => setClipFormat(format)} className={`rounded-xl border px-2 py-2 text-xs capitalize transition ${buttonClass(clipFormat === format)}`}>
+                      {format === "vertical" ? "9:16" : format === "horizontal" ? "16:9" : "1:1"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {clipError && <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-xs text-red-300">{clipError}</div>}
+
+              <Button
+                onClick={processClip}
+                disabled={!videoFile || isProcessing}
+                className="w-full bg-[#c99d38] text-black hover:bg-[#ddb650]"
+              >
+                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A processar {clipProgress}%</> : <><Scissors className="mr-2 h-4 w-4" />Criar clip</>}
+              </Button>
+            </Card>
+
+            <Card className="min-h-[360px] border-white/10 bg-[#09090b] p-3 sm:p-5">
+              {clipResult ? (
+                <div className="space-y-4">
+                  <video src={clipResult} controls playsInline className="max-h-[620px] w-full rounded-2xl bg-black object-contain" />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm text-emerald-400"><CheckCircle2 className="h-4 w-4" />Clip pronto no dispositivo</div>
+                    <Button onClick={() => download(clipResult, `lumin-clip-${Date.now()}.mp4`)} variant="outline" className="border-[#d2a643]/40 text-[#e5bd58]">
+                      <Download className="mr-2 h-4 w-4" />Download MP4
+                    </Button>
+                  </div>
+                </div>
+              ) : videoUrl ? (
+                <video src={videoUrl} controls playsInline className="max-h-[620px] w-full rounded-2xl bg-black object-contain" />
+              ) : (
+                <button onClick={() => fileInputRef.current?.click()} className="flex min-h-[330px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 text-center transition hover:border-[#d2a643]/40">
+                  <Upload className="mb-3 h-9 w-9 text-[#d2a643]" />
+                  <span className="font-medium">Escolhe um vídeo</span>
+                  <span className="mt-1 text-sm text-zinc-500">MP4, MOV ou WebM</span>
+                </button>
+              )}
+            </Card>
+          </div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
+            <Card className="border-white/10 bg-[#0b0b0d] p-4 sm:p-5 space-y-5">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="flex items-center gap-2 font-semibold"><Wand2 className="h-4 w-4 text-[#d2a643]" />Gerador de vídeo IA</h3>
+                  <span className="rounded-full border border-[#d2a643]/30 bg-[#d2a643]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#e5bd58]">Pro</span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-500">Geração real através do Vercel AI Gateway. O provider pode demorar alguns minutos.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Descreve o vídeo</Label>
+                <Textarea
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder="Ex.: plano cinematográfico de um carro desportivo preto a atravessar o Porto à noite, chuva, reflexos dourados, câmara baixa..."
+                  className="min-h-[130px] resize-none border-white/10 bg-black/30"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Duração</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {VIDEO_DURATIONS.map((duration) => (
+                    <button key={duration} onClick={() => setAiDuration(duration)} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(aiDuration === duration)}`}>
+                      {duration} segundos
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Formato</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {VIDEO_RATIOS.map((ratio) => (
+                    <button key={ratio} onClick={() => setAspectRatio(ratio)} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(aspectRatio === ratio)}`}>
+                      {ratio}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Qualidade</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["720p", "1080p"] as const).map((value) => (
+                    <button key={value} onClick={() => setResolution(value)} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(resolution === value)}`}>
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm">
+                <span><span className="block font-medium text-zinc-200">Gerar áudio</span><span className="text-xs text-zinc-500">Quando o modelo suportar áudio nativo</span></span>
+                <input type="checkbox" checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="h-4 w-4 accent-[#d2a643]" />
+              </label>
+
+              {generationError && <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">{generationError}</div>}
+
+              <Button
+                onClick={generateVideo}
+                disabled={!prompt.trim() || isGenerating}
+                className="w-full bg-[#c99d38] text-black hover:bg-[#ddb650]"
+              >
+                {isGenerating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{generationStatus || "A gerar…"}</> : <><Sparkles className="mr-2 h-4 w-4" />Gerar vídeo com IA</>}
+              </Button>
+            </Card>
+
+            <Card className="min-h-[420px] border-white/10 bg-[#09090b] p-3 sm:p-5">
+              {generatedVideo ? (
+                <div className="space-y-4">
+                  <video src={generatedVideo} controls playsInline className="max-h-[640px] w-full rounded-2xl bg-black object-contain" />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm text-emerald-400"><CheckCircle2 className="h-4 w-4" />Vídeo IA concluído</div>
+                    <Button onClick={() => download(generatedVideo, `lumin-ai-video-${Date.now()}.mp4`)} variant="outline" className="border-[#d2a643]/40 text-[#e5bd58]">
+                      <Download className="mr-2 h-4 w-4" />Download vídeo
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-[390px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 px-6 text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d2a643]/25 bg-[#d2a643]/10">
+                    <Video className="h-7 w-7 text-[#d2a643]" />
+                  </div>
+                  <h4 className="font-semibold">Texto → vídeo</h4>
+                  <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500">Escreve a cena que imaginas. O Lumin envia o pedido para um modelo de vídeo real e coloca o resultado aqui quando terminar.</p>
+                  {isGenerating && <div className="mt-5 flex items-center gap-2 text-sm text-[#e5bd58]"><Loader2 className="h-4 w-4 animate-spin" />{generationStatus}</div>}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )
