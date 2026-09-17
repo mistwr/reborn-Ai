@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import { useSession, signIn } from "next-auth/react"
 import { User, CreditCard, Sparkles, ArrowLeft, Settings, Crown, Zap, ShieldCheck, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,6 +9,8 @@ import { PRO_PLAN, FREE_PLAN, formatPrice } from "@/lib/plans"
 
 export default function AccountPage() {
   const { data: session, status } = useSession()
+  const [billingBusy, setBillingBusy] = useState(false)
+  const [billingError, setBillingError] = useState("")
 
   const user = session?.user as any
   const isFounder = Boolean(user?.isFounder)
@@ -16,6 +19,23 @@ export default function AccountPage() {
   const currentPlan = isPro ? PRO_PLAN : FREE_PLAN
   const email = user?.email || ""
   const tokenLimit = isFounder ? null : currentPlan.tokensPerDay
+
+  const openBillingPortal = async () => {
+    setBillingBusy(true)
+    setBillingError("")
+    try {
+      const response = await fetch("/api/stripe/portal", { method: "POST" })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data?.url) {
+        throw new Error(data?.error || "Não foi possível abrir a gestão da subscrição.")
+      }
+      window.location.href = data.url
+    } catch (error: any) {
+      setBillingError(error?.message || "Não foi possível abrir a gestão da subscrição.")
+    } finally {
+      setBillingBusy(false)
+    }
+  }
 
   if (status === "loading") {
     return (
@@ -46,7 +66,7 @@ export default function AccountPage() {
           <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-4">
             <User className="w-10 h-10 mx-auto text-muted-foreground" />
             <div>
-              <h2 className="text-xl font-bold">Entra na tua conta Reborn</h2>
+              <h2 className="text-xl font-bold">Entra na tua conta Lumin AI</h2>
               <p className="text-sm text-muted-foreground mt-1">O plano e o acesso Pro são verificados de forma segura no servidor.</p>
             </div>
             <Button onClick={() => signIn()}>Entrar</Button>
@@ -110,6 +130,15 @@ export default function AccountPage() {
                   </Link>
                 </Button>
               )}
+
+              {isPro && !isFounder && (
+                <Button variant="outline" className="w-full gap-2" onClick={openBillingPortal} disabled={billingBusy}>
+                  {billingBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  Gerir pagamento e subscrição
+                </Button>
+              )}
+
+              {billingError && <p className="text-xs text-destructive">{billingError}</p>}
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
@@ -127,7 +156,7 @@ export default function AccountPage() {
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Limite diário do plano</p>
                   <p className="text-2xl font-bold">{tokenLimit?.toLocaleString()} tokens/dia</p>
-                  <p className="text-xs text-muted-foreground">O consumo real será ligado ao sistema de usage metering do Reborn.</p>
+                  <p className="text-xs text-muted-foreground">O consumo real será ligado ao sistema de usage metering do Lumin AI.</p>
                 </div>
               )}
             </div>
