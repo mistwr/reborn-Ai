@@ -10,6 +10,7 @@ import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminBusinessMenu } from "@/components/lumin-business-menu"
 import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
 import { LuminQuickTabs } from "@/components/lumin-quick-tabs"
+import { LuminSidebarPruner } from "@/components/lumin-sidebar-pruner"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -121,6 +122,7 @@ export default function RootLayout({
           <LuminQuickTabs />
           <LuminBusinessMenu />
           <LuminSecureLoginPanel />
+          <LuminSidebarPruner />
         </Providers>
         <LuminBrandBridge />
         <RebornAnalyticsObserver />
