@@ -13,7 +13,6 @@ const ROUTE_COSTS: Record<string, number> = {
   "/api/generate-presentation": 1500,
   "/api/generate-presentation-v2": 1500,
   "/api/clipper/transcribe": 750,
-  "/api/clipper/generate": 5000,
 }
 
 const FREE_LIMIT = 15000
@@ -102,6 +101,5 @@ export const config = {
     "/api/generate-presentation",
     "/api/generate-presentation-v2",
     "/api/clipper/transcribe",
-    "/api/clipper/generate",
   ],
 }
