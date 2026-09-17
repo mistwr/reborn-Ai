@@ -19,6 +19,7 @@ function findLegacyButton(header: HTMLElement, matcher: (button: HTMLButtonEleme
 export function LuminShellChromeBridge() {
   const [mountTarget, setMountTarget] = useState<HTMLElement | null>(null)
   const [legacyHeader, setLegacyHeader] = useState<HTMLElement | null>(null)
+  const [creditState, setCreditState] = useState<{ used: number; limit: number } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -57,6 +58,36 @@ export function LuminShellChromeBridge() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const refreshCredits = async () => {
+      try {
+        const response = await fetch("/api/credits", { cache: "no-store", credentials: "include" })
+        if (!response.ok) return
+        const data = await response.json()
+        if (!cancelled && Number.isFinite(data?.used) && Number.isFinite(data?.limit)) {
+          setCreditState({ used: data.used, limit: data.limit })
+        }
+      } catch {
+        // Keep the legacy fallback if billing is temporarily unavailable.
+      }
+    }
+
+    void refreshCredits()
+    const timer = window.setInterval(refreshCredits, 10000)
+    const onFocus = () => void refreshCredits()
+    window.addEventListener("focus", onFocus)
+    window.addEventListener("lumin:credits-changed", onFocus as EventListener)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener("focus", onFocus)
+      window.removeEventListener("lumin:credits-changed", onFocus as EventListener)
+    }
+  }, [])
+
   const actions = useMemo(() => {
     if (!legacyHeader) return null
 
@@ -72,17 +103,17 @@ export function LuminShellChromeBridge() {
       .map((element) => element.textContent?.trim() ?? "")
       .find((text) => /^\d+\s*\/\s*\d+$/.test(text))
 
-    const [tokenCount, tokenLimit] = tokenText
+    const [legacyCount, legacyLimit] = tokenText
       ? tokenText.split("/").map((part) => Number(part.trim()))
       : [0, 15000]
 
     return {
-      tokenCount: Number.isFinite(tokenCount) ? tokenCount : 0,
-      tokenLimit: Number.isFinite(tokenLimit) ? tokenLimit : 15000,
+      tokenCount: creditState?.used ?? (Number.isFinite(legacyCount) ? legacyCount : 0),
+      tokenLimit: creditState?.limit ?? (Number.isFinite(legacyLimit) ? legacyLimit : 15000),
       onOpenMenu: () => menuButton?.click(),
       onToggleMusic: musicButton ? () => musicButton.click() : undefined,
     }
-  }, [legacyHeader])
+  }, [legacyHeader, creditState])
 
   if (!mountTarget || !actions) return null
 
