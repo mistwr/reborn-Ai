@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { generateLuminText } from "@/lib/lumin-ai-runtime"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
+export const maxDuration = 300
 
 const MPT_BASE_URL = (process.env.MONEYPRINTERTURBO_API_URL || "https://moneyprinterturbo-production-3021.up.railway.app").replace(/\/$/, "")
 
@@ -41,7 +41,7 @@ async function generateVisualPrompts(subject: string, script: string) {
   const result = await generateLuminText({
     system:
       "Transforma guiões em prompts visuais cinematográficos. Responde exclusivamente com um array JSON de strings, sem markdown.",
-    prompt: `Tema: ${subject}\nGuião: ${script}\n\nGera exatamente 5 prompts visuais diferentes, concretos e fotorealistas, que contem a história pela mesma ordem do guião. Não incluas texto escrito nas imagens.`,
+    prompt: `Tema: ${subject}\nGuião: ${script}\n\nGera prompts visuais diferentes, concretos e fotorealistas, que contem a história pela mesma ordem do guião. Responde apenas com o array JSON. Não incluas texto escrito nas imagens.`,
     maxOutputTokens: 900,
     temperature: 0.6,
   })
@@ -88,11 +88,19 @@ export async function POST(request: NextRequest) {
     const language = String(body?.language || "pt-PT")
     const voiceName = String(body?.voiceName || "pt-PT-RaquelNeural-Female")
     const script = String(body?.script || "").trim() || (await generateScript(subject, seconds, language))
-    const prompts = await generateVisualPrompts(subject, script)
+    const allPrompts = await generateVisualPrompts(subject, script)
+    const wantedScenes = seconds <= 15 ? 3 : seconds <= 30 ? 4 : 5
+    const prompts = allPrompts.slice(0, wantedScenes)
 
-    const materialFiles: string[] = []
-    for (let i = 0; i < prompts.length; i++) {
-      materialFiles.push(await uploadFreeImage(prompts[i], i, aspect))
+    const uploaded = await Promise.allSettled(
+      prompts.map((prompt, index) => uploadFreeImage(prompt, index, aspect)),
+    )
+    const materialFiles = uploaded
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+      .map((result) => result.value)
+
+    if (materialFiles.length < 2) {
+      throw new Error("Não foi possível obter imagens suficientes para montar o vídeo. Tenta novamente.")
     }
 
     const clipDuration = Math.max(3, Math.ceil(seconds / Math.max(1, materialFiles.length)))
