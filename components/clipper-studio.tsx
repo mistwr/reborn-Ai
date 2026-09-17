@@ -22,7 +22,7 @@ type WorkspaceMode = "clipper" | "generate"
 type ClipFormat = "vertical" | "horizontal" | "square"
 
 const CLIP_DURATIONS = [15, 30, 60] as const
-const VIDEO_DURATIONS = [5, 8] as const
+const VIDEO_DURATIONS = [15, 30, 60] as const
 const VIDEO_RATIOS = ["16:9", "9:16", "1:1"] as const
 
 function buttonClass(active: boolean) {
@@ -46,8 +46,7 @@ export function ClipperStudio() {
   const [prompt, setPrompt] = useState("")
   const [aiDuration, setAiDuration] = useState<(typeof VIDEO_DURATIONS)[number]>(5)
   const [aspectRatio, setAspectRatio] = useState<(typeof VIDEO_RATIOS)[number]>("16:9")
-  const [resolution, setResolution] = useState<"720p" | "1080p">("720p")
-  const [generateAudio, setGenerateAudio] = useState(true)
+  const [voiceName, setVoiceName] = useState("pt-PT-RaquelNeural-Female")
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStatus, setGenerationStatus] = useState("")
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null)
@@ -178,29 +177,27 @@ export function ClipperStudio() {
     }
   }
 
-  const pollGeneration = async (operation: unknown, model: string) => {
-    const maxAttempts = 120
+  const pollGeneration = async (taskId: string) => {
+    const maxAttempts = 180
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       if (cancelledRef.current) return
-      setGenerationStatus(`A gerar vídeo… ${Math.min(99, Math.max(8, attempt * 2))}%`)
-      await new Promise((resolve) => setTimeout(resolve, 5000))
+      setGenerationStatus(`A criar voz, legendas e vídeo… ${Math.min(99, Math.max(12, attempt))}%`)
+      await new Promise((resolve) => setTimeout(resolve, 2500))
 
-      const response = await fetch("/api/generate-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "status", operation, model }),
+      const response = await fetch(`/api/clipper/generate?taskId=${encodeURIComponent(taskId)}`, {
+        cache: "no-store",
       })
       const data = await response.json().catch(() => ({}))
 
-      if (!response.ok) throw new Error(data?.error || "Falha ao consultar a geração")
-      if (data?.status === "completed") {
-        const url = data?.videos?.[0]?.url
-        if (!url) throw new Error("O provider terminou mas não devolveu um vídeo")
+      if (!response.ok) throw new Error(data?.error || "Falha ao consultar o render")
+      if (data?.failed) throw new Error(data?.error || "A criação do vídeo falhou")
+      if (data?.complete) {
+        const url = data?.combinedVideos?.[0] || data?.videos?.[0]
+        if (!url) throw new Error("O render terminou mas não devolveu o MP4")
         setGeneratedVideo(url)
         setGenerationStatus("Vídeo pronto")
         return
       }
-      if (data?.status === "error") throw new Error(data?.error || "A geração de vídeo falhou")
     }
 
     throw new Error("A geração demorou demasiado tempo. Tenta novamente.")
@@ -213,35 +210,33 @@ export function ClipperStudio() {
     setIsGenerating(true)
     setGenerationError(null)
     setGeneratedVideo(null)
-    setGenerationStatus("A iniciar o modelo de vídeo…")
+    setGenerationStatus("A criar guião e storyboard…")
 
     try {
-      const response = await fetch("/api/generate-video", {
+      const response = await fetch("/api/clipper/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "start",
-          prompt: prompt.trim(),
-          duration: aiDuration,
-          aspectRatio,
-          resolution,
-          generateAudio,
+          subject: prompt.trim(),
+          seconds: aiDuration,
+          aspect: aspectRatio,
+          language: "pt-PT",
+          voiceName,
+          subtitles: true,
         }),
       })
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        if (data?.code === "PRO_REQUIRED") {
-          throw new Error("Gerar vídeo com IA é uma função Lumin Pro. Ativa o Pro para usar modelos de vídeo reais.")
-        }
         if (data?.code === "AUTH_REQUIRED") {
-          throw new Error("Inicia sessão no Lumin para gerar vídeo com IA.")
+          throw new Error("Inicia sessão no Lumin para criar o vídeo.")
         }
-        throw new Error(data?.error || "Não foi possível iniciar a geração")
+        throw new Error(data?.error || "Não foi possível iniciar a criação do vídeo")
       }
 
-      if (!data?.operation) throw new Error("O modelo não devolveu uma operação válida")
-      await pollGeneration(data.operation, data.model)
+      if (!data?.taskId) throw new Error("O motor de vídeo não devolveu uma tarefa válida")
+      setGenerationStatus("A montar o MP4…")
+      await pollGeneration(data.taskId)
     } catch (error: any) {
       console.error("[Lumin Video] generation failed", error)
       setGenerationError(error?.message || "Não foi possível gerar o vídeo")
@@ -373,9 +368,8 @@ export function ClipperStudio() {
               <div>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="flex items-center gap-2 font-semibold"><Wand2 className="h-4 w-4 text-[#d2a643]" />Gerador de vídeo IA</h3>
-                  <span className="rounded-full border border-[#d2a643]/30 bg-[#d2a643]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#e5bd58]">Pro</span>
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-zinc-500">Geração real através do Vercel AI Gateway. O provider pode demorar alguns minutos.</p>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-500">Criação completa com guião, imagens, voz PT-PT, legendas, música e MP4 final.</p>
               </div>
 
               <div className="space-y-2">
@@ -390,7 +384,7 @@ export function ClipperStudio() {
 
               <div className="space-y-2">
                 <Label>Duração</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {VIDEO_DURATIONS.map((duration) => (
                     <button key={duration} onClick={() => setAiDuration(duration)} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(aiDuration === duration)}`}>
                       {duration} segundos
@@ -411,20 +405,16 @@ export function ClipperStudio() {
               </div>
 
               <div className="space-y-2">
-                <Label>Qualidade</Label>
+                <Label>Voz PT-PT</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["720p", "1080p"] as const).map((value) => (
-                    <button key={value} onClick={() => setResolution(value)} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(resolution === value)}`}>
-                      {value}
-                    </button>
-                  ))}
+                  <button onClick={() => setVoiceName("pt-PT-RaquelNeural-Female")} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(voiceName.includes("Raquel"))}`}>
+                    Raquel
+                  </button>
+                  <button onClick={() => setVoiceName("pt-PT-DuarteNeural-Male")} className={`rounded-xl border px-3 py-2 text-sm transition ${buttonClass(voiceName.includes("Duarte"))}`}>
+                    Duarte
+                  </button>
                 </div>
               </div>
-
-              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm">
-                <span><span className="block font-medium text-zinc-200">Gerar áudio</span><span className="text-xs text-zinc-500">Quando o modelo suportar áudio nativo</span></span>
-                <input type="checkbox" checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="h-4 w-4 accent-[#d2a643]" />
-              </label>
 
               {generationError && <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">{generationError}</div>}
 
@@ -454,7 +444,7 @@ export function ClipperStudio() {
                     <Video className="h-7 w-7 text-[#d2a643]" />
                   </div>
                   <h4 className="font-semibold">Texto → vídeo</h4>
-                  <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500">Escreve a cena que imaginas. O Lumin envia o pedido para um modelo de vídeo real e coloca o resultado aqui quando terminar.</p>
+                  <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500">Escreve o tema. O Lumin cria o guião, escolhe as imagens, gera voz e legendas e entrega o MP4 aqui.</p>
                   {isGenerating && <div className="mt-5 flex items-center gap-2 text-sm text-[#e5bd58]"><Loader2 className="h-4 w-4 animate-spin" />{generationStatus}</div>}
                 </div>
               )}
