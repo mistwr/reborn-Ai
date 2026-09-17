@@ -21,6 +21,8 @@ interface LuminShellSidebarProps {
 }
 
 export function LuminShellSidebar({ open, onClose, items, activeId, onSelect, footer }: LuminShellSidebarProps) {
+  const visibleItems = items.filter((item) => item.id !== "pro")
+
   return (
     <>
       {open ? (
@@ -53,7 +55,7 @@ export function LuminShellSidebar({ open, onClose, items, activeId, onSelect, fo
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {items.map(({ id, label, icon: Icon }) => {
+          {visibleItems.map(({ id, label, icon: Icon }) => {
             const active = activeId === id
             return (
               <button
