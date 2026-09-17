@@ -1,164 +1,190 @@
+import { generateImage } from "ai"
 import type { ProjectBrief } from "@/lib/content-brief"
 import { buildAdvancedImagePrompt } from "@/lib/image/prompt-builder"
 import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 
 export const maxDuration = 90
 
-interface ImageProvider {
-  name: string
-  priority: number
-  generate: (prompt: string, w: number, h: number, seed: number) => string | Promise<string | null>
+type GeneratedImageResult = {
+  url: string
+  providerSource: string
+  quality: "ai-generated" | "stock"
+  isBase64?: boolean
+  note?: string
 }
 
-const URL_PROVIDERS: ImageProvider[] = [
-  {
-    name: "pollinations-flux",
-    priority: 1,
-    generate: (prompt, w, h, seed) =>
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&model=flux&nologo=true&seed=${seed}`,
-  },
-  {
-    name: "pollinations-turbo",
-    priority: 2,
-    generate: (prompt, w, h, seed) =>
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&model=turbo&nologo=true&seed=${seed}`,
-  },
-  {
-    name: "pollinations-default",
-    priority: 3,
-    generate: (prompt, w, h, seed) =>
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&seed=${seed}`,
-  },
-  {
-    name: "getimg-free",
-    priority: 4,
-    generate: (prompt, w, h, seed) =>
-      `https://api.getimg.ai/v1/stable-diffusion/text-to-image?prompt=${encodeURIComponent(prompt)}&width=${Math.min(w, 512)}&height=${Math.min(h, 512)}&seed=${seed}`,
-  },
-  {
-    name: "lexica",
-    priority: 5,
-    generate: (prompt) => `https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`,
-  },
-]
-
-const API_PROVIDERS = [
-  {
-    name: "craiyon",
-    priority: 10,
-    generate: async (prompt: string, negativePrompt: string): Promise<string | null> => {
-      try {
-        const response = await fetch("https://api.craiyon.com/v3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt,
-            token: null,
-            model: "art",
-            negative_prompt: negativePrompt,
-            version: "c4ue22fb7kb6wlac",
-          }),
-          signal: AbortSignal.timeout(25000),
-        })
-        if (!response.ok) return null
-        const data = await response.json()
-        if (Array.isArray(data.images) && data.images.length > 0) {
-          return `data:image/webp;base64,${data.images[0]}`
-        }
-        return null
-      } catch {
-        return null
-      }
-    },
-  },
-  {
-    name: "prodia-free",
-    priority: 11,
-    generate: async (prompt: string, negativePrompt: string, w: number, h: number): Promise<string | null> => {
-      try {
-        const response = await fetch("https://api.prodia.com/v1/sdxl/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            prompt,
-            negative_prompt: negativePrompt,
-            width: Math.min(w, 1024),
-            height: Math.min(h, 1024),
-            steps: 28,
-            cfg_scale: 8,
-          }),
-          signal: AbortSignal.timeout(20000),
-        })
-        if (!response.ok) return null
-        const data = await response.json()
-        return data.imageUrl || data.image || null
-      } catch {
-        return null
-      }
-    },
-  },
-  {
-    name: "deepai",
-    priority: 12,
-    generate: async (prompt: string): Promise<string | null> => {
-      try {
-        const formData = new FormData()
-        formData.append("text", prompt)
-        const response = await fetch("https://api.deepai.org/api/text2img", {
-          method: "POST",
-          body: formData,
-          signal: AbortSignal.timeout(20000),
-        })
-        if (!response.ok) return null
-        const data = await response.json()
-        return data.output_url || null
-      } catch {
-        return null
-      }
-    },
-  },
-]
-
-const FALLBACK_PROVIDERS = [
-  {
-    name: "picsum",
-    generate: (_prompt: string, w: number, h: number, seed: number) => `https://picsum.photos/seed/${seed}/${w}/${h}`,
-  },
-  {
-    name: "loremflickr",
-    generate: (prompt: string, w: number, h: number) => {
-      const keywords = prompt.split(" ").slice(0, 3).join(",")
-      return `https://loremflickr.com/${w}/${h}/${encodeURIComponent(keywords)}`
-    },
-  },
-  {
-    name: "placeholder",
-    generate: (_prompt: string, w: number, h: number) => `https://placehold.co/${w}x${h}/1a1a2e/eaeaea?text=Reborn+AI&font=roboto`,
-  },
-]
-
-function isImageDataUrl(value: string) {
-  return value.startsWith("data:image/")
+function aspectRatioFor(width: number, height: number) {
+  if (width === height) return "1:1"
+  return width > height ? "16:9" : "9:16"
 }
 
-async function verifyImageUrl(url: string, timeout = 5000): Promise<boolean> {
+function imageToDataUrl(image: any): string | null {
+  if (!image) return null
+
+  if (typeof image.base64 === "string" && image.base64) {
+    const mediaType = image.mediaType || image.mimeType || "image/png"
+    return `data:${mediaType};base64,${image.base64}`
+  }
+
+  const bytes = image.uint8Array || image.data
+  if (bytes) {
+    try {
+      const mediaType = image.mediaType || image.mimeType || "image/png"
+      const base64 = Buffer.from(bytes).toString("base64")
+      return `data:${mediaType};base64,${base64}`
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof image.url === "string" && image.url) return image.url
+  return null
+}
+
+async function generateWithGateway(prompt: string, width: number, height: number, quality: string): Promise<GeneratedImageResult | null> {
+  // Keep the cheap/fast option first. If a model is unavailable or the account is
+  // rate-limited, move on instead of making image generation look broken.
+  const models = quality === "fast"
+    ? ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2"]
+    : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2", "bfl/flux-2-pro"]
+
+  for (const model of models) {
+    try {
+      const result: any = await generateImage({
+        model: model as any,
+        prompt,
+        aspectRatio: aspectRatioFor(width, height) as any,
+      } as any)
+
+      const url = imageToDataUrl(result?.image || result?.images?.[0])
+      if (!url) continue
+
+      return {
+        url,
+        providerSource: `vercel-ai-gateway:${model}`,
+        quality: "ai-generated",
+        isBase64: url.startsWith("data:image/"),
+      }
+    } catch (error) {
+      console.warn(`[Lumin Images] gateway model ${model} unavailable`, error instanceof Error ? error.message : error)
+    }
+  }
+
+  return null
+}
+
+async function generateWithPollinations(prompt: string, width: number, height: number, seed: number): Promise<GeneratedImageResult | null> {
   try {
-    if (isImageDataUrl(url)) return true
+    const url = new URL(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}`)
+    url.searchParams.set("model", "flux")
+    url.searchParams.set("width", String(width))
+    url.searchParams.set("height", String(height))
+    url.searchParams.set("seed", String(seed))
+    url.searchParams.set("nologo", "true")
+
+    const headers: Record<string, string> = { Accept: "image/*" }
+    const key = process.env.POLLINATIONS_API_KEY?.trim()
+    if (key) headers.Authorization = `Bearer ${key}`
+
     const response = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeout),
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(45000),
     })
-    if (!response.ok) return false
-    const contentType = response.headers.get("content-type")?.toLowerCase() || ""
-    return contentType.startsWith("image/")
-  } catch {
-    return false
+
+    if (!response.ok) {
+      console.warn(`[Lumin Images] Pollinations returned ${response.status}`)
+      return null
+    }
+
+    const contentType = response.headers.get("content-type") || "image/jpeg"
+    if (!contentType.toLowerCase().startsWith("image/")) return null
+
+    const bytes = Buffer.from(await response.arrayBuffer())
+    if (!bytes.length) return null
+
+    return {
+      url: `data:${contentType};base64,${bytes.toString("base64")}`,
+      providerSource: "pollinations-flux",
+      quality: "ai-generated",
+      isBase64: true,
+    }
+  } catch (error) {
+    console.warn("[Lumin Images] Pollinations unavailable", error instanceof Error ? error.message : error)
+    return null
   }
 }
 
-function pollinationsUrl(prompt: string, w: number, h: number, seed: number) {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&model=flux&nologo=true&seed=${seed}`
+async function generateWithCraiyon(prompt: string, negativePrompt: string): Promise<GeneratedImageResult | null> {
+  try {
+    const response = await fetch("https://api.craiyon.com/v3", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        token: null,
+        model: "art",
+        negative_prompt: negativePrompt,
+        version: "c4ue22fb7kb6wlac",
+      }),
+      signal: AbortSignal.timeout(30000),
+    })
+
+    if (!response.ok) return null
+    const data = await response.json()
+    if (!Array.isArray(data?.images) || !data.images[0]) return null
+
+    return {
+      url: `data:image/webp;base64,${data.images[0]}`,
+      providerSource: "craiyon",
+      quality: "ai-generated",
+      isBase64: true,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function stockFallback(prompt: string, width: number, height: number, seed: number): Promise<GeneratedImageResult | null> {
+  const keywords = prompt
+    .replace(/[^a-zA-Z0-9À-ÿ\s-]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 4)
+    .join(",")
+
+  const candidates = [
+    `https://loremflickr.com/${width}/${height}/${encodeURIComponent(keywords || "creative")}`,
+    `https://picsum.photos/seed/${seed}/${width}/${height}`,
+  ]
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        cache: "no-store",
+        signal: AbortSignal.timeout(10000),
+      })
+      if (!response.ok) continue
+      const contentType = response.headers.get("content-type") || "image/jpeg"
+      if (!contentType.toLowerCase().startsWith("image/")) continue
+      const bytes = Buffer.from(await response.arrayBuffer())
+      if (!bytes.length) continue
+
+      return {
+        url: `data:${contentType};base64,${bytes.toString("base64")}`,
+        providerSource: "stock-fallback",
+        quality: "stock",
+        isBase64: true,
+        note: "A geração IA estava temporariamente indisponível; foi usada uma imagem visual de recurso.",
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return null
 }
 
 export async function POST(req: Request) {
@@ -183,138 +209,67 @@ export async function POST(req: Request) {
       validate?: boolean
     }
 
-    if (!prompt || typeof prompt !== "string") {
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return Response.json({ error: "Prompt não fornecido" }, { status: 400 })
     }
 
-    const seed = Math.floor(Math.random() * 9999999)
+    const seed = Math.floor(Math.random() * 9_999_999)
     const w = Math.min(Math.max(Number(width) || 1024, 256), 1536)
     const h = Math.min(Math.max(Number(height) || 1024, 256), 1536)
-
     const built = buildAdvancedImagePrompt({ prompt, style, quality, width: w, height: h, intent, brief })
     const enhancedPrompt = built.prompt
     const shouldValidate = validate ?? quality === "hd"
 
-    if (quality !== "fast") {
-      for (const provider of API_PROVIDERS) {
-        try {
-          const result =
-            provider.name === "prodia-free"
-              ? await provider.generate(enhancedPrompt, built.negativePrompt, w, h)
-              : provider.name === "craiyon"
-                ? await provider.generate(enhancedPrompt, built.negativePrompt)
-                : await provider.generate(enhancedPrompt)
+    let generated = await generateWithGateway(enhancedPrompt, w, h, quality)
 
-          if (!result) continue
-          const valid = isImageDataUrl(result) || (await verifyImageUrl(result, 6000))
-          if (!valid) continue
-
-          return Response.json({
-            url: result,
-            provider: "Reborn AI",
-            providerSource: provider.name,
-            seed,
-            success: true,
-            isBase64: isImageDataUrl(result),
-            quality: "ai-generated",
-            intentDetected: built.intent,
-            promptUsed: enhancedPrompt,
-            negativePrompt: built.negativePrompt,
-          })
-        } catch {
-          continue
-        }
-      }
+    if (!generated) {
+      generated = await generateWithPollinations(enhancedPrompt, w, h, seed)
     }
 
-    for (const provider of URL_PROVIDERS) {
+    if (!generated && quality !== "fast") {
+      generated = await generateWithCraiyon(enhancedPrompt, built.negativePrompt)
+    }
+
+    if (!generated) {
+      generated = await stockFallback(prompt, Math.min(w, 1280), Math.min(h, 1280), seed)
+    }
+
+    if (!generated) {
+      return Response.json(
+        {
+          error: "Os geradores de imagem estão temporariamente ocupados. Tenta novamente dentro de alguns segundos.",
+          code: "IMAGE_PROVIDERS_UNAVAILABLE",
+        },
+        { status: 503 },
+      )
+    }
+
+    let qualityControl = { checked: false, matched: true, confidence: 0, reason: "qc-disabled" }
+    if (shouldValidate && generated.quality === "ai-generated") {
       try {
-        const url = provider.generate(enhancedPrompt, w, h, seed) as string
-
-        if (provider.name.startsWith("pollinations")) {
-          let finalUrl = url
-          let qc = shouldValidate
-            ? await checkImageSemanticQuality(finalUrl, prompt)
-            : { checked: false, matched: true, confidence: 0, reason: "qc-disabled" }
-          let retried = false
-
-          if (shouldValidate && qc.checked && !qc.matched) {
-            retried = true
-            const retryPrompt = `${enhancedPrompt} RETRY CORRECTION: The previous generation did not match the request. Make the main requested subject/action unmistakable, fully visible and dominant. Remove unrelated elements. Quality-control feedback: ${qc.reason}.`
-            finalUrl = pollinationsUrl(retryPrompt, w, h, seed + 1)
-            qc = await checkImageSemanticQuality(finalUrl, prompt)
-          }
-
-          return Response.json({
-            url: finalUrl,
-            provider: "Reborn AI",
-            providerSource: provider.name,
-            seed,
-            success: true,
-            quality: "ai-generated",
-            intentDetected: built.intent,
-            promptUsed: enhancedPrompt,
-            negativePrompt: built.negativePrompt,
-            qualityControl: qc,
-            retried,
-          })
-        }
-
-        const valid = await verifyImageUrl(url)
-        if (!valid) continue
-
-        return Response.json({
-          url,
-          provider: "Reborn AI",
-          providerSource: provider.name,
-          seed,
-          success: true,
-          quality: "ai-generated",
-          intentDetected: built.intent,
-          promptUsed: enhancedPrompt,
-          negativePrompt: built.negativePrompt,
-        })
-      } catch {
-        continue
+        qualityControl = await checkImageSemanticQuality(generated.url, prompt)
+      } catch (error) {
+        console.warn("[Lumin Images] quality check skipped", error instanceof Error ? error.message : error)
       }
     }
 
-    for (const provider of FALLBACK_PROVIDERS) {
-      try {
-        const url = provider.generate(prompt, w, h, seed)
-        const valid = await verifyImageUrl(url, 4000)
-        if (!valid) continue
-        return Response.json({
-          url,
-          provider: "Reborn AI",
-          providerSource: provider.name,
-          seed,
-          success: true,
-          quality: "stock",
-          note: "Imagem de stock utilizada como alternativa",
-          intentDetected: built.intent,
-          promptUsed: enhancedPrompt,
-        })
-      } catch {
-        continue
-      }
-    }
-
-    const fallbackUrl = pollinationsUrl(enhancedPrompt, w, h, seed + 1)
     return Response.json({
-      url: fallbackUrl,
-      provider: "Reborn AI",
-      providerSource: "pollinations-fallback",
+      url: generated.url,
+      provider: "Lumin AI",
+      providerSource: generated.providerSource,
       seed,
       success: true,
-      quality: "ai-generated",
-      fallback: true,
+      isBase64: generated.isBase64,
+      quality: generated.quality,
+      note: generated.note,
       intentDetected: built.intent,
       promptUsed: enhancedPrompt,
       negativePrompt: built.negativePrompt,
+      qualityControl,
+      retried: false,
     })
   } catch (error: any) {
-    console.error("Image generation error:", error)
+    console.error("[Lumin Images] generation error", error)
     return Response.json(
       { error: error?.message || "Falha ao gerar imagem", code: "GENERATION_ERROR" },
       { status: 500 },
