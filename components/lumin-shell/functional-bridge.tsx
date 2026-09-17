@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   BookOpen,
+  Coins,
   Crown,
   Eye,
   Globe,
@@ -36,6 +37,8 @@ const NAV_DEFINITIONS = [
   { id: "messaging", labels: ["mensagens", "messaging", "sms", "whatsapp"], label: "Mensagens", icon: Video },
   { id: "pro", labels: ["pro"], label: "Pro", icon: Crown },
 ] as const
+
+const CREDITS_ITEM: LuminShellNavItem = { id: "credits", label: "Créditos", icon: Coins }
 
 function normalise(value: string) {
   return value
@@ -231,7 +234,10 @@ export function LuminShellFunctionalBridge() {
   }, [legacySidebar, version])
 
   const navItems = useMemo<LuminShellNavItem[]>(
-    () => NAV_DEFINITIONS.filter((item) => legacyNavigation.has(item.id)).map(({ id, label, icon }) => ({ id, label, icon })),
+    () => [
+      ...NAV_DEFINITIONS.filter((item) => legacyNavigation.has(item.id)).map(({ id, label, icon }) => ({ id, label, icon })),
+      CREDITS_ITEM,
+    ],
     [legacyNavigation],
   )
 
@@ -243,6 +249,10 @@ export function LuminShellFunctionalBridge() {
   }
 
   const selectNavigation = (id: string) => {
+    if (id === "credits") {
+      window.location.href = "/credits"
+      return
+    }
     legacyNavigation.get(id)?.click()
     setActiveId(id)
   }
