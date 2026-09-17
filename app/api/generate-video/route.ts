@@ -1,4 +1,6 @@
+import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
@@ -44,6 +46,19 @@ function normalizeVideos(videos: any[] | undefined) {
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions as any)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Inicia sessão para gerar vídeo", code: "AUTH_REQUIRED" }, { status: 401 })
+    }
+
+    const isPro = Boolean((session.user as any)?.isPro)
+    if (!isPro) {
+      return NextResponse.json(
+        { error: "A geração de vídeo IA está incluída no Lumin Pro", code: "PRO_REQUIRED" },
+        { status: 403 },
+      )
+    }
+
     const body = await req.json()
     const action = body?.action === "status" ? "status" : "start"
     const model = typeof body?.model === "string" && body.model.trim() ? body.model.trim() : DEFAULT_MODEL
