@@ -23,7 +23,6 @@ export default function ClipperPage() {
                 <Scissors className="h-4 w-4 text-[#dfb75f]" />
               </div>
               <span className="text-lg font-semibold">Clipper AI</span>
-              <Badge variant="secondary" className="text-xs">MoneyPrinterTurbo</Badge>
             </div>
           </div>
           <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex">
