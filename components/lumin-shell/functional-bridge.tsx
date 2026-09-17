@@ -6,7 +6,6 @@ import { createPortal } from "react-dom"
 import {
   BookOpen,
   Coins,
-  Crown,
   Eye,
   Globe,
   Image as ImageIcon,
@@ -35,10 +34,9 @@ const NAV_DEFINITIONS = [
   { id: "clipper", labels: ["clipper", "clips"], label: "Clipper", icon: Scissors },
   { id: "marketing", labels: ["marketing"], label: "Marketing", icon: Megaphone },
   { id: "messaging", labels: ["mensagens", "messaging", "sms", "whatsapp"], label: "Mensagens", icon: Video },
-  { id: "pro", labels: ["pro"], label: "Pro", icon: Crown },
 ] as const
 
-const CREDITS_ITEM: LuminShellNavItem = { id: "credits", label: "Créditos", icon: Coins }
+const CREDITS_ITEM: LuminShellNavItem = { id: "credits", label: "Comprar créditos", icon: Coins }
 
 function normalise(value: string) {
   return value
@@ -250,7 +248,7 @@ export function LuminShellFunctionalBridge() {
 
   const selectNavigation = (id: string) => {
     if (id === "credits") {
-      window.location.href = "/credits"
+      window.location.assign("/credits")
       return
     }
     legacyNavigation.get(id)?.click()
