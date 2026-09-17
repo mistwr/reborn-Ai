@@ -72,8 +72,60 @@ function compactSearchQuery(prompt: string) {
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
     .split(/\s+/)
     .filter((word) => word.length > 2)
-    .slice(0, 8)
+    .slice(0, 4)
     .join(" ")
+}
+
+async function fetchWikimediaImage(prompt: string) {
+  const url = new URL("https://commons.wikimedia.org/w/api.php")
+  url.searchParams.set("action", "query")
+  url.searchParams.set("format", "json")
+  url.searchParams.set("generator", "search")
+  url.searchParams.set("gsrsearch", compactSearchQuery(prompt))
+  url.searchParams.set("gsrnamespace", "6")
+  url.searchParams.set("gsrlimit", "8")
+  url.searchParams.set("prop", "imageinfo")
+  url.searchParams.set("iiprop", "url|mime")
+  url.searchParams.set("iiurlwidth", "1280")
+  url.searchParams.set("origin", "*")
+
+  const response = await fetch(url, {
+    headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  })
+  if (!response.ok) throw new Error("Wikimedia search failed")
+  const data = await response.json().catch(() => null)
+  const pages = data?.query?.pages && typeof data.query.pages === "object"
+    ? Object.values(data.query.pages)
+    : []
+
+  for (const page of pages as any[]) {
+    const info = Array.isArray(page?.imageinfo) ? page.imageinfo[0] : null
+    const candidate =
+      typeof info?.thumburl === "string" && /^https?:\/\//i.test(info.thumburl)
+        ? info.thumburl
+        : typeof info?.url === "string" && /^https?:\/\//i.test(info.url)
+          ? info.url
+          : ""
+    if (!candidate) continue
+
+    try {
+      const imageResponse = await fetch(candidate, {
+        headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!imageResponse.ok) continue
+      const contentType = imageResponse.headers.get("content-type") || info?.mime || "image/jpeg"
+      if (!contentType.startsWith("image/")) continue
+      return { bytes: await imageResponse.arrayBuffer(), contentType }
+    } catch {
+      continue
+    }
+  }
+
+  throw new Error("Wikimedia returned no usable image")
 }
 
 async function fetchOpenverseImage(prompt: string) {
@@ -131,6 +183,13 @@ async function fetchPollinationsImage(prompt: string, index: number, aspect: str
 
 async function uploadFreeImage(prompt: string, index: number, aspect: string) {
   const errors: string[] = []
+
+  try {
+    const image = await fetchWikimediaImage(prompt)
+    return await uploadToMpt(image.bytes, image.contentType, index)
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Wikimedia failed")
+  }
 
   try {
     const image = await fetchOpenverseImage(prompt)
