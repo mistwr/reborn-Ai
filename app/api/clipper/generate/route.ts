@@ -27,7 +27,7 @@ function cleanJsonArray(text: string): string[] {
 }
 
 async function generateScript(subject: string, seconds: number, language: string) {
-  const targetWords = Math.max(24, Math.min(130, Math.round(seconds * 1.9)))
+  const targetWords = Math.max(20, Math.min(120, Math.round(seconds * 1.65)))
   const result = await generateLuminText({
     system:
       "És um argumentista de vídeos curtos. Escreve apenas o texto que será narrado, sem títulos, markdown, notas de produção ou indicações de narrador.",
@@ -104,10 +104,10 @@ async function fetchOpenverseImage(prompt: string) {
 
   for (const item of results) {
     const candidate =
-      typeof item?.thumbnail === "string" && /^https?:\/\//i.test(item.thumbnail)
-        ? item.thumbnail
-        : typeof item?.url === "string" && /^https?:\/\//i.test(item.url)
-          ? item.url
+      typeof item?.url === "string" && /^https?:\/\//i.test(item.url)
+        ? item.url
+        : typeof item?.thumbnail === "string" && /^https?:\/\//i.test(item.thumbnail)
+          ? item.thumbnail
           : ""
     if (!candidate) continue
     try {
@@ -118,9 +118,11 @@ async function fetchOpenverseImage(prompt: string) {
       })
       if (!imageResponse.ok) continue
       const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
-      if (!contentType.startsWith("image/")) continue
+      if (!/^image\/(jpeg|jpg|png|webp)$/i.test(contentType)) continue
+      const bytes = await imageResponse.arrayBuffer()
+      if (bytes.byteLength < 25_000) continue
       return {
-        bytes: await imageResponse.arrayBuffer(),
+        bytes,
         contentType,
       }
     } catch {
@@ -217,7 +219,7 @@ export async function POST(request: NextRequest) {
       video_language: language,
       voice_name: voiceName,
       voice_volume: 1,
-      voice_rate: 1,
+      voice_rate: seconds <= 15 ? 1.08 : 1,
       bgm_type: "random",
       bgm_volume: 0.14,
       subtitle_enabled: body?.subtitles !== false,
