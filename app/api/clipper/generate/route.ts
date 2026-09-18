@@ -103,30 +103,31 @@ async function fetchOpenverseImage(prompt: string) {
   const results = Array.isArray(data?.results) ? data.results : []
 
   for (const item of results) {
-    const candidate =
-      typeof item?.url === "string" && /^https?:\/\//i.test(item.url)
-        ? item.url
-        : typeof item?.thumbnail === "string" && /^https?:\/\//i.test(item.thumbnail)
-          ? item.thumbnail
-          : ""
-    if (!candidate) continue
-    try {
-      const imageResponse = await fetch(candidate, {
-        headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
-        cache: "no-store",
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (!imageResponse.ok) continue
-      const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
-      if (!/^image\/(jpeg|jpg|png|webp)$/i.test(contentType)) continue
-      const bytes = await imageResponse.arrayBuffer()
-      if (bytes.byteLength < 25_000) continue
-      return {
-        bytes,
-        contentType,
+    const width = Number(item?.width || 0)
+    const height = Number(item?.height || 0)
+    if (width && height && (width < 720 || height < 720)) continue
+
+    const candidates = [
+      typeof item?.url === "string" && /^https?:\/\//i.test(item.url) ? item.url : "",
+      typeof item?.thumbnail === "string" && /^https?:\/\//i.test(item.thumbnail) ? item.thumbnail : "",
+    ].filter(Boolean)
+
+    for (const candidate of candidates) {
+      try {
+        const imageResponse = await fetch(candidate, {
+          headers: { "User-Agent": "Lumin-AI-Studio/1.0" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(18_000),
+        })
+        if (!imageResponse.ok) continue
+        const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
+        if (!/^image\/(jpeg|jpg|png|webp)$/i.test(contentType)) continue
+        const bytes = await imageResponse.arrayBuffer()
+        if (bytes.byteLength < 80_000) continue
+        return { bytes, contentType }
+      } catch {
+        continue
       }
-    } catch {
-      continue
     }
   }
 
