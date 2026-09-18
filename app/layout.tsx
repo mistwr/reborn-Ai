@@ -86,6 +86,22 @@ export default function RootLayout({
               max-width: calc(100vw - 3rem) !important;
             }
           }
+
+          /* Desktop hardening: mobile-only backdrops must never capture mouse clicks. */
+          @media (min-width: 1024px) {
+            div.fixed.inset-0.z-40[class~="lg:hidden"],
+            button.fixed.inset-0.z-40[class~="lg:hidden"] {
+              display: none !important;
+              pointer-events: none !important;
+              visibility: hidden !important;
+            }
+
+            div.fixed.inset-y-0.left-0.z-50.w-72.translate-x-0,
+            aside.fixed.inset-y-0.left-0.z-50.w-72.translate-x-0 {
+              pointer-events: auto !important;
+              visibility: visible !important;
+            }
+          }
         `}</style>
 
         <script
