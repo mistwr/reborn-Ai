@@ -87,10 +87,54 @@ function compactSearchQuery(prompt: string) {
     .join(" ")
 }
 
+function readImageDimensions(bytes: ArrayBuffer, contentType: string) {
+  const data = new Uint8Array(bytes)
+
+  if (contentType.includes("png") && data.length >= 24) {
+    const view = new DataView(bytes)
+    return { width: view.getUint32(16), height: view.getUint32(20) }
+  }
+
+  if ((contentType.includes("jpeg") || contentType.includes("jpg")) && data.length > 4) {
+    let offset = 2
+    while (offset + 9 < data.length) {
+      if (data[offset] !== 0xff) {
+        offset++
+        continue
+      }
+      const marker = data[offset + 1]
+      const isSof =
+        marker === 0xc0 || marker === 0xc1 || marker === 0xc2 || marker === 0xc3 ||
+        marker === 0xc5 || marker === 0xc6 || marker === 0xc7 ||
+        marker === 0xc9 || marker === 0xca || marker === 0xcb ||
+        marker === 0xcd || marker === 0xce || marker === 0xcf
+      if (isSof) {
+        return {
+          height: (data[offset + 5] << 8) | data[offset + 6],
+          width: (data[offset + 7] << 8) | data[offset + 8],
+        }
+      }
+      if (offset + 3 >= data.length) break
+      const length = (data[offset + 2] << 8) | data[offset + 3]
+      if (length < 2) break
+      offset += 2 + length
+    }
+  }
+
+  return null
+}
+
+function materialResolutionOk(bytes: ArrayBuffer, contentType: string, hintedWidth = 0, hintedHeight = 0) {
+  const dimensions = readImageDimensions(bytes, contentType)
+  const width = dimensions?.width || hintedWidth
+  const height = dimensions?.height || hintedHeight
+  return width >= 480 && height >= 480
+}
+
 async function fetchOpenverseImage(prompt: string) {
   const url = new URL("https://api.openverse.org/v1/images/")
   url.searchParams.set("q", compactSearchQuery(prompt))
-  url.searchParams.set("page_size", "8")
+  url.searchParams.set("page_size", "20")
   url.searchParams.set("mature", "false")
 
   const searchResponse = await fetch(url, {
@@ -124,6 +168,7 @@ async function fetchOpenverseImage(prompt: string) {
         if (!/^image\/(jpeg|jpg|png|webp)$/i.test(contentType)) continue
         const bytes = await imageResponse.arrayBuffer()
         if (bytes.byteLength < 80_000) continue
+        if (!materialResolutionOk(bytes, contentType, width, height)) continue
         return { bytes, contentType }
       } catch {
         continue
@@ -140,7 +185,11 @@ async function fetchPollinationsImage(prompt: string, index: number, aspect: str
   const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(35_000), cache: "no-store" })
   if (!imageResponse.ok) throw new Error(`Pollinations failed with ${imageResponse.status}`)
   const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
-  return { bytes: await imageResponse.arrayBuffer(), contentType }
+  const bytes = await imageResponse.arrayBuffer()
+  if (!materialResolutionOk(bytes, contentType, width, height)) {
+    throw new Error("Pollinations returned low-resolution media")
+  }
+  return { bytes, contentType }
 }
 
 async function uploadFreeImage(searchQuery: string, visualPrompt: string, index: number, aspect: string) {
