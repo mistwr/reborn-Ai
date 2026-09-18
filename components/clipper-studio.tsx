@@ -192,7 +192,7 @@ export function ClipperStudio() {
       if (!response.ok) throw new Error(data?.error || "Falha ao consultar o render")
       if (data?.failed) throw new Error(data?.error || "A criação do vídeo falhou")
       if (data?.complete) {
-        const url = data?.combinedVideos?.[0] || data?.videos?.[0]
+        const url = data?.videos?.[0] || data?.combinedVideos?.[0]
         if (!url) throw new Error("O render terminou mas não devolveu o MP4")
         setGeneratedVideo(url)
         setGenerationStatus("Vídeo pronto")
