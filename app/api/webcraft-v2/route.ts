@@ -261,14 +261,14 @@ function enforceUploadedImagePresentation(
     const asset = analysis.assets[index]
     if (asset?.kind === "logo") continue
 
-    const escaped = image.placeholder.replace(/[.*+?^$()|[\]\\]/g, "\\function buildUploadedImagesBlock(uploadedImages: UploadedReferenceImage[]) {")
+    const escaped = image.placeholder
     const regex = new RegExp(`<img([^>]*src=["']${escaped}["'][^>]*)>`, "gi")
 
     output = output.replace(regex, (full, attrs: string) => {
       const presentation =
         asset?.preserveFullFrame || asset?.kind === "poster" || asset?.kind === "screenshot"
-          ? "width:100%;max-width:760px;height:auto;object-fit:contain;object-position:center;"
-          : "width:100%;max-width:760px;height:auto;object-fit:cover;object-position:center;"
+          ? "display:block;position:relative!important;inset:auto!important;float:none!important;width:100%!important;max-width:760px;height:auto!important;max-height:none!important;object-fit:contain!important;object-position:center;margin-left:auto;margin-right:auto;z-index:5!important;"
+          : "display:block;position:relative;width:100%;max-width:760px;height:auto;object-fit:cover;object-position:center;margin-left:auto;margin-right:auto;"
 
       if (/\sstyle=["'][^"']*["']/i.test(attrs)) {
         const nextAttrs = attrs.replace(
@@ -535,6 +535,7 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 38. Posters, screenshots, dashboards e peças de marketing com texto próprio nunca devem servir de background por baixo de headline, menu, botões ou copy adicional. Coloca-os num bloco de media autónomo, sem sobreposição de texto.
 39. Em mobile, qualquer bloco que contenha um upload principal deve empilhar verticalmente: imagem a 100% da largura disponível, altura automática, sem position:absolute e sem conteúdo a sair do viewport.
 40. Evita overflow horizontal: containers flex/grid devem usar min-width: 0 nos filhos; nenhuma imagem, card ou bloco pode ultrapassar 100vw.
+41. Se o HTML atual já tiver um poster/screenshot atrás de texto, não preserves essa composição: move o upload para um bloco autónomo e coloca headline, parágrafo e CTAs num bloco separado acima ou abaixo. A regra de não sobreposição tem prioridade sobre a preservação do layout anterior.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
