@@ -323,6 +323,7 @@ export function WebCraftStudioV2() {
         body: JSON.stringify({
           name: fullStackProject.name,
           files: fullStackProject.files,
+          uploadedImages: uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
           target: "production",
         }),
       })
