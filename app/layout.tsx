@@ -87,8 +87,13 @@ export default function RootLayout({
             }
           }
 
-          /* Desktop hardening: mobile-only backdrops must never capture mouse clicks. */
-          @media (min-width: 1024px) {
+          /*
+           * Desktop hardening: mobile-only backdrops must never capture mouse
+           * clicks.  Do not rely only on viewport width: a PC with browser zoom
+           * or a narrow window can report <1024px while still using a mouse.
+           */
+          @media (min-width: 1024px), (hover: hover) and (pointer: fine) {
+            [data-lumin-mobile-backdrop="true"],
             div.fixed.inset-0.z-40[class~="lg:hidden"],
             button.fixed.inset-0.z-40[class~="lg:hidden"] {
               display: none !important;
@@ -116,6 +121,41 @@ export default function RootLayout({
                 localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
                 localStorage.setItem('rebornai-chat-guard-repair-v2', '1');
                 localStorage.setItem('rebornai-music-intro-dismissed', 'true');
+              })();
+
+              /*
+               * Pre-hydration desktop click repair.  This runs independently of
+               * React so a stale/legacy mobile backdrop can never freeze the PC
+               * interface, even with browser zoom or a narrow desktop window.
+               */
+              (function() {
+                var desktopPointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+
+                function retireMobileBackdrops() {
+                  if (!desktopPointer.matches && window.innerWidth < 1024) return;
+
+                  document.querySelectorAll(
+                    '[data-lumin-mobile-backdrop="true"], div.fixed.inset-0.z-40[class~="lg:hidden"], button.fixed.inset-0.z-40[class~="lg:hidden"]'
+                  ).forEach(function(element) {
+                    element.style.setProperty('display', 'none', 'important');
+                    element.style.setProperty('pointer-events', 'none', 'important');
+                    element.style.setProperty('visibility', 'hidden', 'important');
+                  });
+                }
+
+                function startDesktopInteractionGuard() {
+                  retireMobileBackdrops();
+                  var observer = new MutationObserver(retireMobileBackdrops);
+                  observer.observe(document.body, { childList: true, subtree: true });
+                  window.addEventListener('resize', retireMobileBackdrops, { passive: true });
+                  desktopPointer.addEventListener?.('change', retireMobileBackdrops);
+                }
+
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', startDesktopInteractionGuard, { once: true });
+                } else {
+                  startDesktopInteractionGuard();
+                }
               })();
 
               if ('serviceWorker' in navigator) {
