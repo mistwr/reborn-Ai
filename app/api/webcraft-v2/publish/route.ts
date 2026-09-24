@@ -7,6 +7,8 @@ type UploadedImage = {
 
 type PublishRequest = {
   name?: string
+  mode?: "website" | "app"
+  previewHtml?: string
   files?: ProjectFile[]
   uploadedImages?: UploadedImage[]
   target?: "preview" | "production"
@@ -187,6 +189,46 @@ function makeSupabaseProxySafe(file: ProjectFile): ProjectFile {
   return { ...file, content }
 }
 
+function exactPreviewFiles(html: string): ProjectFile[] {
+  const safeHtml = html.slice(0, 5_200_000)
+  return [
+    {
+      path: "package.json",
+      content: JSON.stringify(
+        {
+          private: true,
+          scripts: { build: "next build", start: "next start" },
+          dependencies: {
+            next: "16.0.1",
+            react: "19.2.0",
+            "react-dom": "19.2.0",
+          },
+        },
+        null,
+        2,
+      ),
+    },
+    {
+      path: "next.config.mjs",
+      content: "export default {}\n",
+    },
+    {
+      path: "app/route.js",
+      content: `const HTML = ${JSON.stringify(safeHtml)}
+
+export async function GET() {
+  return new Response(HTML, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, max-age=0, must-revalidate",
+    },
+  })
+}
+`,
+    },
+  ]
+}
+
 function prepareFilesForDeployment(files: ProjectFile[], uploadedImages?: UploadedImage[]) {
   const safe = files.map(makeSupabaseProxySafe)
   const withAssets = ensureUploadedAssets(safe, uploadedImages)
@@ -198,7 +240,9 @@ function prepareFilesForDeployment(files: ProjectFile[], uploadedImages?: Upload
 function validateFiles(files: ProjectFile[]) {
   if (!Array.isArray(files) || files.length === 0) return "Projeto vazio."
   if (!files.some((file) => file.path === "package.json")) return "Falta package.json."
-  if (!files.some((file) => file.path === "app/page.tsx")) return "Falta app/page.tsx."
+  if (!files.some((file) => file.path === "app/page.tsx" || file.path === "app/route.js")) {
+    return "Falta a entrada principal da aplicação."
+  }
   if (files.some((file) => !file.path || file.path.includes("..") || file.path.startsWith("/"))) {
     return "Existe um caminho de ficheiro inválido."
   }
@@ -334,7 +378,15 @@ export async function POST(req: Request) {
     }
 
     const body = (await req.json()) as PublishRequest
-    const files = prepareFilesForDeployment(body.files || [], body.uploadedImages)
+    const useExactPreview =
+      body.mode === "website" &&
+      typeof body.previewHtml === "string" &&
+      /<html[\s>]|<!doctype html/i.test(body.previewHtml)
+
+    const files = useExactPreview
+      ? exactPreviewFiles(body.previewHtml!)
+      : prepareFilesForDeployment(body.files || [], body.uploadedImages)
+
     const validationError = validateFiles(files)
     if (validationError) return Response.json({ error: validationError }, { status: 400 })
 
