@@ -24,8 +24,8 @@ const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_PUBLISHABLE_KEY |
 type BrowserDbAuth = { accessToken?: string | null }
 
 function resolveAuth(auth?: BrowserDbAuth) {
-  if (auth?.accessToken) return { apikey: PUBLISHABLE_KEY, bearer: auth.accessToken }
   if (SERVICE_ROLE_KEY) return { apikey: SERVICE_ROLE_KEY, bearer: SERVICE_ROLE_KEY }
+  if (auth?.accessToken) return { apikey: PUBLISHABLE_KEY, bearer: auth.accessToken }
   return null
 }
 

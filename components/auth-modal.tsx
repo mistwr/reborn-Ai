@@ -29,6 +29,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [sector, setSector] = useState("")
   const [website, setWebsite] = useState("")
   const [accessToken, setAccessToken] = useState("")
+  const [refreshToken, setRefreshToken] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [countdown, setCountdown] = useState(0)
@@ -44,17 +45,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setSector("")
     setWebsite("")
     setAccessToken("")
+    setRefreshToken("")
     setError("")
     setCountdown(0)
   }
 
-  const finishSession = async (token: string) => {
-    const result = await signIn("credentials", { accessToken: token, redirect: false })
+  const finishSession = async (token: string, nextRefreshToken?: string) => {
+    const result = await signIn("credentials", {
+      accessToken: token,
+      refreshToken: nextRefreshToken || refreshToken || undefined,
+      redirect: false,
+    })
     if (result?.error || result?.ok === false) throw new Error("Não foi possível criar a sessão Lumin.")
     setCallbackActive(false)
     onClose()
     reset()
-    window.location.reload()
+    window.location.assign("/")
   }
 
   useEffect(() => {
@@ -69,6 +75,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     const handleMagicLink = async () => {
       const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""))
       const token = hash.get("access_token")
+      const linkRefreshToken = hash.get("refresh_token") || ""
       const authError = hash.get("error_description") || hash.get("error")
 
       if (!token && !authError) return
@@ -98,6 +105,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         if (cancelled) return
 
         setAccessToken(token || "")
+        setRefreshToken(linkRefreshToken)
         setEmail(data?.user?.email || "")
         setDisplayName(data?.account?.display_name || data?.user?.name || "")
 
@@ -107,7 +115,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           return
         }
 
-        await finishSession(token || "")
+        await finishSession(token || "", linkRefreshToken)
       } catch (err: any) {
         if (!cancelled) {
           setLoading(false)
@@ -172,10 +180,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       if (!response.ok || !data?.accessToken) throw new Error(data?.error || "Código inválido ou expirado.")
 
       setAccessToken(data.accessToken)
+      setRefreshToken(data.refreshToken || "")
       setDisplayName(data?.account?.display_name || data?.user?.name || "")
 
       if (!data?.needsOnboarding) {
-        await finishSession(data.accessToken)
+        await finishSession(data.accessToken, data.refreshToken || "")
         return
       }
       setStep("type")
@@ -215,7 +224,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data?.error || "Não foi possível concluir o registo.")
-      await finishSession(accessToken)
+      await finishSession(accessToken, refreshToken)
     } catch (err: any) {
       setError(err?.message || "Erro ao concluir o registo.")
     } finally {

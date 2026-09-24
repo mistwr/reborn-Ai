@@ -17,6 +17,40 @@ const ownerEmails = new Set(
 
 const providers: any[] = []
 
+function tokenExpiresSoon(accessToken?: string | null) {
+  if (!accessToken) return true
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split(".")[1] || "", "base64url").toString("utf8"))
+    const exp = Number(payload?.exp || 0)
+    return !exp || exp * 1000 <= Date.now() + 60_000
+  } catch {
+    return true
+  }
+}
+
+async function refreshSupabaseSession(refreshToken?: string | null) {
+  if (!refreshToken) return null
+  try {
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      cache: "no-store",
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok || !data?.access_token) return null
+    return {
+      accessToken: String(data.access_token),
+      refreshToken: String(data.refresh_token || refreshToken),
+    }
+  } catch {
+    return null
+  }
+}
+
 async function loadLuminAccount(userId: string, accessToken: string) {
   try {
     const accountResponse = await fetch(
@@ -72,11 +106,13 @@ providers.push(
     name: "Lumin OTP",
     credentials: {
       accessToken: { label: "Supabase access token", type: "text" },
+      refreshToken: { label: "Supabase refresh token", type: "text" },
       email: { label: "Email", type: "email" },
       password: { label: "Development password", type: "password" },
     },
     async authorize(credentials) {
       const accessToken = credentials?.accessToken?.trim()
+      const refreshToken = credentials?.refreshToken?.trim()
 
       if (accessToken) {
         const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -105,6 +141,7 @@ providers.push(
           organizationWebsite: organization?.website || null,
           organizationPlan: organization?.plan || null,
           supabaseAccessToken: accessToken,
+          supabaseRefreshToken: refreshToken || null,
         } as any
       }
 
@@ -152,6 +189,19 @@ export const authOptions = {
         token.organizationWebsite = user.organizationWebsite ?? token.organizationWebsite ?? null
         token.organizationPlan = user.organizationPlan ?? token.organizationPlan ?? null
         token.supabaseAccessToken = user.supabaseAccessToken ?? token.supabaseAccessToken ?? null
+        token.supabaseRefreshToken = user.supabaseRefreshToken ?? token.supabaseRefreshToken ?? null
+      }
+
+      if (token.supabaseAccessToken && tokenExpiresSoon(token.supabaseAccessToken)) {
+        const refreshed = await refreshSupabaseSession(token.supabaseRefreshToken)
+        if (refreshed) {
+          token.supabaseAccessToken = refreshed.accessToken
+          token.supabaseRefreshToken = refreshed.refreshToken
+          token.supabaseAuthError = null
+        } else {
+          token.supabaseAccessToken = null
+          token.supabaseAuthError = "RefreshAccessTokenError"
+        }
       }
 
       token.role = isFounder ? "owner" : "user"
