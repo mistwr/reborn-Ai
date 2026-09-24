@@ -82,6 +82,39 @@ function scaffoldFiles(name: string): ProjectFile[] {
   ]
 }
 
+type EmbeddedAsset = {
+  token: string
+  dataUrl: string
+}
+
+function maskEmbeddedImages(html: string) {
+  const assets: EmbeddedAsset[] = []
+  const seen = new Map<string, string>()
+  const pattern = /data:image\/(?:jpeg|jpg|png|webp);base64,[a-z0-9+/=\s]+/gi
+
+  const maskedHtml = html.replace(pattern, (dataUrl) => {
+    const existing = seen.get(dataUrl)
+    if (existing) return existing
+    const token = `__LUMIN_EMBEDDED_ASSET_${assets.length + 1}__`
+    seen.set(dataUrl, token)
+    assets.push({ token, dataUrl })
+    return token
+  })
+
+  return { maskedHtml, assets }
+}
+
+function restoreEmbeddedImages(files: ProjectFile[], assets: EmbeddedAsset[]) {
+  if (!assets.length) return files
+  return files.map((file) => {
+    let content = file.content
+    for (const asset of assets) {
+      content = content.split(asset.token).join(asset.dataUrl)
+    }
+    return { ...file, content }
+  })
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as ProjectRequest
@@ -90,18 +123,35 @@ export async function POST(req: Request) {
 
     const projectName = slugify(body.projectName || prompt.slice(0, 40))
     const language = body.language?.trim() || "Português de Portugal (PT-PT)"
-    const visualReference = body.currentHtml?.slice(0, 30000) || ""
+    const { maskedHtml, assets: embeddedAssets } = maskEmbeddedImages(body.currentHtml || "")
+    const visualReference = maskedHtml.slice(0, 50000)
+    const embeddedAssetGuide = embeddedAssets.length
+      ? `\nASSETS DO PREVIEW:\n${embeddedAssets
+          .map((asset, index) => `${index + 1}. ${asset.token} = imagem real do preview; usa este token exatamente no src quando essa imagem fizer sentido.`)
+          .join("\n")}\nNão transformes estes tokens em URLs nem inventes substitutos. O servidor volta a inserir as imagens reais no fim.\n`
+      : ""
     const currentYear = new Date().getFullYear()
 
     const result = await generateText({
       model: getAIModel(),
-      system: `És o motor interno full-stack do Lumin AI Studio. Gera código de uma aplicação Next.js 16 App Router realmente executável.\n\nCONTEXTO:\n- Ano atual: ${currentYear}.\n- O produto visível chama-se Lumin AI Studio. Nunca mostres REBORN AI ao cliente final.\n- Copyright e datas devem ser atuais; quando possível usa ano dinâmico.\n\nREGRAS:\n- Responde apenas com blocos <file path="caminho">conteúdo</file>.\n- Podes criar ficheiros apenas dentro de app/, components/, lib/ e supabase/.\n- Tens obrigatoriamente de gerar app/page.tsx.\n- Usa TypeScript/React e CSS normal; não importes bibliotecas que não estejam no package base.\n- Supabase já estará configurado em lib/supabase/client.ts e server.ts. Usa-o quando fizer sentido.\n- Para Auth no cliente usa a publishable key através do helper existente. Nunca uses service_role/secret key no browser.\n- Se criares tabelas, inclui supabase/migrations/0001_init.sql, ativa RLS em todas as tabelas public e cria políticas por utilizador com auth.uid() = user_id.\n- UPDATE deve ter USING e WITH CHECK.\n- Não uses auth.role() nem SECURITY DEFINER.\n- Não uses user_metadata para autorização.\n- Não finjas integrações que não existam.\n- Cria estados vazios/erro/loading e uma experiência mobile responsiva.\n- Texto visível em ${language}.\n- Limite: até 10 ficheiros gerados para manter o projeto simples e robusto.`,
-      prompt: `PROJETO PEDIDO:\n${prompt}\n\n${visualReference ? `REFERÊNCIA VISUAL DO PREVIEW ATUAL (preserva a identidade e estrutura quando útil):\n${visualReference}` : ""}\n\nGera agora os ficheiros específicos da aplicação.`,
+      system: `És o motor interno full-stack do Lumin AI Studio. Gera código de uma aplicação Next.js 16 App Router realmente executável.\n\nCONTEXTO:\n- Ano atual: ${currentYear}.\n- O produto visível chama-se Lumin AI Studio. Nunca mostres REBORN AI ao cliente final.\n- Copyright e datas devem ser atuais; quando possível usa ano dinâmico.\n\nREGRAS:\n- Responde apenas com blocos <file path="caminho">conteúdo</file>.\n- Podes criar ficheiros apenas dentro de app/, components/, lib/ e supabase/.\n- Tens obrigatoriamente de gerar app/page.tsx.\n- Usa TypeScript/React e CSS normal; não importes bibliotecas que não estejam no package base.\n- Supabase já estará configurado em lib/supabase/client.ts e server.ts. Usa-o quando fizer sentido.\n- Para Auth no cliente usa a publishable key através do helper existente. Nunca uses service_role/secret key no browser.\n- Se criares tabelas, inclui supabase/migrations/0001_init.sql, ativa RLS em todas as tabelas public e cria políticas por utilizador com auth.uid() = user_id.\n- UPDATE deve ter USING e WITH CHECK.\n- Não uses auth.role() nem SECURITY DEFINER.\n- Não uses user_metadata para autorização.\n- Não finjas integrações que não existam.\n- Cria estados vazios/erro/loading e uma experiência mobile responsiva.\n- Texto visível em ${language}.\n- Limite: até 10 ficheiros gerados para manter o projeto simples e robusto.
+- Se a referência visual contiver tokens __LUMIN_EMBEDDED_ASSET_N__, usa-os exatamente como src de <img> quando corresponderem à estrutura visual. Não coloques base64 no raciocínio nem inventes URLs alternativas.
+- Mantém imagens de marketing/posters/screenshots grandes e legíveis; não as reduzas a ícones ou avatares.`,
+      prompt: `PROJETO PEDIDO:\n${prompt}\n\n${visualReference ? `REFERÊNCIA VISUAL DO PREVIEW ATUAL (preserva a identidade e estrutura quando útil):\n${visualReference}` : ""}${embeddedAssetGuide}\n\nGera agora os ficheiros específicos da aplicação.`,
     })
 
-    const generated = parseFiles(result.text)
+    let generated = restoreEmbeddedImages(parseFiles(result.text), embeddedAssets)
     if (!generated.some((file) => file.path === "app/page.tsx")) {
-      return Response.json({ error: "O modelo não devolveu um projeto válido. Tenta novamente." }, { status: 502 })
+      const retry = await generateText({
+        model: getAIModel(),
+        system: `És o motor full-stack do Lumin AI Studio. Responde EXCLUSIVAMENTE com blocos <file path="...">...</file>. Gera obrigatoriamente app/page.tsx em React/TypeScript, sem markdown fences. Usa apenas app/, components/, lib/ e supabase/. Texto visível em ${language}.`,
+        prompt: `Cria uma versão Next.js App Router simples, robusta e responsiva deste projeto: ${prompt}. Preserva a identidade do preview descrito abaixo, mas prioriza devolver código válido.\n\n${visualReference.slice(0, 18000)}${embeddedAssetGuide}`,
+      })
+      generated = restoreEmbeddedImages(parseFiles(retry.text), embeddedAssets)
+    }
+
+    if (!generated.some((file) => file.path === "app/page.tsx")) {
+      return Response.json({ error: "Não foi possível converter o preview em Full-Stack desta vez. Tenta novamente." }, { status: 502 })
     }
 
     const base = scaffoldFiles(projectName)
