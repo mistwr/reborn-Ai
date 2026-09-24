@@ -9,6 +9,7 @@ import { GrowthTracking } from "@/components/growth-tracking"
 import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
 import { LuminSidebarPruner } from "@/components/lumin-sidebar-pruner"
+import { DesktopAutoLauncher } from "@/components/desktop-auto-launcher"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -283,6 +284,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
         <Providers>
           {children}
+          <DesktopAutoLauncher />
           <LuminSecureLoginPanel />
           <LuminSidebarPruner />
         </Providers>
