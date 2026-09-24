@@ -1139,7 +1139,7 @@ The way the world will live`
   }
 
   return (
-    <div className="lumin-app-shell flex bg-background">
+    <div className="flex bg-background" style={{ height: "100dvh" }}>
       {/* Sidebar overlay for mobile */}
       {sidebarOpen && (
         <div
@@ -1153,14 +1153,14 @@ The way the world will live`
       {/* Sidebar — Premium dark design */}
       <div
         data-lumin-sidebar="true"
-        className={`lumin-sidebar fixed inset-y-0 left-0 z-50 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Sidebar Header */}
         <div className="p-4 border-b border-white/5 shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary to-violet-600 flex items-center justify-center shadow-lg shadow-primary/30">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
@@ -1960,7 +1960,7 @@ The way the world will live`
 
       {/* Mini Player - Compact Floating */}
       {showMiniPlayer && !showMusicPlayer && (
-        <div className="lumin-mini-player fixed z-50 flex max-w-[calc(100vw-1rem)] items-center gap-2 p-1.5 rounded-full shadow-2xl animate-in slide-in-from-bottom-4 border border-white/10"
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 p-1.5 rounded-full shadow-2xl animate-in slide-in-from-bottom-4 border border-white/10"
              style={{ background: "rgba(10, 10, 15, 0.9)", backdropFilter: "blur(20px)" }}>
           
           <div className="flex items-center gap-2">
@@ -2063,9 +2063,9 @@ The way the world will live`
 
       {/* Main Content */}
       {/* Added proper overflow handling for main content */}
-      <div className="lumin-main flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header — Clean minimal design */}
-        <header className="lumin-header border-b border-border/50 bg-background/80 backdrop-blur-xl flex items-center justify-between shrink-0">
+        <header className="h-14 border-b border-border/50 bg-background/80 backdrop-blur-xl px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -2090,7 +2090,7 @@ The way the world will live`
               </div>
             </div>
           </div>
-          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2">
             {/* Token Counter */}
             {isPro ? (
               <div className="hidden sm:flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium bg-gradient-to-r from-primary/20 to-violet-500/20 border border-primary/30 text-primary">
@@ -2126,23 +2126,23 @@ The way the world will live`
                 </span>
               )}
             </Button>
-            <Badge variant="outline" className="gap-1.5 h-7 px-2 sm:px-2.5 bg-emerald-500/10 border-emerald-500/20 text-emerald-500 text-xs font-medium">
+            <Badge variant="outline" className="gap-1.5 h-7 bg-emerald-500/10 border-emerald-500/20 text-emerald-500 text-xs font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="hidden min-[390px]:inline">Online</span>
+              Online
             </Badge>
           </div>
         </header>
 
         {/* Main content area — clean, no visible tabs */}
-        <main className="lumin-content flex-1 min-h-0 flex flex-col overflow-hidden">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
             {/* Chat Tab */}
             <TabsContent value="chat" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
               <ScrollArea className="flex-1">
-                <div className="lumin-chat-column max-w-3xl mx-auto py-3 sm:py-4 space-y-4">
+                <div className="max-w-3xl mx-auto py-4 space-y-4">
                   {/* Music Introduction Banner - Animated Background */}
                   {showMusicIntro && messages.length === 0 && (
-                    <div className="mb-4 sm:mb-6 mx-2 sm:mx-4 relative overflow-hidden rounded-2xl border border-white/10 p-3 sm:p-5">
+                    <div className="mb-6 mx-4 relative overflow-hidden rounded-2xl border border-white/10 p-5">
                       {/* Animated Background */}
                       <div className="absolute inset-0 bg-gradient-to-br from-violet-900/80 via-primary/60 to-fuchsia-900/80" />
                       <div className="absolute inset-0 overflow-hidden">
@@ -2162,8 +2162,8 @@ The way the world will live`
                         <div className="absolute bottom-1/4 right-1/4 w-20 h-20 bg-cyan-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1.5s' }} />
                       </div>
                       <div className="relative z-10">
-                        <div className="flex flex-col min-[430px]:flex-row items-start gap-3 sm:gap-4">
-                          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/50 animate-pulse">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/50 animate-pulse">
                             <Music2 className="h-8 w-8 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -2242,7 +2242,7 @@ The way the world will live`
                         </Avatar>
                       )}
                       <div
-                        className={`chat-message max-w-[92%] xs:max-w-[88%] sm:max-w-[75%] rounded-2xl p-3 sm:p-4 ${
+                        className={`chat-message max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 sm:p-4 ${
                           message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                         }`}
                       >
@@ -2437,7 +2437,7 @@ The way the world will live`
                     className="gap-2"
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Abrir em Nova Aba</span>
+                    Abrir em Nova Aba
                   </Button>
                 </div>
                 <div className="flex-1 relative bg-[#111b21]">
@@ -2487,7 +2487,7 @@ The way the world will live`
                     className="gap-2"
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Abrir em Nova Aba</span>
+                    Abrir em Nova Aba
                   </Button>
                 </div>
                 <div className="flex-1 relative bg-[#18191a]">
@@ -2537,7 +2537,7 @@ The way the world will live`
                     className="gap-2"
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Abrir em Nova Aba</span>
+                    Abrir em Nova Aba
                   </Button>
                 </div>
                 <div className="flex-1 relative bg-black">
@@ -2580,7 +2580,7 @@ The way the world will live`
                     className="gap-2"
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Abrir em Nova Aba</span>
+                    Abrir em Nova Aba
                   </Button>
                 </div>
                 <div className="flex-1 relative bg-[#0f0f0f]">
@@ -2600,7 +2600,7 @@ The way the world will live`
               <ScrollArea className="flex-1">
                 <div className="max-w-6xl mx-auto py-4 px-4">
                   <Tabs defaultValue="webcraft" className="w-full">
-                    <TabsList className="grid h-auto w-full grid-cols-2 gap-1 mb-4 sm:grid-cols-4 sm:mb-6">
+                    <TabsList className="grid w-full grid-cols-4 mb-6">
                       <TabsTrigger value="webcraft">WebCraft</TabsTrigger>
                       <TabsTrigger value="images">Images</TabsTrigger>
                       <TabsTrigger value="clipper">Clipper</TabsTrigger>
@@ -2637,7 +2637,7 @@ The way the world will live`
 
       {/* Token Limit Reached Modal */}
       {showTokenLimitMessage && (
-        <div className="lumin-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
@@ -2715,7 +2715,7 @@ The way the world will live`
       )}
 
       {showProModal && (
-        <div className="lumin-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <Card className="w-full max-w-lg bg-card border-border shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">

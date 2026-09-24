@@ -48,7 +48,7 @@ function focusComposer(prompt?: string) {
 
 export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
   return (
-    <div className="lumin-welcome relative w-full overflow-hidden bg-[#030303] text-white">
+    <div className="relative w-full overflow-hidden bg-[#030303] text-white">
       <div
         className="pointer-events-none absolute inset-0 opacity-90"
         style={{
@@ -57,8 +57,8 @@ export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
         }}
       />
 
-      <div className="relative mx-auto flex w-full max-w-6xl flex-col px-3 pb-6 pt-3 min-[390px]:px-4 sm:px-6 sm:pb-10 sm:pt-4 md:px-8 lg:px-10">
-        <header className="sticky top-0 z-30 -mx-3 mb-2 flex min-w-0 items-center justify-between gap-2 border-b border-[#d6a84b]/10 bg-black/75 px-3 py-2.5 backdrop-blur-xl min-[390px]:-mx-4 min-[390px]:px-4 sm:-mx-6 sm:px-6 sm:py-3 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col px-4 pb-8 pt-4 sm:px-6 sm:pb-10 md:px-8 lg:px-10">
+        <header className="sticky top-0 z-30 -mx-4 mb-2 flex items-center justify-between border-b border-[#d6a84b]/10 bg-black/75 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
           <div className="flex items-center gap-3">
             <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#d6a84b]/30 bg-[#100d08] shadow-[0_0_28px_rgba(214,168,75,.14)]">
               <Sparkles className="h-5 w-5 animate-pulse text-[#f0c86b]" />
@@ -90,22 +90,22 @@ export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
         </header>
 
         <section className="mx-auto flex w-full max-w-4xl flex-col items-center pt-2 text-center sm:pt-5 lg:pt-7">
-          <div className="origin-center scale-[.64] min-[390px]:scale-[.72] sm:scale-90 md:scale-100">
+          <div className="scale-[.82] sm:scale-90 md:scale-100">
             <LuminOrb state="idle" level={0.12} size={280} />
           </div>
-          <h1 className="-mt-12 min-[390px]:-mt-9 sm:mt-0 text-balance text-[clamp(1.8rem,8vw,3.75rem)] font-semibold tracking-[-0.035em]">
+          <h1 className="-mt-5 text-balance text-3xl font-semibold tracking-[-0.035em] sm:mt-0 sm:text-4xl md:text-5xl lg:text-6xl">
             Olá, eu sou o <span className="text-[#e9be62]">Lumin.</span>
           </h1>
           <p className="mt-2 text-sm tracking-wide text-zinc-400 sm:text-base md:text-lg">O teu assistente de IA mais completo.</p>
         </section>
 
-        <section className="mx-auto mt-5 grid w-full max-w-4xl grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 sm:mt-6 sm:grid-cols-4 sm:gap-4">
+        <section className="mx-auto mt-6 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           {primaryTools.map(({ icon: Icon, title, description, tab }) => (
             <button
               key={title}
               type="button"
               onClick={() => onTabChange(tab)}
-              className="group min-h-[92px] sm:min-h-[118px] rounded-[18px] sm:rounded-[22px] border border-[#d6a84b]/16 bg-gradient-to-b from-[#d6a84b]/[.045] to-white/[.015] p-4 text-left text-[#e9ba59] transition duration-200 hover:-translate-y-1 hover:border-[#d6a84b]/32 hover:bg-[#d6a84b]/[.07] hover:shadow-[0_16px_45px_rgba(0,0,0,.38),0_0_24px_rgba(214,168,75,.06)] active:translate-y-0"
+              className="group min-h-[118px] rounded-[22px] border border-[#d6a84b]/16 bg-gradient-to-b from-[#d6a84b]/[.045] to-white/[.015] p-4 text-left text-[#e9ba59] transition duration-200 hover:-translate-y-1 hover:border-[#d6a84b]/32 hover:bg-[#d6a84b]/[.07] hover:shadow-[0_16px_45px_rgba(0,0,0,.38),0_0_24px_rgba(214,168,75,.06)] active:translate-y-0"
             >
               <Icon className="mb-4 h-5 w-5 sm:h-6 sm:w-6" />
               <div className="text-sm font-semibold text-zinc-100 sm:text-base">{title}</div>
@@ -117,7 +117,7 @@ export function ChatWelcome({ onTabChange }: ChatWelcomeProps) {
         <button
           type="button"
           onClick={() => focusComposer()}
-          className="mx-auto mt-4 flex w-full max-w-4xl items-center justify-center gap-2 sm:gap-3 rounded-[18px] sm:rounded-[22px] border border-[#e8bd61]/55 bg-gradient-to-r from-[#8e5b18]/42 via-[#24180b] to-[#8e5b18]/42 px-5 py-4 text-base font-semibold text-[#ffe7a5] shadow-[0_0_30px_rgba(217,166,66,.16),inset_0_0_18px_rgba(255,220,145,.04)] transition hover:border-[#f3cf7a]/80 hover:shadow-[0_0_40px_rgba(217,166,66,.24)] sm:text-lg"
+          className="mx-auto mt-4 flex w-full max-w-4xl items-center justify-center gap-3 rounded-[22px] border border-[#e8bd61]/55 bg-gradient-to-r from-[#8e5b18]/42 via-[#24180b] to-[#8e5b18]/42 px-5 py-4 text-base font-semibold text-[#ffe7a5] shadow-[0_0_30px_rgba(217,166,66,.16),inset_0_0_18px_rgba(255,220,145,.04)] transition hover:border-[#f3cf7a]/80 hover:shadow-[0_0_40px_rgba(217,166,66,.24)] sm:text-lg"
         >
           <MessageSquare className="h-5 w-5" />
           Começar a conversar
