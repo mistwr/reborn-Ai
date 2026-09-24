@@ -106,7 +106,7 @@ function makeSupabaseProxySafe(file: ProjectFile): ProjectFile {
 
   content = content.replace(
     signature,
-    `\${signature}
+    `${signature}
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
