@@ -1,5 +1,5 @@
 import { generateText } from "ai"
-import { getAIModel, getVisionModel } from "@/lib/ai-config"
+import { withModelFallback } from "@/lib/ai-fallback"
 import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
 
 export const maxDuration = 60
@@ -177,6 +177,7 @@ function fallbackUploadedVisualAnalysis(uploadedImages: UploadedReferenceImage[]
 async function analyzeUploadedImages(
   uploadedImages: UploadedReferenceImage[],
   websiteRequest: string,
+  economy = false,
 ): Promise<UploadedVisualAnalysis> {
   if (!uploadedImages.length) return fallbackUploadedVisualAnalysis(uploadedImages)
 
@@ -208,11 +209,15 @@ Use needsSupportingStock=true only when the uploads clearly cannot cover the sit
       content.push({ type: "image", image: image.dataUrl })
     })
 
-    const result = await generateText({
-      model: getVisionModel(),
-      messages: [{ role: "user", content }],
-      maxTokens: 650,
-    })
+    const { value: result } = await withModelFallback(
+      (model) =>
+        generateText({
+          model,
+          messages: [{ role: "user", content }],
+          maxTokens: 650,
+        }),
+      { kind: "vision", economy, label: "webcraft-upload-analysis" },
+    )
 
     const parsed = JSON.parse(stripJsonFence(result.text))
     const rawAssets = Array.isArray(parsed?.assets) ? parsed.assets : []
@@ -422,6 +427,8 @@ function buildContextImageBlock(images: ContextImage[]) {
 
 export async function POST(req: Request) {
   try {
+    const creditMode = req.headers.get("x-lumin-credit-mode") || "full"
+    const economyMode = creditMode === "fallback"
     const body = (await req.json()) as WebCraftRequest
     const mode: Mode = body.mode === "app" ? "app" : "website"
     const prompt = body.prompt?.trim()
@@ -441,6 +448,7 @@ export async function POST(req: Request) {
     const uploadVisualAnalysis = await analyzeUploadedImages(
       uploadedImages,
       prompt || refinement || body.businessName || "website",
+      economyMode,
     )
     const shouldSearchStock =
       !isRefinement &&
@@ -453,6 +461,7 @@ export async function POST(req: Request) {
           prompt,
           businessName: body.businessName,
           language,
+          economy: economyMode,
         })
       : {
           images: [],
@@ -546,11 +555,15 @@ PRESERVAÇÃO:
       ? `HTML ATUAL:\n${stripCodeFence(maskedCurrentHtml!)}\n\nALTERAÇÃO PEDIDA:\n${refinement}${referenceBlock}\n\nDevolve o HTML completo atualizado.`
       : `Cria ${mode === "app" ? "uma aplicação web" : "um website"} completo para este pedido:\n${prompt}\n\n${body.businessName ? `Nome do negócio/projeto: ${body.businessName}\n` : ""}${body.businessEmail ? `Contacto: ${body.businessEmail}\n` : ""}${referenceBlock}${contextImageBlock}\nDevolve o HTML completo.`
 
-    const result = await generateText({
-      model: getAIModel(),
-      system,
-      prompt: userPrompt,
-    })
+    const { value: result, model: usedModel, attempts: modelAttempts } = await withModelFallback(
+      (model) =>
+        generateText({
+          model,
+          system,
+          prompt: userPrompt,
+        }),
+      { kind: "text", economy: economyMode, label: "webcraft-generation" },
+    )
 
     const fixedHtml = validateAndFixHtml(result.text)
     const presentationFixedHtml = enforceUploadedImagePresentation(
@@ -564,6 +577,9 @@ PRESERVAÇÃO:
         "Content-Type": "text/html; charset=utf-8",
         "X-Lumin-Context-Images": String(contextImages.length),
         "X-Lumin-Uploaded-Images": String(uploadedImages.length),
+        "X-Lumin-AI-Mode": economyMode ? "fallback" : "full",
+        "X-Lumin-AI-Model": usedModel,
+        "X-Lumin-AI-Attempts": String(modelAttempts),
       },
     })
   } catch (error: any) {
