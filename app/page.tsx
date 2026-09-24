@@ -356,7 +356,6 @@ export default function RebornAI() {
     try {
       const params = new URLSearchParams(window.location.search)
       const requestedTab = params.get("tab")
-      const requestedMenu = params.get("menu")
       const allowedTabs = new Set([
         "chat", "live", "images", "imagebank", "imageenhancer", "vision",
         "webcraft", "presentations", "ebooks", "clipper", "pro", "marketing",
@@ -364,8 +363,6 @@ export default function RebornAI() {
         "instagram-app", "youtube-app",
       ])
       if (requestedTab && allowedTabs.has(requestedTab)) setActiveTab(requestedTab)
-      if (requestedMenu === "open") setSidebarOpen(true)
-      if (requestedMenu === "closed") setSidebarOpen(false)
     } catch {}
   }, [])
 
@@ -1085,13 +1082,14 @@ The way the world will live`
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5 lg:hidden">
               <X className="h-5 w-5" />
             </Button>
-            <a
-              href={`/?tab=${activeTab}&menu=closed`}
+            <button
+              type="button"
+              data-lumin-desktop-menu-close="true"
               className="hidden lg:flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 hover:bg-white/5 hover:text-white"
               aria-label="Fechar menu"
             >
               <X className="h-5 w-5" />
-            </a>
+            </button>
           </div>
 
           {session?.user ? (
@@ -1151,7 +1149,7 @@ The way the world will live`
             ].map(([tab, label]) => (
               <a
                 key={tab}
-                href={`/?tab=${tab}&menu=open`}
+                href={`/?tab=${tab}`}
                 className={`block w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                   activeTab === tab
                     ? "bg-white/10 text-white"
@@ -2035,13 +2033,15 @@ The way the world will live`
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <a
-              href={`/?tab=${activeTab}&menu=open`}
+            <button
+              type="button"
+              data-lumin-desktop-menu-toggle="true"
               className="hidden lg:flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
               aria-label="Menu"
+              aria-expanded="false"
             >
               <Menu className="h-5 w-5" />
-            </a>
+            </button>
             <div className="hidden sm:flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
