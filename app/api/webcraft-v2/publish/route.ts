@@ -59,6 +59,25 @@ function ensureUploadedAssets(files: ProjectFile[], uploadedImages: unknown) {
   return Array.from(byPath.values())
 }
 
+function ensureResponsiveMediaSafety(files: ProjectFile[]) {
+  const byPath = new Map(files.map((file) => [file.path, { ...file }]))
+  const globals = byPath.get("app/globals.css")
+  if (!globals || globals.encoding === "base64") return files
+
+  const marker = "/* LUMIN responsive media safety */"
+  if (!globals.content.includes(marker)) {
+    globals.content += `
+\n${marker}
+html, body { max-width: 100%; overflow-x: hidden; }
+img, video, svg, canvas { display: block; max-width: 100%; height: auto; }
+main, section, article, aside, header, footer, div { min-width: 0; }
+`
+    byPath.set("app/globals.css", globals)
+  }
+
+  return Array.from(byPath.values())
+}
+
 function ensureTailwindSupport(files: ProjectFile[]) {
   const byPath = new Map(files.map((file) => [file.path, { ...file }]))
 
@@ -127,7 +146,8 @@ function makeSupabaseProxySafe(file: ProjectFile): ProjectFile {
 function prepareFilesForDeployment(files: ProjectFile[], uploadedImages?: UploadedImage[]) {
   const safe = files.map(makeSupabaseProxySafe)
   const withAssets = ensureUploadedAssets(safe, uploadedImages)
-  return ensureTailwindSupport(withAssets)
+  const withTailwind = ensureTailwindSupport(withAssets)
+  return ensureResponsiveMediaSafety(withTailwind)
 }
 
 function validateFiles(files: ProjectFile[]) {
