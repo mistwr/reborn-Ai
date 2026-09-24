@@ -318,6 +318,26 @@ export default function RebornAI() {
     setClientReady(true)
   }, [])
 
+  const sendPcProbe = useCallback((stage: string, extra: Record<string, unknown> = {}) => {
+    try {
+      if (new URLSearchParams(window.location.search).get("pcdebug") !== "1") return
+      void fetch("/api/pc-probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage,
+          href: window.location.href,
+          userAgent: navigator.userAgent,
+          hydrated: document.documentElement.getAttribute("data-lumin-hydrated") === "true",
+          ts: new Date().toISOString(),
+          ...extra,
+        }),
+        keepalive: true,
+        cache: "no-store",
+      })
+    } catch {}
+  }, [])
+
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -331,6 +351,22 @@ export default function RebornAI() {
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(false) // Update sidebar to start closed on mobile
   const [activeTab, setActiveTab] = useState("chat") // Changed from activeMode to activeTab for clarity
+
+  useEffect(() => {
+    const sidebar = document.querySelector<HTMLElement>('[data-lumin-sidebar="true"]')
+    const style = sidebar ? window.getComputedStyle(sidebar) : null
+    sendPcProbe("sidebar_state", {
+      detail: JSON.stringify({
+        sidebarOpen,
+        activeTab,
+        className: sidebar?.className || "",
+        display: style?.display || "",
+        visibility: style?.visibility || "",
+        transform: style?.transform || "",
+        pointerEvents: style?.pointerEvents || "",
+      }),
+    })
+  }, [sidebarOpen, activeTab, sendPcProbe])
 
   // Runtime heartbeat used by the boot repair in app/layout.tsx. If the page
   // hydrates successfully, desktop controls are safe to use.
@@ -1012,6 +1048,7 @@ The way the world will live`
 
       {/* Sidebar — Premium dark design */}
       <div
+        data-lumin-sidebar="true"
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
@@ -1929,7 +1966,10 @@ The way the world will live`
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => {
+                sendPcProbe("menu_handler", { detail: JSON.stringify({ before: sidebarOpen }) })
+                setSidebarOpen((current) => !current)
+              }}
               data-lumin-menu-button="true"
               className="h-9 w-9 shrink-0 text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
               aria-label="Menu"
