@@ -11,6 +11,7 @@ import { RebornLiveAvatar } from "@/components/reborn-live-avatar"
 import { NeuralVoiceBridge } from "@/components/neural-voice-bridge"
 import { LiveInterruptControl } from "@/components/live-interrupt-control"
 import { LuminResilienceRetry } from "@/components/lumin-resilience-retry"
+import { LuminDesktopPointerGuard } from "@/components/lumin-shell/desktop-pointer-guard"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProSessionAuthority />
       <ProjectContextBridge />
       <LuminResilienceRetry />
+      <LuminDesktopPointerGuard />
       <ProjectContextPanel />
       <LiveVisionBridge />
       <RebornLiveAvatar />
