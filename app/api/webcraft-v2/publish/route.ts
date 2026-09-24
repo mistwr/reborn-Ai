@@ -20,6 +20,39 @@ function slugify(value: string) {
     .slice(0, 80) || "lumin-ai-studio-app"
 }
 
+function makeSupabaseProxySafe(file: ProjectFile): ProjectFile {
+  if (file.path !== "proxy.ts") return file
+  if (!file.content.includes("createServerClient") || !file.content.includes("NEXT_PUBLIC_SUPABASE_URL")) return file
+  if (file.content.includes("Public sites must keep working even when Supabase is not configured.")) return file
+
+  let content = file.content
+
+  const signature = "export async function proxy(request: NextRequest) {"
+  if (!content.includes(signature)) return file
+
+  content = content.replace(
+    signature,
+    `\${signature}
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
+  // Public sites must keep working even when Supabase is not configured.
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.next({ request })
+  }`,
+  )
+
+  content = content
+    .replace(/process\.env\.NEXT_PUBLIC_SUPABASE_URL!/g, "supabaseUrl")
+    .replace(/process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!/g, "supabaseKey")
+
+  return { ...file, content }
+}
+
+function prepareFilesForDeployment(files: ProjectFile[]) {
+  return files.map(makeSupabaseProxySafe)
+}
+
 function validateFiles(files: ProjectFile[]) {
   if (!Array.isArray(files) || files.length === 0) return "Projeto vazio."
   if (!files.some((file) => file.path === "package.json")) return "Falta package.json."
@@ -159,7 +192,7 @@ export async function POST(req: Request) {
     }
 
     const body = (await req.json()) as PublishRequest
-    const files = body.files || []
+    const files = prepareFilesForDeployment(body.files || [])
     const validationError = validateFiles(files)
     if (validationError) return Response.json({ error: validationError }, { status: 400 })
 
