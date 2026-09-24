@@ -174,6 +174,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         ok: true,
         accessToken: data.access_token,
+        refreshToken: data.refresh_token || null,
         user: {
           id: data.user.id,
           email: data.user.email || email,
