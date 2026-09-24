@@ -61,6 +61,7 @@ function scaffoldFiles(name: string): ProjectFile[] {
     },
     devDependencies: {
       "@tailwindcss/postcss": "^4.0.0",
+      "postcss": "^8.4.0",
       "@types/node": "22.18.6",
       "@types/react": "19.1.16",
       "@types/react-dom": "19.1.9",
