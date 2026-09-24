@@ -1,5 +1,5 @@
 import { generateText } from "ai"
-import { getAIModel } from "@/lib/ai-config"
+import { withModelFallback } from "@/lib/ai-fallback"
 
 type Orientation = "landscape" | "portrait" | "square"
 
@@ -167,11 +167,13 @@ function sanitizePlan(raw: any, prompt: string, businessName?: string): VisualPl
   }
 }
 
-async function createVisualPlan(prompt: string, businessName?: string, language?: string) {
+async function createVisualPlan(prompt: string, businessName?: string, language?: string, economy = false) {
   try {
-    const result = await generateText({
-      model: getAIModel(),
-      system: `You are LUMIN Visual Director for premium web design.
+    const { value: result } = await withModelFallback(
+      (model) =>
+        generateText({
+          model,
+          system: `You are LUMIN Visual Director for premium web design.
 Return ONLY valid compact JSON, no markdown.
 Your job is to understand the business and design a coherent photographic direction before any images are searched.
 Create 4 to 6 visual slots only where images materially improve the page.
@@ -205,7 +207,9 @@ Return this JSON shape:
 }
 
 Infer location only when supported by the request. Keep queries specific to the actual content, not generic corporate stock.`,
-    })
+        }),
+      { kind: "text", economy, label: "webcraft-visual-director" },
+    )
 
     const parsed = JSON.parse(stripJsonFence(result.text))
     return sanitizePlan(parsed, prompt, businessName)
@@ -431,8 +435,9 @@ export async function resolveVisualContext(input: {
   prompt: string
   businessName?: string
   language?: string
+  economy?: boolean
 }): Promise<VisualContext> {
-  const plan = await createVisualPlan(input.prompt, input.businessName, input.language)
+  const plan = await createVisualPlan(input.prompt, input.businessName, input.language, Boolean(input.economy))
   const used = new Set<string>()
 
   const selected = await Promise.all(
