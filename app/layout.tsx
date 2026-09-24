@@ -148,7 +148,7 @@ export default function RootLayout({
                   var observer = new MutationObserver(retireMobileBackdrops);
                   observer.observe(document.body, { childList: true, subtree: true });
                   window.addEventListener('resize', retireMobileBackdrops, { passive: true });
-                  desktopPointer.addEventListener?.('change', retireMobileBackdrops);
+                  if (desktopPointer.addEventListener) desktopPointer.addEventListener('change', retireMobileBackdrops);
                 }
 
                 if (document.readyState === 'loading') {
@@ -156,6 +156,84 @@ export default function RootLayout({
                 } else {
                   startDesktopInteractionGuard();
                 }
+              })();
+
+              /*
+               * If the HTML/CSS render but React never hydrates, hover effects
+               * still work while every click appears dead. Repair that state
+               * automatically by dropping stale Lumin caches/service workers
+               * once and forcing a clean navigation.
+               */
+              (function() {
+                var repairKey = 'lumin-hydration-repair-v1';
+
+                function hasHydrated() {
+                  return document.documentElement.getAttribute('data-lumin-hydrated') === 'true';
+                }
+
+                function alreadyRepaired() {
+                  try { return sessionStorage.getItem(repairKey) === '1'; }
+                  catch (_) { return true; }
+                }
+
+                function markRepair() {
+                  try { sessionStorage.setItem(repairKey, '1'); } catch (_) {}
+                }
+
+                function cleanUrl() {
+                  var url = new URL(window.location.href);
+                  url.searchParams.set('lumin_repair', '1');
+                  return url.pathname + url.search + url.hash;
+                }
+
+                function recoverHydration() {
+                  if (hasHydrated() || alreadyRepaired()) return;
+                  markRepair();
+
+                  var jobs = [];
+
+                  if ('caches' in window) {
+                    jobs.push(
+                      caches.keys().then(function(names) {
+                        return Promise.all(
+                          names
+                            .filter(function(name) { return name.indexOf('lumin-ai-') === 0; })
+                            .map(function(name) { return caches.delete(name); })
+                        );
+                      }).catch(function() {})
+                    );
+                  }
+
+                  if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+                    jobs.push(
+                      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        return Promise.all(registrations.map(function(registration) {
+                          return registration.unregister().catch(function() {});
+                        }));
+                      }).catch(function() {})
+                    );
+                  }
+
+                  Promise.all(jobs).finally(function() {
+                    window.location.replace(cleanUrl());
+                  });
+                }
+
+                window.addEventListener('load', function() {
+                  window.setTimeout(function() {
+                    if (!hasHydrated()) recoverHydration();
+                  }, 5000);
+                });
+
+                document.addEventListener('click', function(event) {
+                  var target = event.target;
+                  if (!(target instanceof Element)) return;
+                  var menu = target.closest('[data-lumin-menu-button="true"]');
+                  if (menu && !hasHydrated()) {
+                    event.preventDefault();
+                    recoverHydration();
+                  }
+                }, true);
               })();
 
               if ('serviceWorker' in navigator) {
