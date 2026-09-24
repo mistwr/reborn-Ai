@@ -15,7 +15,7 @@ type PublishRequest = {
 }
 
 const MAX_FILES = 80
-const MAX_TOTAL_BYTES = 6_000_000
+const MAX_TOTAL_BYTES = 8_000_000
 const READY_POLL_MS = 1500
 const READY_TIMEOUT_MS = 45_000
 
@@ -190,41 +190,10 @@ function makeSupabaseProxySafe(file: ProjectFile): ProjectFile {
 }
 
 function exactPreviewFiles(html: string): ProjectFile[] {
-  const safeHtml = html.slice(0, 5_200_000)
   return [
     {
-      path: "package.json",
-      content: JSON.stringify(
-        {
-          private: true,
-          scripts: { build: "next build", start: "next start" },
-          dependencies: {
-            next: "16.0.1",
-            react: "19.2.0",
-            "react-dom": "19.2.0",
-          },
-        },
-        null,
-        2,
-      ),
-    },
-    {
-      path: "next.config.mjs",
-      content: "export default {}\n",
-    },
-    {
-      path: "app/route.js",
-      content: `const HTML = ${JSON.stringify(safeHtml)}
-
-export async function GET() {
-  return new Response(HTML, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=0, must-revalidate",
-    },
-  })
-}
-`,
+      path: "index.html",
+      content: html.slice(0, 7_500_000),
     },
   ]
 }
@@ -239,8 +208,9 @@ function prepareFilesForDeployment(files: ProjectFile[], uploadedImages?: Upload
 
 function validateFiles(files: ProjectFile[]) {
   if (!Array.isArray(files) || files.length === 0) return "Projeto vazio."
-  if (!files.some((file) => file.path === "package.json")) return "Falta package.json."
-  if (!files.some((file) => file.path === "app/page.tsx" || file.path === "app/route.js")) {
+  const isStaticSite = files.some((file) => file.path === "index.html")
+  if (!isStaticSite && !files.some((file) => file.path === "package.json")) return "Falta package.json."
+  if (!isStaticSite && !files.some((file) => file.path === "app/page.tsx" || file.path === "app/route.js")) {
     return "Falta a entrada principal da aplicação."
   }
   if (files.some((file) => !file.path || file.path.includes("..") || file.path.startsWith("/"))) {
@@ -281,6 +251,35 @@ async function getProject(token: string, teamId: string | undefined, name: strin
 
   if (!response.ok) {
     throw new Error(data?.error?.message || data?.message || "Não foi possível verificar o projeto na Vercel.")
+  }
+
+  return data
+}
+
+async function ensureStaticProject(token: string, teamId: string | undefined, name: string) {
+  const existing = await getProject(token, teamId, name)
+  if (existing?.id) return existing
+
+  const response = await fetch(vercelApiUrl("/v11/projects", teamId), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      framework: null,
+      skipGitConnectDuringLink: true,
+    }),
+  })
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    if (response.status === 409) {
+      const raced = await getProject(token, teamId, name)
+      if (raced?.id) return raced
+    }
+    throw new Error(data?.error?.message || data?.message || "Não foi possível criar o projeto estático na Vercel.")
   }
 
   return data
@@ -390,11 +389,18 @@ export async function POST(req: Request) {
     const validationError = validateFiles(files)
     if (validationError) return Response.json({ error: validationError }, { status: 400 })
 
-    const name = slugify(body.name || "lumin-ai-studio-app")
+    const baseName = slugify(body.name || "lumin-ai-studio-app")
+    const name = useExactPreview ? slugify(`${baseName}-site`) : baseName
     const target = body.target === "preview" ? undefined : "production"
-    const project = await ensureProject(token, teamId, name)
+    const project = useExactPreview
+      ? await ensureStaticProject(token, teamId, name)
+      : await ensureProject(token, teamId, name)
 
-    const deploymentResponse = await fetch(vercelApiUrl("/v13/deployments", teamId), {
+    const deploymentPath = useExactPreview
+      ? "/v13/deployments?skipAutoDetectionConfirmation=1"
+      : "/v13/deployments"
+
+    const deploymentResponse = await fetch(vercelApiUrl(deploymentPath, teamId), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -407,11 +413,15 @@ export async function POST(req: Request) {
           file: file.path,
           data: file.content,
         })),
-        projectSettings: {
-          framework: "nextjs",
-          buildCommand: "npm run build",
-          installCommand: "npm install",
-        },
+        projectSettings: useExactPreview
+          ? {
+              framework: null,
+            }
+          : {
+              framework: "nextjs",
+              buildCommand: "npm run build",
+              installCommand: "npm install",
+            },
         ...(target ? { target } : {}),
         meta: {
           generatedBy: "Lumin AI Studio",

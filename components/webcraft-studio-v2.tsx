@@ -307,8 +307,12 @@ export function WebCraftStudioV2() {
   }
 
   async function publishProject() {
-    if (!fullStackProject) {
-      setError("Cria primeiro a versão Full-Stack do projeto.")
+    if (mode === "app" && !fullStackProject) {
+      setError("Cria primeiro a versão Full-Stack da app.")
+      return
+    }
+    if (mode === "website" && !html) {
+      setError("Gera primeiro o website.")
       return
     }
 
@@ -321,10 +325,10 @@ export function WebCraftStudioV2() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: fullStackProject.name,
+          name: fullStackProject?.name || businessName || prompt || "lumin-ai-site",
           mode,
           previewHtml: mode === "website" ? html : undefined,
-          files: mode === "website" ? undefined : fullStackProject.files,
+          files: mode === "website" ? undefined : fullStackProject?.files,
           uploadedImages:
             mode === "website"
               ? undefined
@@ -512,7 +516,7 @@ export function WebCraftStudioV2() {
           <Button
             size="sm"
             onClick={publishProject}
-            disabled={!fullStackProject || publishLoading}
+            disabled={publishLoading || (mode === "app" && !fullStackProject)}
             className="gap-2"
           >
             {publishLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> A publicar...</> : <><CloudUpload className="h-4 w-4" /> PUBLICAR</>}
