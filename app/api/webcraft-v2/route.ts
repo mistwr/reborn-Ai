@@ -1,5 +1,6 @@
 import { generateText } from "ai"
 import { getAIModel } from "@/lib/ai-config"
+import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
 
 export const maxDuration = 60
 
@@ -195,14 +196,31 @@ export async function POST(req: Request) {
     }
 
     const isRefinement = Boolean(currentHtml && refinement)
-    const contextImages = !isRefinement && referenceImages.length === 0 && prompt
-      ? await resolveContextImages(prompt, body.businessName)
-      : []
+    const visualContext = !isRefinement && referenceImages.length === 0 && prompt
+      ? await resolveVisualContext({
+          prompt,
+          businessName: body.businessName,
+          language,
+        })
+      : {
+          images: [],
+          brief: "",
+          plan: {
+            businessType: body.businessName || "business",
+            location: "",
+            audience: "",
+            style: "",
+            mood: "",
+            avoid: [],
+            slots: [],
+          },
+        }
+    const contextImages = visualContext.images
 
     const referenceBlock = referenceImages.length
       ? `\nIMAGENS DE REFERÊNCIA FORNECIDAS PELO UTILIZADOR:\n${referenceImages.map((url, index) => `${index + 1}. ${url}`).join("\n")}\nUsa estas imagens prioritariamente nas secções onde fizerem sentido. Não as substituas por imagens genéricas salvo se o utilizador pedir.`
       : ""
-    const contextImageBlock = buildContextImageBlock(contextImages)
+    const contextImageBlock = buildVisualContextBlock(visualContext)
 
     const system = `És o motor interno do Lumin AI Studio, um agente de criação de aplicações e websites prontos a usar.
 
@@ -247,6 +265,14 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 22. Se existirem IMAGENS DE REFERÊNCIA fornecidas pelo utilizador, dá-lhes prioridade absoluta e reutiliza-as fielmente.
 23. Não uses imagens de celebridades, marcas protegidas ou pessoas identificáveis como se fossem o cliente, salvo se o utilizador tiver fornecido essas imagens.
 24. Quando uma imagem pesquisada trouxer crédito/licença, mantém atribuição discreta e legível no HTML.
+25. Trata o bloco LUMIN VISUAL DIRECTOR como direção criativa: cada imagem tem uma secção, intenção e assunto; respeita essa associação.
+26. Nunca uses a mesma fotografia em duas secções diferentes salvo pedido explícito.
+27. Nunca uses thumbnails quando existir um IMAGE URL de alta resolução.
+28. Mantém um único DNA visual no projeto: fotografia, luz, tratamento, densidade e enquadramento devem parecer parte da mesma marca.
+29. Hero: usa imagem de alta qualidade, composição forte e espaço seguro para copy; evita rostos ou elementos importantes tapados pelo texto.
+30. Não enchas todas as secções com fotografia. Usa imagem apenas quando acrescenta contexto, desejo, prova, produto ou confiança.
+31. Para <img>, usa object-fit: cover sem distorção; lazy loading fora do hero e alt text específico ao conteúdo.
+32. Se uma imagem curada contradizer o conteúdo final, omite-a em vez de a usar só porque está disponível.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
