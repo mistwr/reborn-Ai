@@ -303,14 +303,29 @@ export default function RootLayout({
                 } catch (_) {}
               })();
 
+              /*
+               * Temporarily retire legacy service workers. A subset of Windows
+               * Chrome clients retained an older Lumin worker and produced a
+               * mixed server/client shell. That shows up as React #418 and can
+               * leave the page visually loaded while actions appear inert.
+               */
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(registration) {
-                    registration.update();
-                    console.log('[Lumin PWA] Service Worker registered:', registration.scope);
-                  }).catch(function(error) {
-                    console.log('[Lumin PWA] Service Worker registration failed:', error);
-                  });
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    return Promise.all(registrations.map(function(registration) {
+                      return registration.unregister().catch(function() { return false; });
+                    }));
+                  }).catch(function() {});
+
+                  if ('caches' in window) {
+                    caches.keys().then(function(names) {
+                      return Promise.all(
+                        names
+                          .filter(function(name) { return name.indexOf('lumin-ai-') === 0; })
+                          .map(function(name) { return caches.delete(name); })
+                      );
+                    }).catch(function() {});
+                  }
                 });
               }
             `,

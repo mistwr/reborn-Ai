@@ -307,6 +307,17 @@ interface LiveModeState {
 }
 
 export default function RebornAI() {
+  // The historic Lumin homepage is a very large client component. Rendering
+  // its interactive shell only after mount guarantees that the first browser
+  // render is byte-for-byte compatible with the server fallback and prevents
+  // React hydration recovery from leaving desktop event handlers in a stale
+  // tree.
+  const [clientReady, setClientReady] = useState(false)
+
+  useEffect(() => {
+    setClientReady(true)
+  }, [])
+
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -971,6 +982,20 @@ The way the world will live`
       console.error("Upgrade Pro error:", error)
       alert("Ocorreu um erro ao tentar fazer o upgrade. Verifique a consola.")
     }
+  }
+
+  if (!clientReady) {
+    return (
+      <div
+        className="flex h-[100dvh] items-center justify-center bg-background text-foreground"
+        data-lumin-client-boot="true"
+      >
+        <div className="flex items-center gap-3 text-sm text-zinc-400">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-[#d6a84b]" />
+          A iniciar Lumin AI…
+        </div>
+      </div>
+    )
   }
 
   return (
