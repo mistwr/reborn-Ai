@@ -211,6 +211,33 @@
     overscroll-behavior: none;
   }
 
+  /*
+   * Desktop pointer safety. Some stale browser/PWA states have rendered the
+   * application correctly while hiding the system cursor over the app.
+   * Keep the native cursor explicit on mouse/trackpad devices.
+   */
+  @media (hover: hover) and (pointer: fine) {
+    html,
+    body,
+    body * {
+      cursor: default;
+    }
+
+    button,
+    a[href],
+    [role="button"],
+    [role="tab"],
+    label[for] {
+      cursor: pointer !important;
+    }
+
+    input,
+    textarea,
+    [contenteditable="true"] {
+      cursor: text !important;
+    }
+  }
+
   /* Better scrollbar for all devices */
   ::-webkit-scrollbar {
     width: 6px;
