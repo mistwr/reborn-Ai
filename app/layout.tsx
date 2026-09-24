@@ -86,16 +86,16 @@ export default function RootLayout({
           }
 
           @media (min-width: 1024px) {
-            html[data-lumin-desktop-menu="open"] [data-lumin-sidebar="true"] {
+            #lumin-desktop-menu-toggle ~ [data-lumin-sidebar="true"] {
+              transform: translateX(-100%) !important;
+            }
+
+            #lumin-desktop-menu-toggle:checked ~ [data-lumin-sidebar="true"] {
               display: flex !important;
               visibility: visible !important;
               opacity: 1 !important;
               pointer-events: auto !important;
               transform: translateX(0) !important;
-            }
-
-            html:not([data-lumin-desktop-menu="open"]) [data-lumin-sidebar="true"] {
-              transform: translateX(-100%) !important;
             }
           }
 
@@ -107,54 +107,12 @@ export default function RootLayout({
               (function() {
                 document.documentElement.setAttribute('data-theme', 'dark');
                 document.documentElement.setAttribute('data-lumin-shell', 'phase-8');
-                document.documentElement.setAttribute('data-lumin-desktop-menu', 'closed');
                 localStorage.setItem('luminai-theme', 'dark');
                 localStorage.setItem('rebornai-theme', 'dark');
                 localStorage.setItem('rebornai-tokens', '0');
                 localStorage.setItem('rebornai-token-reset-date', new Date().toDateString());
                 localStorage.setItem('rebornai-chat-guard-repair-v2', '1');
                 localStorage.setItem('rebornai-music-intro-dismissed', 'true');
-              })();
-
-              /*
-               * Desktop menu uses a plain DOM toggle rather than navigation or
-               * React state. This is intentionally independent of hydration so
-               * the Windows/Chrome machine can always open/close the sidebar.
-               */
-              (function() {
-                function isDesktop() {
-                  return window.matchMedia('(min-width: 1024px)').matches;
-                }
-
-                function setDesktopMenu(open) {
-                  document.documentElement.setAttribute('data-lumin-desktop-menu', open ? 'open' : 'closed');
-                  var toggle = document.querySelector('[data-lumin-desktop-menu-toggle="true"]');
-                  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-                }
-
-                document.addEventListener('click', function(event) {
-                  if (!isDesktop()) return;
-                  var target = event.target;
-                  if (!(target instanceof Element)) return;
-
-                  if (target.closest('[data-lumin-desktop-menu-toggle="true"]')) {
-                    event.preventDefault();
-                    var open = document.documentElement.getAttribute('data-lumin-desktop-menu') === 'open';
-                    setDesktopMenu(!open);
-                    return;
-                  }
-
-                  if (target.closest('[data-lumin-desktop-menu-close="true"]')) {
-                    event.preventDefault();
-                    setDesktopMenu(false);
-                  }
-                }, true);
-
-                window.addEventListener('resize', function() {
-                  if (!isDesktop()) {
-                    document.documentElement.setAttribute('data-lumin-desktop-menu', 'closed');
-                  }
-                }, { passive: true });
               })();
 
               /*
