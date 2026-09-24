@@ -958,6 +958,7 @@ The way the world will live`
       {/* Sidebar overlay for mobile */}
       {sidebarOpen && (
         <div
+          data-lumin-mobile-backdrop="true"
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
@@ -2597,11 +2598,6 @@ The way the world will live`
       </a>
 
 
-
-      {/* Overlay when sidebar is open on mobile */}
-      {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
-      )}
     </div>
   )
 }
