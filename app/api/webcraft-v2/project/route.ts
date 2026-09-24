@@ -10,7 +10,7 @@ type ProjectRequest = {
   language?: string
 }
 
-type ProjectFile = { path: string; content: string }
+type ProjectFile = { path: string; content: string; encoding?: "base64" }
 
 const BASE_CSS = `:root {
   color-scheme: light;
@@ -85,6 +85,9 @@ function scaffoldFiles(name: string): ProjectFile[] {
 type EmbeddedAsset = {
   token: string
   dataUrl: string
+  mimeType: string
+  extension: "jpg" | "png" | "webp"
+  base64: string
 }
 
 function maskEmbeddedImages(html: string) {
@@ -95,24 +98,43 @@ function maskEmbeddedImages(html: string) {
   const maskedHtml = html.replace(pattern, (dataUrl) => {
     const existing = seen.get(dataUrl)
     if (existing) return existing
+
+    const match = dataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,([a-z0-9+/=\s]+)$/i)
+    if (!match) return dataUrl
+
+    const mimePart = match[1].toLowerCase()
+    const extension = mimePart === "jpeg" ? "jpg" : (mimePart as "jpg" | "png" | "webp")
+    const mimeType = `image/${mimePart === "jpg" ? "jpeg" : mimePart}`
+    const base64 = match[2].replace(/\s+/g, "")
     const token = `__LUMIN_EMBEDDED_ASSET_${assets.length + 1}__`
+
     seen.set(dataUrl, token)
-    assets.push({ token, dataUrl })
+    assets.push({ token, dataUrl, mimeType, extension, base64 })
     return token
   })
 
   return { maskedHtml, assets }
 }
 
-function restoreEmbeddedImages(files: ProjectFile[], assets: EmbeddedAsset[]) {
+function materializeEmbeddedImages(files: ProjectFile[], assets: EmbeddedAsset[]) {
   if (!assets.length) return files
-  return files.map((file) => {
+
+  const mappedFiles = files.map((file) => {
     let content = file.content
-    for (const asset of assets) {
-      content = content.split(asset.token).join(asset.dataUrl)
+    for (const [index, asset] of assets.entries()) {
+      const publicPath = `/lumin-assets/asset-${index + 1}.${asset.extension}`
+      content = content.split(asset.token).join(publicPath)
     }
     return { ...file, content }
   })
+
+  const assetFiles: ProjectFile[] = assets.map((asset, index) => ({
+    path: `public/lumin-assets/asset-${index + 1}.${asset.extension}`,
+    content: asset.base64,
+    encoding: "base64",
+  }))
+
+  return [...mappedFiles, ...assetFiles]
 }
 
 export async function POST(req: Request) {
@@ -128,7 +150,7 @@ export async function POST(req: Request) {
     const embeddedAssetGuide = embeddedAssets.length
       ? `\nASSETS DO PREVIEW:\n${embeddedAssets
           .map((asset, index) => `${index + 1}. ${asset.token} = imagem real do preview; usa este token exatamente no src quando essa imagem fizer sentido.`)
-          .join("\n")}\nNão transformes estes tokens em URLs nem inventes substitutos. O servidor volta a inserir as imagens reais no fim.\n`
+          .join("\n")}\nNão transformes estes tokens em URLs nem inventes substitutos. O servidor transforma estes tokens em ficheiros reais dentro de public/lumin-assets/ no fim.\n`
       : ""
     const currentYear = new Date().getFullYear()
 
@@ -140,14 +162,14 @@ export async function POST(req: Request) {
       prompt: `PROJETO PEDIDO:\n${prompt}\n\n${visualReference ? `REFERÊNCIA VISUAL DO PREVIEW ATUAL (preserva a identidade e estrutura quando útil):\n${visualReference}` : ""}${embeddedAssetGuide}\n\nGera agora os ficheiros específicos da aplicação.`,
     })
 
-    let generated = restoreEmbeddedImages(parseFiles(result.text), embeddedAssets)
+    let generated = materializeEmbeddedImages(parseFiles(result.text), embeddedAssets)
     if (!generated.some((file) => file.path === "app/page.tsx")) {
       const retry = await generateText({
         model: getAIModel(),
         system: `És o motor full-stack do Lumin AI Studio. Responde EXCLUSIVAMENTE com blocos <file path="...">...</file>. Gera obrigatoriamente app/page.tsx em React/TypeScript, sem markdown fences. Usa apenas app/, components/, lib/ e supabase/. Texto visível em ${language}.`,
         prompt: `Cria uma versão Next.js App Router simples, robusta e responsiva deste projeto: ${prompt}. Preserva a identidade do preview descrito abaixo, mas prioriza devolver código válido.\n\n${visualReference.slice(0, 18000)}${embeddedAssetGuide}`,
       })
-      generated = restoreEmbeddedImages(parseFiles(retry.text), embeddedAssets)
+      generated = materializeEmbeddedImages(parseFiles(retry.text), embeddedAssets)
     }
 
     if (!generated.some((file) => file.path === "app/page.tsx")) {
