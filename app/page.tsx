@@ -353,6 +353,19 @@ export default function RebornAI() {
   const [activeTab, setActiveTab] = useState("chat") // Changed from activeMode to activeTab for clarity
 
   useEffect(() => {
+    try {
+      const requestedTab = new URLSearchParams(window.location.search).get("tab")
+      const allowedTabs = new Set([
+        "chat", "live", "images", "imagebank", "imageenhancer", "vision",
+        "webcraft", "presentations", "ebooks", "clipper", "pro", "marketing",
+        "sms", "whatsapp-web", "facebook-app", "facebook-autopost",
+        "instagram-app", "youtube-app",
+      ])
+      if (requestedTab && allowedTabs.has(requestedTab)) setActiveTab(requestedTab)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
     const sidebar = document.querySelector<HTMLElement>('[data-lumin-sidebar="true"]')
     const style = sidebar ? window.getComputedStyle(sidebar) : null
     sendPcProbe("sidebar_state", {
@@ -1049,7 +1062,7 @@ The way the world will live`
       {/* Sidebar — Premium dark design */}
       <div
         data-lumin-sidebar="true"
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -1108,8 +1121,43 @@ The way the world will live`
           )}
         </div>
 
+        {/* Desktop navigation uses native links so it remains usable even if a browser extension
+            or stale client state interferes with delegated React click events. */}
+        <div className="hidden lg:flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 py-4">
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Ferramentas</p>
+          <nav className="space-y-1">
+            {[
+              ["chat", "Chat IA"],
+              ["live", "Modo Live"],
+              ["images", "Gerar Imagens"],
+              ["vision", "Visão OCR"],
+              ["webcraft", "WebCraft"],
+              ["presentations", "Slides"],
+              ["ebooks", "Ebooks"],
+              ["clipper", "Video Clipper"],
+              ["marketing", "Redes Sociais"],
+              ["sms", "Mensagens"],
+            ].map(([tab, label]) => (
+              <a
+                key={tab}
+                href={`/?tab=${tab}`}
+                className={`block w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                  activeTab === tab
+                    ? "bg-white/10 text-white"
+                    : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-auto border-t border-white/5 pt-4 px-1 text-[11px] leading-5 text-zinc-600">
+            Lumin AI · navegação desktop
+          </div>
+        </div>
+
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 lg:hidden">
           <div className="mb-3">
             <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Ferramentas</p>
           </div>
@@ -1959,7 +2007,7 @@ The way the world will live`
 
       {/* Main Content */}
       {/* Added proper overflow handling for main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:pl-72">
         {/* Header — Clean minimal design */}
         <header className="h-14 border-b border-border/50 bg-background/80 backdrop-blur-xl px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -1971,7 +2019,7 @@ The way the world will live`
                 setSidebarOpen((current) => !current)
               }}
               data-lumin-menu-button="true"
-              className="h-9 w-9 shrink-0 text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
+              className="h-9 w-9 shrink-0 text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b] lg:hidden"
               aria-label="Menu"
             >
               <Menu className="h-5 w-5" />
