@@ -1,4 +1,4 @@
-type ProjectFile = { path: string; content: string }
+type ProjectFile = { path: string; content: string; encoding?: "base64" }
 
 type PublishRequest = {
   name?: string
@@ -7,7 +7,7 @@ type PublishRequest = {
 }
 
 const MAX_FILES = 80
-const MAX_TOTAL_BYTES = 2_500_000
+const MAX_TOTAL_BYTES = 4_000_000
 const READY_POLL_MS = 1500
 const READY_TIMEOUT_MS = 45_000
 
@@ -29,9 +29,19 @@ function validateFiles(files: ProjectFile[]) {
   }
   if (files.length > MAX_FILES) return "O projeto tem ficheiros a mais para publicação direta."
   if (files.some((file) => typeof file.content !== "string")) return "Existe conteúdo de ficheiro inválido."
+  if (files.some((file) => file.encoding && file.encoding !== "base64")) return "Existe um encoding de ficheiro inválido."
 
-  const totalBytes = files.reduce((sum, file) => sum + Buffer.byteLength(file.content, "utf8"), 0)
-  if (totalBytes > MAX_TOTAL_BYTES) return "O projeto excede o tamanho permitido para publicação direta."
+  const totalBytes = files.reduce((sum, file) => {
+    if (file.encoding === "base64") {
+      const normalized = file.content.replace(/\s+/g, "")
+      return sum + Math.ceil((normalized.length * 3) / 4)
+    }
+    return sum + Buffer.byteLength(file.content, "utf8")
+  }, 0)
+
+  if (totalBytes > MAX_TOTAL_BYTES) {
+    return `O projeto excede o tamanho permitido para publicação direta (${(totalBytes / 1024 / 1024).toFixed(1)} MB).`
+  }
   return null
 }
 
@@ -39,6 +49,54 @@ function vercelApiUrl(path: string, teamId?: string | null) {
   const url = new URL(`https://api.vercel.com${path}`)
   if (teamId) url.searchParams.set("teamId", teamId)
   return url
+}
+
+async function getProject(token: string, teamId: string | undefined, name: string) {
+  const response = await fetch(vercelApiUrl(`/v9/projects/${encodeURIComponent(name)}`, teamId), {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+
+  if (response.status === 404) return null
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || data?.message || "Não foi possível verificar o projeto na Vercel.")
+  }
+
+  return data
+}
+
+async function ensureProject(token: string, teamId: string | undefined, name: string) {
+  const existing = await getProject(token, teamId, name)
+  if (existing?.id) return existing
+
+  const response = await fetch(vercelApiUrl("/v11/projects", teamId), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      framework: "nextjs",
+      buildCommand: "npm run build",
+      installCommand: "npm install",
+      skipGitConnectDuringLink: true,
+    }),
+  })
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    // Another request may have created the project between GET and POST.
+    if (response.status === 409) {
+      const raced = await getProject(token, teamId, name)
+      if (raced?.id) return raced
+    }
+    throw new Error(data?.error?.message || data?.message || "Não foi possível criar o projeto na Vercel.")
+  }
+
+  return data
 }
 
 async function readDeployment(token: string, teamId: string | undefined, deploymentId: string) {
@@ -107,6 +165,7 @@ export async function POST(req: Request) {
 
     const name = slugify(body.name || "lumin-ai-studio-app")
     const target = body.target === "preview" ? undefined : "production"
+    const project = await ensureProject(token, teamId, name)
 
     const deploymentResponse = await fetch(vercelApiUrl("/v13/deployments", teamId), {
       method: "POST",
@@ -116,8 +175,12 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         name,
-        project: name,
-        files: files.map((file) => ({ file: file.path, data: file.content })),
+        project: project?.id || name,
+        files: files.map((file) => ({
+          file: file.path,
+          data: file.content,
+          ...(file.encoding ? { encoding: file.encoding } : {}),
+        })),
         projectSettings: {
           framework: "nextjs",
           buildCommand: "npm run build",
@@ -169,6 +232,7 @@ export async function POST(req: Request) {
           id: deploymentId,
           url: deploymentUrl,
           state: final.state,
+          project: name,
         },
         { status: 502 },
       )
