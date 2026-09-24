@@ -69,6 +69,7 @@ function ensureTailwindSupport(files: ProjectFile[]) {
       pkg.devDependencies = {
         ...(pkg.devDependencies || {}),
         "@tailwindcss/postcss": pkg.devDependencies?.["@tailwindcss/postcss"] || "^4.0.0",
+        postcss: pkg.devDependencies?.postcss || "^8.4.0",
         tailwindcss: pkg.devDependencies?.tailwindcss || "^4.0.0",
       }
       packageFile.content = JSON.stringify(pkg, null, 2) + "\n"
