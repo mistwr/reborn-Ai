@@ -322,8 +322,13 @@ export function WebCraftStudioV2() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: fullStackProject.name,
-          files: fullStackProject.files,
-          uploadedImages: uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
+          mode,
+          previewHtml: mode === "website" ? html : undefined,
+          files: mode === "website" ? undefined : fullStackProject.files,
+          uploadedImages:
+            mode === "website"
+              ? undefined
+              : uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
           target: "production",
         }),
       })
