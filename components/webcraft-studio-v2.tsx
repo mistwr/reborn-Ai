@@ -29,7 +29,7 @@ import {
 
 type Mode = "website" | "app"
 type ViewMode = "desktop" | "tablet" | "mobile"
-type ProjectFile = { path: string; content: string }
+type ProjectFile = { path: string; content: string; encoding?: "base64" }
 type UploadedReferenceImage = { id: string; name: string; dataUrl: string }
 
 type FullStackProject = {
@@ -265,7 +265,10 @@ export function WebCraftStudioV2() {
   async function downloadFullStackProject(project: FullStackProject) {
     const JSZip = (await import("jszip")).default
     const zip = new JSZip()
-    project.files.forEach((file) => zip.file(file.path, file.content))
+    project.files.forEach((file) => {
+      if (file.encoding === "base64") zip.file(file.path, file.content, { base64: true })
+      else zip.file(file.path, file.content)
+    })
     const blob = await zip.generateAsync({ type: "blob" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
