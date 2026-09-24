@@ -272,7 +272,7 @@ async function searchUnsplash(slot: VisualSlot): Promise<VisualContextImage[]> {
     url.searchParams.set("query", slot.query)
     url.searchParams.set("per_page", String(SEARCH_RESULTS_PER_SLOT))
     url.searchParams.set("content_filter", "high")
-    url.searchParams.set("orientation", slot.orientation)
+    url.searchParams.set("orientation", slot.orientation === "square" ? "squarish" : slot.orientation)
 
     const response = await fetch(url, {
       headers: {
