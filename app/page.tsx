@@ -321,6 +321,26 @@ export default function RebornAI() {
   const [sidebarOpen, setSidebarOpen] = useState(false) // Update sidebar to start closed on mobile
   const [activeTab, setActiveTab] = useState("chat") // Changed from activeMode to activeTab for clarity
 
+  // Runtime heartbeat used by the boot repair in app/layout.tsx. If the page
+  // hydrates successfully, desktop controls are safe to use.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-lumin-hydrated", "true")
+    window.dispatchEvent(new Event("lumin:hydrated"))
+
+    try {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has("lumin_repair")) {
+        url.searchParams.delete("lumin_repair")
+        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+      }
+      sessionStorage.removeItem("lumin-hydration-repair-v1")
+    } catch {}
+
+    return () => {
+      document.documentElement.removeAttribute("data-lumin-hydrated")
+    }
+  }, [])
+
   // Chat history
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>("") // Changed from null to string for consistency
@@ -1885,7 +1905,8 @@ The way the world will live`
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="h-9 w-9 shrink-0 hover:bg-muted"
+              data-lumin-menu-button="true"
+              className="h-9 w-9 shrink-0 text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
               aria-label="Menu"
             >
               <Menu className="h-5 w-5" />
