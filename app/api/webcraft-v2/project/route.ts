@@ -22,8 +22,10 @@ const BASE_CSS = `:root {
   --primary: #6d5dfc;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+html { scroll-behavior: smooth; max-width: 100%; overflow-x: hidden; }
+body { margin: 0; max-width: 100%; overflow-x: hidden; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+img, video, svg, canvas { display: block; max-width: 100%; height: auto; }
+main, section, article, aside, header, footer, div { min-width: 0; }
 button, input, textarea, select { font: inherit; }
 a { color: inherit; text-decoration: none; }
 `
@@ -154,7 +156,7 @@ export async function POST(req: Request) {
     const embeddedAssetGuide = embeddedAssets.length
       ? `\nASSETS DO PREVIEW:\n${embeddedAssets
           .map((asset, index) => `${index + 1}. ${asset.token} = imagem real do preview; usa este token exatamente no src quando essa imagem fizer sentido.`)
-          .join("\n")}\nNão transformes estes tokens em URLs nem inventes substitutos. O servidor transforma estes tokens em ficheiros reais dentro de public/lumin-assets/ no fim.\n`
+          .join("\n")}\nNão transformes estes tokens em URLs nem inventes substitutos. O servidor transforma estes tokens em ficheiros reais dentro de public/lumin-assets/ no fim. Se o asset for poster, screenshot, dashboard ou peça com texto/UI, trata-o como media autónomo: não coloques headline, menu, botões ou copy por cima dele, não o uses como background e preserva a peça inteira.\n`
       : ""
     const currentYear = new Date().getFullYear()
 
@@ -163,6 +165,9 @@ export async function POST(req: Request) {
       system: `És o motor interno full-stack do Lumin AI Studio. Gera código de uma aplicação Next.js 16 App Router realmente executável.\n\nCONTEXTO:\n- Ano atual: ${currentYear}.\n- O produto visível chama-se Lumin AI Studio. Nunca mostres REBORN AI ao cliente final.\n- Copyright e datas devem ser atuais; quando possível usa ano dinâmico.\n\nREGRAS:\n- Responde apenas com blocos <file path="caminho">conteúdo</file>.\n- Podes criar ficheiros apenas dentro de app/, components/, lib/ e supabase/.\n- Tens obrigatoriamente de gerar app/page.tsx.\n- Usa TypeScript/React. Tailwind CSS 4 está disponível e podes usar utilities Tailwind livremente; também podes criar CSS normal em app/globals.css. Não importes outras bibliotecas que não estejam no package base.\n- Supabase já estará configurado em lib/supabase/client.ts e server.ts. Usa-o quando fizer sentido.\n- Para Auth no cliente usa a publishable key através do helper existente. Nunca uses service_role/secret key no browser.\n- Se criares tabelas, inclui supabase/migrations/0001_init.sql, ativa RLS em todas as tabelas public e cria políticas por utilizador com auth.uid() = user_id.\n- UPDATE deve ter USING e WITH CHECK.\n- Não uses auth.role() nem SECURITY DEFINER.\n- Não uses user_metadata para autorização.\n- Não finjas integrações que não existam.\n- Cria estados vazios/erro/loading e uma experiência mobile responsiva.\n- Texto visível em ${language}.\n- Limite: até 10 ficheiros gerados para manter o projeto simples e robusto.
 - Se a referência visual contiver tokens __LUMIN_EMBEDDED_ASSET_N__, usa-os exatamente como src de <img> quando corresponderem à estrutura visual. Não coloques base64 no raciocínio nem inventes URLs alternativas.
 - Mantém imagens de marketing/posters/screenshots grandes e legíveis; não as reduzas a ícones ou avatares.
+- Posters, screenshots e peças de marketing com texto próprio devem ficar em blocos de media autónomos. Nunca sobreponhas headline, navegação, botões ou outro texto por cima dessas imagens e nunca as uses como background.
+- Em mobile, layouts com imagem + texto devem empilhar verticalmente; imagens principais usam width: 100%, height: auto e object-fit: contain. Nenhum conteúdo pode criar scroll horizontal ou sair do viewport.
+- Evita widths fixas grandes em mobile. Usa max-width: 100%, min-width: 0 nos filhos flex/grid e breakpoints responsivos para grids de 2+ colunas.
 - Usa Supabase apenas quando o pedido exigir autenticação, base de dados, persistência, CRUD ou dados multiutilizador. Landing pages e sites institucionais não devem importar nem criar clientes Supabase sem necessidade.
 - Nunca faças uma página pública depender das variáveis NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY se a funcionalidade pedida funcionar sem base de dados.`,
       prompt: `PROJETO PEDIDO:\n${prompt}\n\n${visualReference ? `REFERÊNCIA VISUAL DO PREVIEW ATUAL (preserva a identidade e estrutura quando útil):\n${visualReference}` : ""}${embeddedAssetGuide}\n\nGera agora os ficheiros específicos da aplicação.`,

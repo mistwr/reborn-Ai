@@ -532,6 +532,9 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 35. Nunca apresentes um upload do utilizador como miniatura decorativa se for poster, screenshot, dashboard, fotografia editorial ou peça de marketing. Usa-o como media principal, normalmente com largura responsiva e altura automática.
 36. Se o bloco de uploads indicar que stock adicional não é necessário, não uses URLs de stock remoto em hero, fundos ou secções; constrói a página com os uploads, gradientes, CSS, SVG e tipografia.
 37. Quando um upload contém texto ou interface, usa object-fit: contain e preserva a peça inteira; não a cortes para preencher quadrados.
+38. Posters, screenshots, dashboards e peças de marketing com texto próprio nunca devem servir de background por baixo de headline, menu, botões ou copy adicional. Coloca-os num bloco de media autónomo, sem sobreposição de texto.
+39. Em mobile, qualquer bloco que contenha um upload principal deve empilhar verticalmente: imagem a 100% da largura disponível, altura automática, sem position:absolute e sem conteúdo a sair do viewport.
+40. Evita overflow horizontal: containers flex/grid devem usar min-width: 0 nos filhos; nenhuma imagem, card ou bloco pode ultrapassar 100vw.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
