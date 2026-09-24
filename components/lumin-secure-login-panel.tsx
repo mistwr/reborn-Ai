@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSession } from "next-auth/react"
 import { KeyRound, Loader2, LockKeyhole, ShieldCheck, X } from "lucide-react"
 
 const POLL_MS = 2500
@@ -50,6 +51,7 @@ function classifyLogin(session: BrowserSession | null) {
 }
 
 export function LuminSecureLoginPanel() {
+  const { status: authStatus } = useSession()
   const [session, setSession] = useState<BrowserSession | null>(null)
   const [dismissedSession, setDismissedSession] = useState<string | null>(null)
   const [username, setUsername] = useState("")
@@ -59,6 +61,11 @@ export function LuminSecureLoginPanel() {
   const [message, setMessage] = useState("")
 
   useEffect(() => {
+    if (authStatus !== "authenticated") {
+      setSession(null)
+      return
+    }
+
     let active = true
     let timer: ReturnType<typeof setInterval> | null = null
 
@@ -83,7 +90,7 @@ export function LuminSecureLoginPanel() {
       active = false
       if (timer) clearInterval(timer)
     }
-  }, [dismissedSession])
+  }, [dismissedSession, authStatus])
 
   const state = useMemo(() => classifyLogin(session), [session])
   const visible = state.show && session?.id !== dismissedSession
