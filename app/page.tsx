@@ -1050,6 +1050,15 @@ The way the world will live`
 
   return (
     <div className="flex bg-background" style={{ height: "100dvh" }}>
+      {/* Desktop menu toggle: pure HTML/CSS, independent of React/JS click handlers. */}
+      <input
+        id="lumin-desktop-menu-toggle"
+        type="checkbox"
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       {/* Sidebar overlay for mobile */}
       {sidebarOpen && (
         <div
@@ -1082,14 +1091,13 @@ The way the world will live`
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5 lg:hidden">
               <X className="h-5 w-5" />
             </Button>
-            <button
-              type="button"
-              data-lumin-desktop-menu-close="true"
-              className="hidden lg:flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 hover:bg-white/5 hover:text-white"
+            <label
+              htmlFor="lumin-desktop-menu-toggle"
+              className="hidden lg:flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-zinc-400 hover:bg-white/5 hover:text-white"
               aria-label="Fechar menu"
             >
               <X className="h-5 w-5" />
-            </button>
+            </label>
           </div>
 
           {session?.user ? (
@@ -2033,15 +2041,13 @@ The way the world will live`
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <button
-              type="button"
-              data-lumin-desktop-menu-toggle="true"
-              className="hidden lg:flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
+            <label
+              htmlFor="lumin-desktop-menu-toggle"
+              className="hidden lg:flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
               aria-label="Menu"
-              aria-expanded="false"
             >
               <Menu className="h-5 w-5" />
-            </button>
+            </label>
             <div className="hidden sm:flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
