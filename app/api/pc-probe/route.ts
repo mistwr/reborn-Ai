@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     userAgent: String(body?.userAgent || "").slice(0, 500),
     hydrated: Boolean(body?.hydrated),
     target: String(body?.target || "").slice(0, 250),
-    detail: String(body?.detail || "").slice(0, 1000),
+    detail: String(body?.detail || "").slice(0, 4000),
     ts: String(body?.ts || ""),
   }
 
