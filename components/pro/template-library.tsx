@@ -25,7 +25,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTempla
     filteredTemplates = getTemplatesByCategory(selectedCategory)
   }
   if (searchTerm) {
-    filteredTemplates = filteredTemplates.filter((t) => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.tags.some((tag) => tag.includes(searchTerm.toLowerCase())))
+    filteredTemplates = filteredTemplates.filter((t) => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.tags.some((tag: string) => tag.includes(searchTerm.toLowerCase())))
   }
 
   const handleTemplateSelect = (template: typeof TEMPLATES[0]) => {
@@ -78,7 +78,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTempla
               <h3 className="font-semibold mb-2">{template.name}</h3>
               <p className="text-sm text-gray-600 mb-3">{template.description}</p>
               <div className="flex gap-1 flex-wrap mb-3">
-                {template.tags.slice(0, 2).map((tag) => (
+                {template.tags.slice(0, 2).map((tag: string) => (
                   <Badge key={tag} variant="secondary" className="text-xs">
                     {tag}
                   </Badge>
