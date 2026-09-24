@@ -15,6 +15,8 @@ import {
   X,
 } from "lucide-react"
 
+const SD_DIALER_URL = "https://sd-dialer-2p.vercel.app"
+
 function clickExistingTab(labels: string[]) {
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>('button, [role="tab"], a'),
@@ -41,6 +43,11 @@ export function LuminBusinessMenu() {
     [user.organizationName],
   )
 
+  const isSdDialerCompany = useMemo(
+    () => /\bsd\s*[- ]?\s*dialer\b/i.test(company),
+    [company],
+  )
+
   if (!isBusiness) return null
 
   const goTo = (labels: string[]) => {
@@ -48,13 +55,21 @@ export function LuminBusinessMenu() {
     window.setTimeout(() => clickExistingTab(labels), 20)
   }
 
+  const handleCompanyButton = () => {
+    if (isSdDialerCompany) {
+      window.open(SD_DIALER_URL, "_blank", "noopener,noreferrer")
+      return
+    }
+    setOpen(true)
+  }
+
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={handleCompanyButton}
         className="fixed bottom-[88px] right-4 z-[72] flex items-center gap-2 rounded-full border border-amber-300/25 bg-[#0b0b0e]/95 px-4 py-2.5 text-sm font-medium text-white shadow-[0_12px_45px_rgba(0,0,0,.55),0_0_28px_rgba(218,171,76,.10)] backdrop-blur-xl transition hover:border-amber-300/45 sm:bottom-5 sm:right-5"
-        aria-label="Abrir espaço da empresa"
+        aria-label={isSdDialerCompany ? "Abrir SD Dialer" : "Abrir espaço da empresa"}
       >
         <span className="relative flex h-7 w-7 items-center justify-center rounded-full border border-amber-300/25 bg-amber-300/10">
           <Building2 className="h-3.5 w-3.5 text-amber-300" />
@@ -100,7 +115,7 @@ export function LuminBusinessMenu() {
               <div className="space-y-1.5">
                 <BusinessItem
                   icon={LayoutDashboard}
-                  title="CRM PARCENDi"
+                  title="CRM"
                   subtitle="Clientes, vendas e produção"
                   onClick={() => window.open("https://parcendi.pt", "_blank", "noopener,noreferrer")}
                   external
@@ -109,7 +124,7 @@ export function LuminBusinessMenu() {
                   icon={PhoneCall}
                   title="SD Dialer"
                   subtitle="Leads, chamadas e follow-ups"
-                  onClick={() => window.open("https://sd-dialer-2p.vercel.app", "_blank", "noopener,noreferrer")}
+                  onClick={() => window.open(SD_DIALER_URL, "_blank", "noopener,noreferrer")}
                   external
                 />
               </div>
