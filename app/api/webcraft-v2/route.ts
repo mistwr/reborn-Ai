@@ -32,6 +32,105 @@ type ContextImage = {
   query: string
 }
 
+type EmbeddedContextAsset = {
+  token: string
+  dataUrl: string
+}
+
+const MAX_CONTEXT_IMAGE_BYTES = 950_000
+const MAX_CONTEXT_TOTAL_BYTES = 4_200_000
+
+function imageMimeType(value: string | null, url: string) {
+  const type = String(value || "").split(";")[0].trim().toLowerCase()
+  if (type.startsWith("image/")) return type
+  const clean = url.split("?")[0].toLowerCase()
+  if (clean.endsWith(".png")) return "image/png"
+  if (clean.endsWith(".webp")) return "image/webp"
+  if (clean.endsWith(".jpg") || clean.endsWith(".jpeg")) return "image/jpeg"
+  return ""
+}
+
+async function fetchContextImageDataUrl(url: string, thumbnail?: string) {
+  const candidates = [url, thumbnail].filter(
+    (value, index, values): value is string =>
+      typeof value === "string" &&
+      /^https?:\/\//i.test(value) &&
+      values.indexOf(value) === index,
+  )
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, {
+        headers: {
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          "User-Agent": "Lumin-AI-Studio/2.0",
+        },
+        cache: "no-store",
+        redirect: "follow",
+        signal: AbortSignal.timeout(7000),
+      })
+      if (!response.ok) continue
+
+      const declaredLength = Number(response.headers.get("content-length") || 0)
+      if (declaredLength && declaredLength > MAX_CONTEXT_IMAGE_BYTES) continue
+
+      const mime = imageMimeType(response.headers.get("content-type"), candidate)
+      if (!mime) continue
+
+      const arrayBuffer = await response.arrayBuffer()
+      if (!arrayBuffer.byteLength || arrayBuffer.byteLength > MAX_CONTEXT_IMAGE_BYTES) continue
+
+      return {
+        dataUrl: `data:${mime};base64,${Buffer.from(arrayBuffer).toString("base64")}`,
+        bytes: arrayBuffer.byteLength,
+      }
+    } catch {
+      // Try the thumbnail/next candidate.
+    }
+  }
+
+  return null
+}
+
+async function materializeContextImages<T extends { images: any[] }>(context: T, maxImages: number) {
+  const sourceImages = Array.isArray(context.images) ? context.images.slice(0, maxImages) : []
+  if (!sourceImages.length) {
+    return { context, assets: [] as EmbeddedContextAsset[] }
+  }
+
+  const downloaded = await Promise.all(
+    sourceImages.map((image) => fetchContextImageDataUrl(image.url, image.thumbnail)),
+  )
+
+  let totalBytes = 0
+  const assets: EmbeddedContextAsset[] = []
+  const images: any[] = []
+
+  sourceImages.forEach((image, index) => {
+    const result = downloaded[index]
+    if (!result) return
+    if (totalBytes + result.bytes > MAX_CONTEXT_TOTAL_BYTES) return
+
+    const token = `__LUMIN_CONTEXT_IMAGE_${assets.length + 1}__`
+    totalBytes += result.bytes
+    assets.push({ token, dataUrl: result.dataUrl })
+    images.push({ ...image, url: token })
+  })
+
+  return {
+    context: { ...context, images },
+    assets,
+  }
+}
+
+function restoreContextImagesInHtml(html: string, assets: EmbeddedContextAsset[]) {
+  let output = html
+  for (const asset of assets) {
+    output = output.split(asset.token).join(asset.dataUrl)
+  }
+  return output
+}
+
 const STOP_WORDS = new Set([
   "para", "com", "uma", "um", "uns", "umas", "de", "do", "da", "dos", "das", "e", "ou", "o", "a", "os", "as",
   "que", "cria", "criar", "faz", "fazer", "site", "website", "pagina", "landing", "page", "app", "aplicacao", "aplicação",
@@ -476,14 +575,20 @@ export async function POST(req: Request) {
             slots: [],
           },
         }
-    const contextImages = visualContext.images
+    const materializedVisuals = await materializeContextImages(
+      visualContext,
+      economyMode ? 4 : 6,
+    )
+    const stableVisualContext = materializedVisuals.context
+    const contextAssets = materializedVisuals.assets
+    const contextImages = stableVisualContext.images
 
     const urlReferenceBlock = referenceImages.length
       ? `\nIMAGENS DE REFERÊNCIA POR URL FORNECIDAS PELO UTILIZADOR:\n${referenceImages.map((url, index) => `${index + 1}. ${url}`).join("\n")}\nUsa estas imagens prioritariamente nas secções onde fizerem sentido. Não as substituas por imagens genéricas salvo se o utilizador pedir.\n`
       : ""
     const uploadedImagesBlock = buildUploadedImagesBlock(uploadedImages, uploadVisualAnalysis)
     const referenceBlock = `${uploadedImagesBlock}${urlReferenceBlock}`
-    const contextImageBlock = buildVisualContextBlock(visualContext)
+    const contextImageBlock = buildVisualContextBlock(stableVisualContext)
 
     const system = `És o motor interno do Lumin AI Studio, um agente de criação de aplicações e websites prontos a usar.
 
@@ -545,6 +650,8 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 39. Em mobile, qualquer bloco que contenha um upload principal deve empilhar verticalmente: imagem a 100% da largura disponível, altura automática, sem position:absolute e sem conteúdo a sair do viewport.
 40. Evita overflow horizontal: containers flex/grid devem usar min-width: 0 nos filhos; nenhuma imagem, card ou bloco pode ultrapassar 100vw.
 41. Se o HTML atual já tiver um poster/screenshot atrás de texto, não preserves essa composição: move o upload para um bloco autónomo e coloca headline, parágrafo e CTAs num bloco separado acima ou abaixo. A regra de não sobreposição tem prioridade sobre a preservação do layout anterior.
+42. Quando o Visual Director fornecer IMAGE URL no formato __LUMIN_CONTEXT_IMAGE_N__, usa esse token exatamente em src ou background-image. Não inventes, encurtes nem substituas o token; o servidor incorpora a fotografia real no HTML final.
+43. Em WEBSITE, usa JavaScript apenas quando necessário. Executa inicialização depois de DOMContentLoaded, verifica se cada elemento existe antes de o usar e não assumes IDs/seletores que não estejam presentes no HTML.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
@@ -571,7 +678,8 @@ PRESERVAÇÃO:
       uploadedImages,
       uploadVisualAnalysis,
     )
-    const restoredHtml = restoreUploadedImagesInHtml(presentationFixedHtml, uploadedImages)
+    const restoredUploadsHtml = restoreUploadedImagesInHtml(presentationFixedHtml, uploadedImages)
+    const restoredHtml = restoreContextImagesInHtml(restoredUploadsHtml, contextAssets)
     return new Response(restoredHtml, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

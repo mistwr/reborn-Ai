@@ -56,6 +56,15 @@ function hardenPreviewHtml(source: string) {
     return !v || v === 'null' || v === 'undefined' || v === 'none' || v === 'nan' || v === 'about:blank';
   }
   window.addEventListener('error', function (event) {
+    var target = event && event.target;
+    var tag = target && target.tagName ? String(target.tagName).toUpperCase() : '';
+
+    // Resource failures (especially remote images) are not JavaScript errors.
+    if (target && target !== window && (tag === 'IMG' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'SOURCE')) {
+      console.warn('[Lumin Preview] recurso visual indisponível:', target.currentSrc || target.src || '');
+      return;
+    }
+
     console.warn('[Lumin Preview] erro isolado:', event && event.message);
     showPreviewError(event && event.message);
     event.preventDefault && event.preventDefault();
