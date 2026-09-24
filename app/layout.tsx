@@ -236,6 +236,73 @@ export default function RootLayout({
                 }, true);
               })();
 
+              /*
+               * Opt-in desktop diagnostic. Only runs with ?pcdebug=1 and sends
+               * coarse technical events to server logs so we can distinguish
+               * blocked JavaScript, failed hydration and swallowed clicks.
+               */
+              (function() {
+                try {
+                  if (new URLSearchParams(window.location.search).get('pcdebug') !== '1') return;
+
+                  function describeTarget(target) {
+                    if (!(target instanceof Element)) return '';
+                    var tag = target.tagName.toLowerCase();
+                    var id = target.id ? '#' + target.id : '';
+                    var cls = typeof target.className === 'string'
+                      ? '.' + target.className.split(/\s+/).filter(Boolean).slice(0, 4).join('.')
+                      : '';
+                    var text = (target.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+                    return tag + id + cls + (text ? ' :: ' + text : '');
+                  }
+
+                  function send(stage, extra) {
+                    var payload = Object.assign({
+                      stage: stage,
+                      href: window.location.href,
+                      userAgent: navigator.userAgent,
+                      hydrated: document.documentElement.getAttribute('data-lumin-hydrated') === 'true',
+                      ts: new Date().toISOString()
+                    }, extra || {});
+
+                    fetch('/api/pc-probe', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                      keepalive: true,
+                      cache: 'no-store'
+                    }).catch(function() {});
+                  }
+
+                  send('inline_loaded');
+
+                  window.addEventListener('error', function(event) {
+                    send('window_error', { detail: String(event.message || event.error || 'unknown_error') });
+                  });
+
+                  window.addEventListener('unhandledrejection', function(event) {
+                    send('unhandled_rejection', { detail: String(event.reason || 'unknown_rejection') });
+                  });
+
+                  window.addEventListener('lumin:hydrated', function() {
+                    send('react_hydrated');
+                  });
+
+                  document.addEventListener('pointerdown', function(event) {
+                    send('pointerdown', { target: describeTarget(event.target) });
+                  }, true);
+
+                  document.addEventListener('click', function(event) {
+                    send('click', { target: describeTarget(event.target) });
+                  }, true);
+
+                  window.addEventListener('load', function() {
+                    send('window_load');
+                    window.setTimeout(function() { send('after_5s'); }, 5000);
+                  });
+                } catch (_) {}
+              })();
+
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(registration) {
