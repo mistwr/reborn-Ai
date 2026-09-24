@@ -17,6 +17,7 @@ const ROUTE_COSTS: Record<string, number> = {
 
 const FREE_LIMIT = 15000
 const PRO_LIMIT = 50000
+const WEBCRAFT_FALLBACK_COST = 500
 
 async function consume(email: string, amount: number, limit: number) {
   const url = process.env.REBORN_SUPABASE_URL?.replace(/\/$/, "")
@@ -65,19 +66,59 @@ export async function middleware(request: NextRequest) {
   try {
     const result = await consume(email, cost, limit)
     if (!result?.allowed) {
+      const remaining = Math.max(0, Number(result?.remaining || 0))
+
+      // WebCraft can drop into a lower-cost generation mode instead of hard-stopping
+      // when the user has some daily balance left but not enough for the full 2k request.
+      if (request.nextUrl.pathname === "/api/webcraft-v2" && remaining >= WEBCRAFT_FALLBACK_COST) {
+        const fallback = await consume(email, WEBCRAFT_FALLBACK_COST, limit)
+        if (fallback?.allowed) {
+          const requestHeaders = new Headers(request.headers)
+          requestHeaders.set("x-lumin-credit-mode", "fallback")
+          requestHeaders.set("x-lumin-credit-cost", String(WEBCRAFT_FALLBACK_COST))
+          requestHeaders.set(
+            "x-lumin-credits-remaining",
+            String(fallback.remaining ?? Math.max(0, limit - Number(fallback.used || 0))),
+          )
+
+          const response = NextResponse.next({ request: { headers: requestHeaders } })
+          response.headers.set("x-lumin-credit-mode", "fallback")
+          response.headers.set("x-lumin-credit-cost", String(WEBCRAFT_FALLBACK_COST))
+          response.headers.set(
+            "x-lumin-credits-remaining",
+            String(fallback.remaining ?? Math.max(0, limit - Number(fallback.used || 0))),
+          )
+          return response
+        }
+      }
+
       return NextResponse.json(
         {
-          error: "Créditos diários esgotados. O saldo renova automaticamente à meia-noite UTC.",
-          code: "CREDITS_EXHAUSTED",
+          error:
+            remaining > 0
+              ? `Créditos insuficientes para esta geração. Restam ${remaining} créditos e o saldo renova à meia-noite UTC.`
+              : "Créditos diários esgotados. O saldo renova automaticamente à meia-noite UTC.",
+          code: remaining > 0 ? "CREDITS_INSUFFICIENT" : "CREDITS_EXHAUSTED",
           used: Number(result?.used || limit),
           limit,
-          remaining: Number(result?.remaining || 0),
+          remaining,
+          minimumForWebcraftFallback:
+            request.nextUrl.pathname === "/api/webcraft-v2" ? WEBCRAFT_FALLBACK_COST : undefined,
         },
         { status: 402 },
       )
     }
 
-    const response = NextResponse.next()
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-lumin-credit-mode", "full")
+    requestHeaders.set("x-lumin-credit-cost", String(cost))
+    requestHeaders.set(
+      "x-lumin-credits-remaining",
+      String(result.remaining ?? Math.max(0, limit - Number(result.used || 0))),
+    )
+
+    const response = NextResponse.next({ request: { headers: requestHeaders } })
+    response.headers.set("x-lumin-credit-mode", "full")
     response.headers.set("x-lumin-credit-cost", String(cost))
     response.headers.set("x-lumin-credits-remaining", String(result.remaining ?? Math.max(0, limit - Number(result.used || 0))))
     return response
