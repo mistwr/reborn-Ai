@@ -73,6 +73,11 @@ export function LuminSecureLoginPanel() {
       try {
         const response = await fetch("/api/browser/session", { cache: "no-store", credentials: "include" })
         if (!active || response.status === 401) return
+        if (response.status >= 500) {
+          active = false
+          if (timer) clearInterval(timer)
+          return
+        }
         if (!response.ok) return
         const data = await response.json().catch(() => ({}))
         if (!active) return
