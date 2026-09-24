@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ChangeEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,6 +14,7 @@ import {
   Download,
   ExternalLink,
   Globe2,
+  ImagePlus,
   Loader2,
   Monitor,
   PackageOpen,
@@ -23,11 +24,13 @@ import {
   Smartphone,
   Sparkles,
   Tablet,
+  X,
 } from "lucide-react"
 
 type Mode = "website" | "app"
 type ViewMode = "desktop" | "tablet" | "mobile"
 type ProjectFile = { path: string; content: string }
+type UploadedReferenceImage = { id: string; name: string; dataUrl: string }
 
 type FullStackProject = {
   name: string
@@ -42,6 +45,10 @@ const EXAMPLES = [
   "Loja online de roupa com catálogo, carrinho e checkout demonstrativo",
 ]
 
+const MAX_UPLOADED_IMAGES = 5
+const MAX_SOURCE_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_COMPRESSED_DATA_URL_LENGTH = 650_000
+
 export function WebCraftStudioV2() {
   const [mode, setMode] = useState<Mode>("website")
   const [viewMode, setViewMode] = useState<ViewMode>("desktop")
@@ -50,6 +57,7 @@ export function WebCraftStudioV2() {
   const [businessName, setBusinessName] = useState("")
   const [businessEmail, setBusinessEmail] = useState("")
   const [referenceImagesText, setReferenceImagesText] = useState("")
+  const [uploadedImages, setUploadedImages] = useState<UploadedReferenceImage[]>([])
   const [html, setHtml] = useState<string | null>(null)
   const [editableHtml, setEditableHtml] = useState("")
   const [editCode, setEditCode] = useState(false)
@@ -75,6 +83,97 @@ export function WebCraftStudioV2() {
         .slice(0, 12),
     [referenceImagesText],
   )
+
+  function loadImage(url: string) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () => reject(new Error("Não foi possível ler a imagem."))
+      image.src = url
+    })
+  }
+
+  async function compressReferenceImage(file: File): Promise<UploadedReferenceImage> {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      throw new Error(`${file.name}: usa JPG, PNG ou WebP.`)
+    }
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+      throw new Error(`${file.name}: a imagem é demasiado grande. Máximo 12 MB.`)
+    }
+
+    const objectUrl = URL.createObjectURL(file)
+    try {
+      const image = await loadImage(objectUrl)
+
+      const render = (maxSide: number, quality: number) => {
+        const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
+        const width = Math.max(1, Math.round(image.naturalWidth * scale))
+        const height = Math.max(1, Math.round(image.naturalHeight * scale))
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const context = canvas.getContext("2d")
+        if (!context) throw new Error("O browser não conseguiu preparar a imagem.")
+        context.drawImage(image, 0, 0, width, height)
+        return canvas.toDataURL("image/webp", quality)
+      }
+
+      const attempts: Array<[number, number]> = [
+        [1400, 0.82],
+        [1400, 0.68],
+        [1200, 0.62],
+        [1000, 0.56],
+      ]
+
+      for (const [maxSide, quality] of attempts) {
+        const dataUrl = render(maxSide, quality)
+        if (dataUrl.length <= MAX_COMPRESSED_DATA_URL_LENGTH) {
+          return {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            name: file.name,
+            dataUrl,
+          }
+        }
+      }
+
+      throw new Error(`${file.name}: não foi possível reduzir a imagem o suficiente.`)
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }
+
+  async function handleReferenceUpload(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const selected = Array.from(input.files || [])
+    input.value = ""
+    if (!selected.length) return
+
+    const remaining = MAX_UPLOADED_IMAGES - uploadedImages.length
+    if (remaining <= 0) {
+      setError(`Podes carregar até ${MAX_UPLOADED_IMAGES} imagens por projeto.`)
+      return
+    }
+
+    setError(null)
+    const prepared: UploadedReferenceImage[] = []
+
+    for (const file of selected.slice(0, remaining)) {
+      try {
+        prepared.push(await compressReferenceImage(file))
+      } catch (err: any) {
+        setError(err?.message || "Não foi possível preparar uma das imagens.")
+        break
+      }
+    }
+
+    if (prepared.length) {
+      setUploadedImages((current) => [...current, ...prepared].slice(0, MAX_UPLOADED_IMAGES))
+    }
+  }
+
+  function removeUploadedImage(id: string) {
+    setUploadedImages((current) => current.filter((image) => image.id !== id))
+  }
 
   async function streamProject(payload: Record<string, unknown>) {
     setLoading(true)
@@ -132,6 +231,7 @@ export function WebCraftStudioV2() {
       businessName,
       businessEmail,
       referenceImages,
+      uploadedImages: uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
       language: "Português de Portugal (PT-PT)",
     })
   }
@@ -146,6 +246,7 @@ export function WebCraftStudioV2() {
       currentHtml: current,
       refinement: instruction,
       referenceImages,
+      uploadedImages: uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
       language: "Português de Portugal (PT-PT)",
     })
   }
@@ -292,19 +393,62 @@ export function WebCraftStudioV2() {
             </div>
 
             <div className="mt-4 rounded-2xl border bg-muted/20 p-3">
-              <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Imagens de referência</p>
-                  <p className="text-xs text-muted-foreground">Cola URLs de fotos reais do negócio, uma por linha. O Lumin dá prioridade a estas imagens no website.</p>
+                  <p className="text-sm font-medium">Imagens do projeto</p>
+                  <p className="text-xs text-muted-foreground">Carrega fotos diretamente do telemóvel ou PC. O Lumin usa-as primeiro e completa o resto com imagens contextuais.</p>
                 </div>
-                {referenceImages.length > 0 && <Badge variant="outline">{referenceImages.length} imagem{referenceImages.length === 1 ? "" : "s"}</Badge>}
+                {(uploadedImages.length + referenceImages.length) > 0 && (
+                  <Badge variant="outline">
+                    {uploadedImages.length + referenceImages.length} imagem{uploadedImages.length + referenceImages.length === 1 ? "" : "s"}
+                  </Badge>
+                )}
               </div>
-              <Textarea
-                value={referenceImagesText}
-                onChange={(e) => setReferenceImagesText(e.target.value)}
-                placeholder={'https://exemplo.pt/foto-1.jpg\nhttps://exemplo.pt/foto-2.jpg'}
-                className="min-h-24 rounded-xl text-sm"
-              />
+
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-4 text-sm font-medium transition hover:bg-primary/10">
+                <ImagePlus className="h-4 w-4" />
+                Carregar imagens
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleReferenceUpload}
+                  disabled={loading || uploadedImages.length >= MAX_UPLOADED_IMAGES}
+                />
+              </label>
+              <p className="mt-2 text-center text-[11px] text-muted-foreground">JPG, PNG ou WebP · até {MAX_UPLOADED_IMAGES} imagens · são otimizadas automaticamente</p>
+
+              {uploadedImages.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                  {uploadedImages.map((image) => (
+                    <div key={image.id} className="group relative overflow-hidden rounded-xl border bg-background">
+                      <img src={image.dataUrl} alt={image.name} className="aspect-square w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeUploadedImage(image.id)}
+                        className="absolute right-1.5 top-1.5 rounded-full bg-black/75 p-1 text-white opacity-90 transition hover:bg-black"
+                        aria-label={`Remover ${image.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      <div className="truncate px-2 py-1.5 text-[10px] text-muted-foreground">{image.name}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <details className="mt-3 rounded-xl border bg-background/60">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">Também podes adicionar imagens por URL</summary>
+                <div className="border-t p-3">
+                  <Textarea
+                    value={referenceImagesText}
+                    onChange={(e) => setReferenceImagesText(e.target.value)}
+                    placeholder={'https://exemplo.pt/foto-1.jpg\nhttps://exemplo.pt/foto-2.jpg'}
+                    className="min-h-20 rounded-xl text-sm"
+                  />
+                </div>
+              </details>
             </div>
 
             <Button onClick={generate} disabled={loading || !prompt.trim()} size="lg" className="mt-5 h-12 w-full gap-2 rounded-xl">
@@ -333,12 +477,12 @@ export function WebCraftStudioV2() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-card px-3 py-2 md:px-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null); setPublishedUrl(null) }} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null); setPublishedUrl(null); setUploadedImages([]); setReferenceImagesText("") }} className="gap-2">
             <RefreshCw className="h-4 w-4" /> Novo
           </Button>
           <Badge variant="secondary">Lumin AI Studio</Badge>
           <Badge variant="outline">{mode === "app" ? "App Web" : "Website"}</Badge>
-          {referenceImages.length > 0 && <Badge variant="outline">{referenceImages.length} refs</Badge>}
+          {(referenceImages.length + uploadedImages.length) > 0 && <Badge variant="outline">{referenceImages.length + uploadedImages.length} refs</Badge>}
           {fullStackProject && <Badge variant="outline">{fullStackProject.files.length} ficheiros · {fullStackProject.framework}</Badge>}
         </div>
 
@@ -387,12 +531,41 @@ export function WebCraftStudioV2() {
               className="min-h-32"
               disabled={loading}
             />
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs font-medium transition hover:bg-muted">
+              <ImagePlus className="h-4 w-4" />
+              Adicionar imagens ao projeto
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                className="hidden"
+                onChange={handleReferenceUpload}
+                disabled={loading || uploadedImages.length >= MAX_UPLOADED_IMAGES}
+              />
+            </label>
+            {uploadedImages.length > 0 && (
+              <div className="grid grid-cols-5 gap-1.5">
+                {uploadedImages.map((image) => (
+                  <div key={image.id} className="group relative overflow-hidden rounded-md border">
+                    <img src={image.dataUrl} alt={image.name} className="aspect-square w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeUploadedImage(image.id)}
+                      className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white"
+                      aria-label={`Remover ${image.name}`}
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <Button onClick={refine} disabled={loading || !refinement.trim()} className="w-full gap-2">
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> A alterar...</> : <><Send className="h-4 w-4" /> Aplicar alteração</>}
             </Button>
-            {referenceImages.length > 0 && (
+            {(referenceImages.length + uploadedImages.length) > 0 && (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-                O Lumin mantém <strong>{referenceImages.length}</strong> imagem{referenceImages.length === 1 ? "" : "s"} de referência durante os refinamentos.
+                O Lumin mantém <strong>{referenceImages.length + uploadedImages.length}</strong> imagem{referenceImages.length + uploadedImages.length === 1 ? "" : "s"} de referência durante os refinamentos, incluindo os uploads diretos.
               </div>
             )}
             {error && <p className="text-xs text-destructive">{error}</p>}
