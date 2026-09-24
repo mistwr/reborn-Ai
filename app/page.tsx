@@ -2018,7 +2018,7 @@ The way the world will live`
 
       {/* Main Content */}
       {/* Added proper overflow handling for main content */}
-      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${sidebarOpen ? "lg:pl-72" : ""}`}>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header — Clean minimal design */}
         <header className="h-14 border-b border-border/50 bg-background/80 backdrop-blur-xl px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
