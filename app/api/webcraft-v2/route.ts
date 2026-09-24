@@ -15,6 +15,10 @@ type WebCraftRequest = {
   businessName?: string
   businessEmail?: string
   referenceImages?: string[]
+  uploadedImages?: Array<{
+    name?: string
+    dataUrl?: string
+  }>
 }
 
 type ContextImage = {
@@ -76,6 +80,77 @@ function cleanReferenceImages(input: unknown) {
     .map((value) => value.trim())
     .filter((value) => /^https?:\/\//i.test(value))
     .slice(0, 12)
+}
+
+type UploadedReferenceImage = {
+  name: string
+  dataUrl: string
+  placeholder: string
+}
+
+const MAX_UPLOADED_IMAGES = 5
+const MAX_UPLOADED_DATA_URL_LENGTH = 700_000
+const MAX_UPLOADED_TOTAL_LENGTH = 3_400_000
+
+function cleanUploadedImages(input: unknown): UploadedReferenceImage[] {
+  if (!Array.isArray(input)) return []
+
+  const output: UploadedReferenceImage[] = []
+  let totalLength = 0
+
+  for (const value of input) {
+    if (output.length >= MAX_UPLOADED_IMAGES) break
+    if (!value || typeof value !== "object") continue
+
+    const rawName = typeof (value as any).name === "string" ? (value as any).name.trim() : ""
+    const dataUrl = typeof (value as any).dataUrl === "string" ? (value as any).dataUrl.trim() : ""
+
+    if (!/^data:image\/(?:jpeg|jpg|png|webp);base64,[a-z0-9+/=\s]+$/i.test(dataUrl)) continue
+    if (dataUrl.length > MAX_UPLOADED_DATA_URL_LENGTH) continue
+    if (totalLength + dataUrl.length > MAX_UPLOADED_TOTAL_LENGTH) break
+
+    const index = output.length + 1
+    output.push({
+      name: rawName.slice(0, 120) || `imagem-${index}`,
+      dataUrl,
+      placeholder: `__LUMIN_UPLOAD_IMAGE_${index}__`,
+    })
+    totalLength += dataUrl.length
+  }
+
+  return output
+}
+
+function maskUploadedImagesInHtml(html: string, uploadedImages: UploadedReferenceImage[]) {
+  let masked = html
+  for (const image of uploadedImages) {
+    masked = masked.split(image.dataUrl).join(image.placeholder)
+  }
+  return masked
+}
+
+function restoreUploadedImagesInHtml(html: string, uploadedImages: UploadedReferenceImage[]) {
+  let restored = html
+  for (const image of uploadedImages) {
+    restored = restored.split(image.placeholder).join(image.dataUrl)
+  }
+  return restored
+}
+
+function buildUploadedImagesBlock(uploadedImages: UploadedReferenceImage[]) {
+  if (!uploadedImages.length) return ""
+
+  return `
+IMAGENS CARREGADAS DIRETAMENTE PELO UTILIZADOR:
+${uploadedImages
+  .map(
+    (image, index) =>
+      `${index + 1}. Ficheiro: ${image.name}\n   SRC OBRIGATÓRIO: ${image.placeholder}`,
+  )
+  .join("\n")}
+
+Estas imagens são assets reais enviados pelo utilizador. Usa o token SRC OBRIGATÓRIO exatamente como está no atributo src da imagem escolhida; o servidor substitui o token pelo ficheiro real depois da geração. Não inventes URL para estas imagens, não alteres o token e não o mostres como texto visível. Dá prioridade a estes uploads quando forem relevantes para hero, galeria, produto/serviço, espaço físico, equipa ou prova visual. Não és obrigado a usar todas as imagens se alguma não fizer sentido para o conteúdo.
+`
 }
 
 function extractVisualQueries(value: string) {
@@ -190,13 +265,16 @@ export async function POST(req: Request) {
     const language = body.language?.trim() || "Português de Portugal (PT-PT)"
     const currentYear = new Date().getFullYear()
     const referenceImages = cleanReferenceImages(body.referenceImages)
+    const uploadedImages = cleanUploadedImages(body.uploadedImages)
+    const maskedCurrentHtml = currentHtml ? maskUploadedImagesInHtml(currentHtml, uploadedImages) : undefined
 
     if (!prompt && !refinement) {
       return Response.json({ error: "Indica o que queres criar ou alterar." }, { status: 400 })
     }
 
     const isRefinement = Boolean(currentHtml && refinement)
-    const visualContext = !isRefinement && referenceImages.length === 0 && prompt
+    const suppliedImageCount = referenceImages.length + uploadedImages.length
+    const visualContext = !isRefinement && suppliedImageCount < 4 && prompt
       ? await resolveVisualContext({
           prompt,
           businessName: body.businessName,
@@ -217,9 +295,11 @@ export async function POST(req: Request) {
         }
     const contextImages = visualContext.images
 
-    const referenceBlock = referenceImages.length
-      ? `\nIMAGENS DE REFERÊNCIA FORNECIDAS PELO UTILIZADOR:\n${referenceImages.map((url, index) => `${index + 1}. ${url}`).join("\n")}\nUsa estas imagens prioritariamente nas secções onde fizerem sentido. Não as substituas por imagens genéricas salvo se o utilizador pedir.`
+    const urlReferenceBlock = referenceImages.length
+      ? `\nIMAGENS DE REFERÊNCIA POR URL FORNECIDAS PELO UTILIZADOR:\n${referenceImages.map((url, index) => `${index + 1}. ${url}`).join("\n")}\nUsa estas imagens prioritariamente nas secções onde fizerem sentido. Não as substituas por imagens genéricas salvo se o utilizador pedir.\n`
       : ""
+    const uploadedImagesBlock = buildUploadedImagesBlock(uploadedImages)
+    const referenceBlock = `${uploadedImagesBlock}${urlReferenceBlock}`
     const contextImageBlock = buildVisualContextBlock(visualContext)
 
     const system = `És o motor interno do Lumin AI Studio, um agente de criação de aplicações e websites prontos a usar.
@@ -273,6 +353,8 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 30. Não enchas todas as secções com fotografia. Usa imagem apenas quando acrescenta contexto, desejo, prova, produto ou confiança.
 31. Para <img>, usa object-fit: cover sem distorção; lazy loading fora do hero e alt text específico ao conteúdo.
 32. Se uma imagem curada contradizer o conteúdo final, omite-a em vez de a usar só porque está disponível.
+33. Tokens com o formato __LUMIN_UPLOAD_IMAGE_N__ representam imagens reais carregadas pelo utilizador. Usa-os exatamente no src quando escolheres esse upload e nunca os alteres, encurtes, transformes em URL, CSS background textual ou texto visível.
+34. Imagens carregadas pelo utilizador têm prioridade sobre stock quando representam diretamente o negócio, produto, espaço, equipa ou identidade visual.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
@@ -280,7 +362,7 @@ PRESERVAÇÃO:
 - Faz a menor alteração necessária para cumprir o pedido e devolve novamente o HTML COMPLETO.`
 
     const userPrompt = isRefinement
-      ? `HTML ATUAL:\n${stripCodeFence(currentHtml!)}\n\nALTERAÇÃO PEDIDA:\n${refinement}${referenceBlock}\n\nDevolve o HTML completo atualizado.`
+      ? `HTML ATUAL:\n${stripCodeFence(maskedCurrentHtml!)}\n\nALTERAÇÃO PEDIDA:\n${refinement}${referenceBlock}\n\nDevolve o HTML completo atualizado.`
       : `Cria ${mode === "app" ? "uma aplicação web" : "um website"} completo para este pedido:\n${prompt}\n\n${body.businessName ? `Nome do negócio/projeto: ${body.businessName}\n` : ""}${body.businessEmail ? `Contacto: ${body.businessEmail}\n` : ""}${referenceBlock}${contextImageBlock}\nDevolve o HTML completo.`
 
     const result = await generateText({
@@ -290,10 +372,12 @@ PRESERVAÇÃO:
     })
 
     const fixedHtml = validateAndFixHtml(result.text)
-    return new Response(fixedHtml, {
+    const restoredHtml = restoreUploadedImagesInHtml(fixedHtml, uploadedImages)
+    return new Response(restoredHtml, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "X-Lumin-Context-Images": String(contextImages.length),
+        "X-Lumin-Uploaded-Images": String(uploadedImages.length),
       },
     })
   } catch (error: any) {
