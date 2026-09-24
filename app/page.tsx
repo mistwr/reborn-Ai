@@ -354,7 +354,9 @@ export default function RebornAI() {
 
   useEffect(() => {
     try {
-      const requestedTab = new URLSearchParams(window.location.search).get("tab")
+      const params = new URLSearchParams(window.location.search)
+      const requestedTab = params.get("tab")
+      const requestedMenu = params.get("menu")
       const allowedTabs = new Set([
         "chat", "live", "images", "imagebank", "imageenhancer", "vision",
         "webcraft", "presentations", "ebooks", "clipper", "pro", "marketing",
@@ -362,6 +364,8 @@ export default function RebornAI() {
         "instagram-app", "youtube-app",
       ])
       if (requestedTab && allowedTabs.has(requestedTab)) setActiveTab(requestedTab)
+      if (requestedMenu === "open") setSidebarOpen(true)
+      if (requestedMenu === "closed") setSidebarOpen(false)
     } catch {}
   }, [])
 
@@ -1062,7 +1066,7 @@ The way the world will live`
       {/* Sidebar — Premium dark design */}
       <div
         data-lumin-sidebar="true"
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -1078,9 +1082,16 @@ The way the world will live`
                 <span className="text-[11px] text-zinc-500 leading-none mt-1">Plataforma Inteligente</span>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5 lg:hidden">
               <X className="h-5 w-5" />
             </Button>
+            <a
+              href={`/?tab=${activeTab}&menu=closed`}
+              className="hidden lg:flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 hover:bg-white/5 hover:text-white"
+              aria-label="Fechar menu"
+            >
+              <X className="h-5 w-5" />
+            </a>
           </div>
 
           {session?.user ? (
@@ -1140,7 +1151,7 @@ The way the world will live`
             ].map(([tab, label]) => (
               <a
                 key={tab}
-                href={`/?tab=${tab}`}
+                href={`/?tab=${tab}&menu=open`}
                 className={`block w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                   activeTab === tab
                     ? "bg-white/10 text-white"
@@ -2007,7 +2018,7 @@ The way the world will live`
 
       {/* Main Content */}
       {/* Added proper overflow handling for main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:pl-72">
+      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${sidebarOpen ? "lg:pl-72" : ""}`}>
         {/* Header — Clean minimal design */}
         <header className="h-14 border-b border-border/50 bg-background/80 backdrop-blur-xl px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -2024,6 +2035,13 @@ The way the world will live`
             >
               <Menu className="h-5 w-5" />
             </Button>
+            <a
+              href={`/?tab=${activeTab}&menu=open`}
+              className="hidden lg:flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
+              aria-label="Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </a>
             <div className="hidden sm:flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
