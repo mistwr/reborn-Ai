@@ -13,7 +13,7 @@ type PublishRequest = {
 }
 
 const MAX_FILES = 80
-const MAX_TOTAL_BYTES = 4_000_000
+const MAX_TOTAL_BYTES = 6_000_000
 const READY_POLL_MS = 1500
 const READY_TIMEOUT_MS = 45_000
 
@@ -57,6 +57,50 @@ function ensureUploadedAssets(files: ProjectFile[], uploadedImages: unknown) {
     if (!byPath.has(asset.path)) byPath.set(asset.path, asset)
   }
   return Array.from(byPath.values())
+}
+
+function convertBinaryImageAssetsToRoutes(files: ProjectFile[]) {
+  const output: ProjectFile[] = []
+  const routeFiles: ProjectFile[] = []
+
+  for (const file of files) {
+    const match = file.path.match(/^public\/lumin-assets\/([^/]+)\.(jpg|jpeg|png|webp)$/i)
+    if (!match || file.encoding !== "base64") {
+      output.push(file)
+      continue
+    }
+
+    const filename = `${match[1]}.${match[2].toLowerCase() === "jpeg" ? "jpg" : match[2].toLowerCase()}`
+    const extension = match[2].toLowerCase()
+    const contentType =
+      extension === "png"
+        ? "image/png"
+        : extension === "webp"
+          ? "image/webp"
+          : "image/jpeg"
+    const data = file.content.replace(/\s+/g, "")
+
+    routeFiles.push({
+      path: `app/lumin-assets/${filename}/route.ts`,
+      content: `import { Buffer } from "node:buffer"
+
+const DATA = "${data}"
+
+export async function GET() {
+  const bytes = Buffer.from(DATA, "base64")
+  return new Response(bytes as any, {
+    headers: {
+      "Content-Type": "${contentType}",
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Length": String(bytes.length),
+    },
+  })
+}
+`,
+    })
+  }
+
+  return [...output, ...routeFiles]
 }
 
 function ensureResponsiveMediaSafety(files: ProjectFile[]) {
@@ -146,7 +190,8 @@ function makeSupabaseProxySafe(file: ProjectFile): ProjectFile {
 function prepareFilesForDeployment(files: ProjectFile[], uploadedImages?: UploadedImage[]) {
   const safe = files.map(makeSupabaseProxySafe)
   const withAssets = ensureUploadedAssets(safe, uploadedImages)
-  const withTailwind = ensureTailwindSupport(withAssets)
+  const withAssetRoutes = convertBinaryImageAssetsToRoutes(withAssets)
+  const withTailwind = ensureTailwindSupport(withAssetRoutes)
   return ensureResponsiveMediaSafety(withTailwind)
 }
 
@@ -309,7 +354,6 @@ export async function POST(req: Request) {
         files: files.map((file) => ({
           file: file.path,
           data: file.content,
-          ...(file.encoding ? { encoding: file.encoding } : {}),
         })),
         projectSettings: {
           framework: "nextjs",
