@@ -29,7 +29,7 @@ export function DesktopAutoLauncher() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/80 p-6 backdrop-blur-sm lg:flex"
+      className="fixed inset-0 z-[90] hidden items-center justify-center bg-black/80 p-6 backdrop-blur-sm lg:flex"
       role="dialog"
       aria-modal="true"
       aria-label="Menu Lumin AI"
@@ -50,6 +50,13 @@ export function DesktopAutoLauncher() {
             <X className="h-5 w-5" />
           </a>
         </div>
+
+        <a
+          href="/login"
+          className="mb-3 flex w-full items-center justify-center rounded-xl border border-[#d6a84b]/30 bg-[#d6a84b]/10 px-4 py-3 text-sm font-semibold text-[#f0c86b] hover:bg-[#d6a84b]/15"
+        >
+          Entrar / Criar conta
+        </a>
 
         <div className="grid grid-cols-2 gap-3">
           {items.map(([tab, label]) => (
