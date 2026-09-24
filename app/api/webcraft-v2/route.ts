@@ -1,5 +1,5 @@
 import { generateText } from "ai"
-import { getAIModel } from "@/lib/ai-config"
+import { getAIModel, getVisionModel } from "@/lib/ai-config"
 import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
 
 export const maxDuration = 60
@@ -88,6 +88,20 @@ type UploadedReferenceImage = {
   placeholder: string
 }
 
+type UploadedVisualAssetAnalysis = {
+  index: number
+  summary: string
+  kind: "logo" | "photo" | "poster" | "screenshot" | "illustration" | "other"
+  bestUse: string
+  preserveFullFrame: boolean
+}
+
+type UploadedVisualAnalysis = {
+  summary: string
+  needsSupportingStock: boolean
+  assets: UploadedVisualAssetAnalysis[]
+}
+
 const MAX_UPLOADED_IMAGES = 5
 const MAX_UPLOADED_DATA_URL_LENGTH = 700_000
 const MAX_UPLOADED_TOTAL_LENGTH = 3_400_000
@@ -137,19 +151,170 @@ function restoreUploadedImagesInHtml(html: string, uploadedImages: UploadedRefer
   return restored
 }
 
-function buildUploadedImagesBlock(uploadedImages: UploadedReferenceImage[]) {
+function stripJsonFence(value: string) {
+  return value
+    .replace(/^\s*\`\`\`(?:json)?/i, "")
+    .replace(/\`\`\`\s*$/i, "")
+    .trim()
+}
+
+function fallbackUploadedVisualAnalysis(uploadedImages: UploadedReferenceImage[]): UploadedVisualAnalysis {
+  return {
+    summary: uploadedImages.length
+      ? "User supplied visual assets. Treat them as primary brand/content imagery."
+      : "",
+    needsSupportingStock: uploadedImages.length < 2,
+    assets: uploadedImages.map((image, index) => ({
+      index: index + 1,
+      summary: image.name,
+      kind: "other" as const,
+      bestUse: index === 0 ? "prominent hero or feature media" : "prominent feature/gallery media",
+      preserveFullFrame: true,
+    })),
+  }
+}
+
+async function analyzeUploadedImages(
+  uploadedImages: UploadedReferenceImage[],
+  websiteRequest: string,
+): Promise<UploadedVisualAnalysis> {
+  if (!uploadedImages.length) return fallbackUploadedVisualAnalysis(uploadedImages)
+
+  try {
+    const content: any[] = [
+      {
+        type: "text",
+        text: `You are LUMIN Visual Director. Analyse these user-uploaded assets for a website requested as: "${websiteRequest}".
+Return ONLY compact JSON:
+{
+  "summary": "one sentence describing the shared visual identity",
+  "needsSupportingStock": false,
+  "assets": [
+    {
+      "index": 1,
+      "summary": "what is visibly in this asset and its purpose",
+      "kind": "logo|photo|poster|screenshot|illustration|other",
+      "bestUse": "specific website placement",
+      "preserveFullFrame": true
+    }
+  ]
+}
+Use needsSupportingStock=true only when the uploads clearly cannot cover the site's visual needs (for example only a logo). If an asset is a designed poster, screenshot, dashboard or artwork containing important text/UI, preserveFullFrame must be true. Never identify real people.`,
+      },
+    ]
+
+    uploadedImages.forEach((image, index) => {
+      content.push({ type: "text", text: `Asset ${index + 1}: ${image.name}` })
+      content.push({ type: "image", image: image.dataUrl })
+    })
+
+    const result = await generateText({
+      model: getVisionModel(),
+      messages: [{ role: "user", content }],
+      maxTokens: 650,
+    })
+
+    const parsed = JSON.parse(stripJsonFence(result.text))
+    const rawAssets = Array.isArray(parsed?.assets) ? parsed.assets : []
+    const assets = uploadedImages.map((image, index) => {
+      const raw = rawAssets.find((asset: any) => Number(asset?.index) === index + 1) || rawAssets[index] || {}
+      const allowedKinds = new Set(["logo", "photo", "poster", "screenshot", "illustration", "other"])
+      const kind = allowedKinds.has(raw?.kind) ? raw.kind : "other"
+      return {
+        index: index + 1,
+        summary:
+          typeof raw?.summary === "string" && raw.summary.trim()
+            ? raw.summary.trim().slice(0, 260)
+            : image.name,
+        kind,
+        bestUse:
+          typeof raw?.bestUse === "string" && raw.bestUse.trim()
+            ? raw.bestUse.trim().slice(0, 180)
+            : index === 0
+              ? "prominent hero or feature media"
+              : "prominent feature/gallery media",
+        preserveFullFrame: raw?.preserveFullFrame !== false,
+      } satisfies UploadedVisualAssetAnalysis
+    })
+
+    return {
+      summary:
+        typeof parsed?.summary === "string" && parsed.summary.trim()
+          ? parsed.summary.trim().slice(0, 320)
+          : fallbackUploadedVisualAnalysis(uploadedImages).summary,
+      needsSupportingStock: Boolean(parsed?.needsSupportingStock),
+      assets,
+    }
+  } catch {
+    return fallbackUploadedVisualAnalysis(uploadedImages)
+  }
+}
+
+function enforceUploadedImagePresentation(
+  html: string,
+  uploadedImages: UploadedReferenceImage[],
+  analysis: UploadedVisualAnalysis,
+) {
+  let output = html
+
+  for (const [index, image] of uploadedImages.entries()) {
+    const asset = analysis.assets[index]
+    if (asset?.kind === "logo") continue
+
+    const escaped = image.placeholder.replace(/[.*+?^$()|[\]\\]/g, "\\function buildUploadedImagesBlock(uploadedImages: UploadedReferenceImage[]) {")
+    const regex = new RegExp(`<img([^>]*src=["']${escaped}["'][^>]*)>`, "gi")
+
+    output = output.replace(regex, (full, attrs: string) => {
+      const presentation =
+        asset?.preserveFullFrame || asset?.kind === "poster" || asset?.kind === "screenshot"
+          ? "width:100%;max-width:760px;height:auto;object-fit:contain;object-position:center;"
+          : "width:100%;max-width:760px;height:auto;object-fit:cover;object-position:center;"
+
+      if (/\sstyle=["'][^"']*["']/i.test(attrs)) {
+        const nextAttrs = attrs.replace(
+          /\sstyle=(["'])([^"']*)\1/i,
+          (_m: string, quote: string, style: string) => ` style=${quote}${style};${presentation}${quote}`,
+        )
+        return `<img${nextAttrs}>`
+      }
+
+      return `<img${attrs} style="${presentation}">`
+    })
+  }
+
+  return output
+}
+
+function buildUploadedImagesBlock(
+  uploadedImages: UploadedReferenceImage[],
+  analysis: UploadedVisualAnalysis,
+) {
   if (!uploadedImages.length) return ""
 
   return `
-IMAGENS CARREGADAS DIRETAMENTE PELO UTILIZADOR:
-${uploadedImages
-  .map(
-    (image, index) =>
-      `${index + 1}. Ficheiro: ${image.name}\n   SRC OBRIGATÓRIO: ${image.placeholder}`,
-  )
-  .join("\n")}
+IMAGENS CARREGADAS DIRETAMENTE PELO UTILIZADOR — ASSETS PRINCIPAIS:
+Identidade visual detetada: ${analysis.summary}
+Imagens externas adicionais: ${analysis.needsSupportingStock ? "permitidas apenas para preencher lacunas reais" : "não são necessárias; evita stock remoto"}
 
-Estas imagens são assets reais enviados pelo utilizador. Usa o token SRC OBRIGATÓRIO exatamente como está no atributo src da imagem escolhida; o servidor substitui o token pelo ficheiro real depois da geração. Não inventes URL para estas imagens, não alteres o token e não o mostres como texto visível. Dá prioridade a estes uploads quando forem relevantes para hero, galeria, produto/serviço, espaço físico, equipa ou prova visual. Não és obrigado a usar todas as imagens se alguma não fizer sentido para o conteúdo.
+${uploadedImages
+  .map((image, index) => {
+    const asset = analysis.assets[index]
+    return `${index + 1}. Ficheiro: ${image.name}
+   SRC OBRIGATÓRIO: ${image.placeholder}
+   Conteúdo visual: ${asset?.summary || image.name}
+   Tipo: ${asset?.kind || "other"}
+   Melhor utilização: ${asset?.bestUse || "prominent feature media"}
+   Preservar enquadramento completo: ${asset?.preserveFullFrame !== false ? "sim" : "não"}`
+  })
+  .join("\n\n")}
+
+Estas imagens são assets reais enviados pelo utilizador.
+- Usa o token SRC OBRIGATÓRIO exatamente no atributo src; o servidor insere o ficheiro real no fim.
+- NÃO transformes estes uploads em ícones, avatares ou miniaturas w-16/w-20/w-24/w-32, salvo se o tipo for explicitamente "logo".
+- Posters, screenshots, dashboards e peças com texto/UI devem aparecer grandes, legíveis e com object-fit: contain; nunca cortes informação importante.
+- Dá prioridade a pelo menos uma imagem carregada acima da dobra (hero ou bloco imediatamente seguinte) quando for visualmente adequada.
+- Distribui as restantes em blocos de destaque, galeria ou prova visual, evitando três cartões quase iguais.
+- Se "Imagens externas adicionais" disser que não são necessárias, não uses Flickr, Unsplash, Openverse nem outro stock remoto.
 `
 }
 
@@ -273,8 +438,17 @@ export async function POST(req: Request) {
     }
 
     const isRefinement = Boolean(currentHtml && refinement)
-    const suppliedImageCount = referenceImages.length + uploadedImages.length
-    const visualContext = !isRefinement && suppliedImageCount < 4 && prompt
+    const uploadVisualAnalysis = await analyzeUploadedImages(
+      uploadedImages,
+      prompt || refinement || body.businessName || "website",
+    )
+    const shouldSearchStock =
+      !isRefinement &&
+      Boolean(prompt) &&
+      referenceImages.length === 0 &&
+      (uploadedImages.length === 0 || uploadVisualAnalysis.needsSupportingStock)
+
+    const visualContext = shouldSearchStock && prompt
       ? await resolveVisualContext({
           prompt,
           businessName: body.businessName,
@@ -298,7 +472,7 @@ export async function POST(req: Request) {
     const urlReferenceBlock = referenceImages.length
       ? `\nIMAGENS DE REFERÊNCIA POR URL FORNECIDAS PELO UTILIZADOR:\n${referenceImages.map((url, index) => `${index + 1}. ${url}`).join("\n")}\nUsa estas imagens prioritariamente nas secções onde fizerem sentido. Não as substituas por imagens genéricas salvo se o utilizador pedir.\n`
       : ""
-    const uploadedImagesBlock = buildUploadedImagesBlock(uploadedImages)
+    const uploadedImagesBlock = buildUploadedImagesBlock(uploadedImages, uploadVisualAnalysis)
     const referenceBlock = `${uploadedImagesBlock}${urlReferenceBlock}`
     const contextImageBlock = buildVisualContextBlock(visualContext)
 
@@ -355,6 +529,9 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 32. Se uma imagem curada contradizer o conteúdo final, omite-a em vez de a usar só porque está disponível.
 33. Tokens com o formato __LUMIN_UPLOAD_IMAGE_N__ representam imagens reais carregadas pelo utilizador. Usa-os exatamente no src quando escolheres esse upload e nunca os alteres, encurtes, transformes em URL, CSS background textual ou texto visível.
 34. Imagens carregadas pelo utilizador têm prioridade sobre stock quando representam diretamente o negócio, produto, espaço, equipa ou identidade visual.
+35. Nunca apresentes um upload do utilizador como miniatura decorativa se for poster, screenshot, dashboard, fotografia editorial ou peça de marketing. Usa-o como media principal, normalmente com largura responsiva e altura automática.
+36. Se o bloco de uploads indicar que stock adicional não é necessário, não uses URLs de stock remoto em hero, fundos ou secções; constrói a página com os uploads, gradientes, CSS, SVG e tipografia.
+37. Quando um upload contém texto ou interface, usa object-fit: contain e preserva a peça inteira; não a cortes para preencher quadrados.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
@@ -372,7 +549,12 @@ PRESERVAÇÃO:
     })
 
     const fixedHtml = validateAndFixHtml(result.text)
-    const restoredHtml = restoreUploadedImagesInHtml(fixedHtml, uploadedImages)
+    const presentationFixedHtml = enforceUploadedImagePresentation(
+      fixedHtml,
+      uploadedImages,
+      uploadVisualAnalysis,
+    )
+    const restoredHtml = restoreUploadedImagesInHtml(presentationFixedHtml, uploadedImages)
     return new Response(restoredHtml, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
