@@ -651,6 +651,7 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 40. Evita overflow horizontal: containers flex/grid devem usar min-width: 0 nos filhos; nenhuma imagem, card ou bloco pode ultrapassar 100vw.
 41. Se o HTML atual já tiver um poster/screenshot atrás de texto, não preserves essa composição: move o upload para um bloco autónomo e coloca headline, parágrafo e CTAs num bloco separado acima ou abaixo. A regra de não sobreposição tem prioridade sobre a preservação do layout anterior.
 42. Quando o Visual Director fornecer IMAGE URL no formato __LUMIN_CONTEXT_IMAGE_N__, usa esse token exatamente em src ou background-image. Não inventes, encurtes nem substituas o token; o servidor incorpora a fotografia real no HTML final.
+43. Em WEBSITE, usa JavaScript apenas quando necessário. Executa inicialização depois de DOMContentLoaded, verifica se cada elemento existe antes de o usar e não assumes IDs/seletores que não estejam presentes no HTML.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
