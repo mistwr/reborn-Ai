@@ -9,7 +9,6 @@ import { GrowthTracking } from "@/components/growth-tracking"
 import { LuminBrandBridge } from "@/components/lumin-brand-bridge"
 import { LuminSecureLoginPanel } from "@/components/lumin-secure-login-panel"
 import { LuminSidebarPruner } from "@/components/lumin-sidebar-pruner"
-import { DesktopAutoLauncher } from "@/components/desktop-auto-launcher"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -83,20 +82,6 @@ export default function RootLayout({
               z-index: 60 !important;
               width: clamp(18rem, 72vw, 42rem) !important;
               max-width: calc(100vw - 3rem) !important;
-            }
-          }
-
-          @media (min-width: 1024px) {
-            #lumin-desktop-menu-toggle ~ [data-lumin-sidebar="true"] {
-              transform: translateX(-100%) !important;
-            }
-
-            #lumin-desktop-menu-toggle:checked ~ [data-lumin-sidebar="true"] {
-              display: flex !important;
-              visibility: visible !important;
-              opacity: 1 !important;
-              pointer-events: auto !important;
-              transform: translateX(0) !important;
             }
           }
 
@@ -284,7 +269,6 @@ export default function RootLayout({
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
         <Providers>
           {children}
-          <DesktopAutoLauncher />
           <LuminSecureLoginPanel />
           <LuminSidebarPruner />
         </Providers>

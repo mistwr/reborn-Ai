@@ -1050,20 +1050,11 @@ The way the world will live`
 
   return (
     <div className="flex bg-background" style={{ height: "100dvh" }}>
-      {/* Desktop menu toggle: pure HTML/CSS, independent of React/JS click handlers. */}
-      <input
-        id="lumin-desktop-menu-toggle"
-        type="checkbox"
-        className="sr-only"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
-
       {/* Sidebar overlay for mobile */}
       {sidebarOpen && (
         <div
           data-lumin-mobile-backdrop="true"
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -1088,16 +1079,9 @@ The way the world will live`
                 <span className="text-[11px] text-zinc-500 leading-none mt-1">Plataforma Inteligente</span>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5 lg:hidden">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-zinc-400 hover:text-white hover:bg-white/5">
               <X className="h-5 w-5" />
             </Button>
-            <label
-              htmlFor="lumin-desktop-menu-toggle"
-              className="hidden lg:flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-zinc-400 hover:bg-white/5 hover:text-white"
-              aria-label="Fechar menu"
-            >
-              <X className="h-5 w-5" />
-            </label>
           </div>
 
           {session?.user ? (
@@ -1138,43 +1122,8 @@ The way the world will live`
           )}
         </div>
 
-        {/* Desktop navigation uses native links so it remains usable even if a browser extension
-            or stale client state interferes with delegated React click events. */}
-        <div className="hidden lg:flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 py-4">
-          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Ferramentas</p>
-          <nav className="space-y-1">
-            {[
-              ["chat", "Chat IA"],
-              ["live", "Modo Live"],
-              ["images", "Gerar Imagens"],
-              ["vision", "Visão OCR"],
-              ["webcraft", "WebCraft"],
-              ["presentations", "Slides"],
-              ["ebooks", "Ebooks"],
-              ["clipper", "Video Clipper"],
-              ["marketing", "Redes Sociais"],
-              ["sms", "Mensagens"],
-            ].map(([tab, label]) => (
-              <a
-                key={tab}
-                href={`/?tab=${tab}`}
-                className={`block w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                  activeTab === tab
-                    ? "bg-white/10 text-white"
-                    : "text-zinc-400 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                {label}
-              </a>
-            ))}
-          </nav>
-          <div className="mt-auto border-t border-white/5 pt-4 px-1 text-[11px] leading-5 text-zinc-600">
-            Lumin AI · navegação desktop
-          </div>
-        </div>
-
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 lg:hidden">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
           <div className="mb-3">
             <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-2">Ferramentas</p>
           </div>
@@ -2036,18 +1985,11 @@ The way the world will live`
                 setSidebarOpen((current) => !current)
               }}
               data-lumin-menu-button="true"
-              className="h-9 w-9 shrink-0 text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b] lg:hidden"
+              className="h-9 w-9 shrink-0 text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
               aria-label="Menu"
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <label
-              htmlFor="lumin-desktop-menu-toggle"
-              className="hidden lg:flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-300 hover:bg-white/[.05] hover:text-[#f0c86b]"
-              aria-label="Menu"
-            >
-              <Menu className="h-5 w-5" />
-            </label>
             <div className="hidden sm:flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
