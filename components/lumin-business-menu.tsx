@@ -94,6 +94,7 @@ export function LuminBusinessMenu() {
                 <BusinessItem icon={Headphones} title="Live" subtitle="Fala com o Lumin em tempo real" onClick={() => goTo(["live"])} />
                 <BusinessItem icon={Globe2} title="Websites & Apps" subtitle="Lumin AI Studio" onClick={() => goTo(["webcraft", "lumin ai studio"])} />
                 <BusinessItem icon={Megaphone} title="Marketing" subtitle="Campanhas e conteúdos" onClick={() => goTo(["marketing"])} />
+                <BusinessItem icon={Sparkles} title="Creator Intelligence" subtitle="Analisa padrões de Instagram e TikTok" onClick={() => goTo(["creator intelligence", "creator intel"])} />
               </div>
 
               <p className="mb-2 mt-6 px-2 text-[10px] font-medium uppercase tracking-[.18em] text-zinc-600">Operação comercial</p>

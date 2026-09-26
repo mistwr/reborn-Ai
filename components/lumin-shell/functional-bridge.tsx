@@ -33,6 +33,7 @@ const NAV_DEFINITIONS = [
   { id: "ebooks", labels: ["ebooks", "ebook", "livros"], label: "Ebooks", icon: BookOpen },
   { id: "clipper", labels: ["clipper", "clips"], label: "Clipper", icon: Scissors },
   { id: "marketing", labels: ["marketing"], label: "Marketing", icon: Megaphone },
+  { id: "creator-intelligence", labels: ["creator intelligence", "creator intel"], label: "Creator Intelligence", icon: Sparkles },
   { id: "messaging", labels: ["mensagens", "messaging", "sms", "whatsapp"], label: "Mensagens", icon: Video },
 ] as const
 
