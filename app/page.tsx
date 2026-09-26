@@ -98,7 +98,8 @@ import { VisionTab } from "@/components/vision-tab"
 import { FacebookAutoPost } from "@/components/facebook-auto-post"
 import { ChatWelcome } from "@/components/chat-welcome"
 import { ImageGenerator } from "@/components/image-generator"
-import { MarketingStudio } from "@/components/marketing-studio"\nimport { CreatorIntelligence } from "@/components/creator-intelligence"
+import { MarketingStudio } from "@/components/marketing-studio"
+import { CreatorIntelligence } from "@/components/creator-intelligence"
 import { PresentationStudio } from "@/components/presentation-studio"
 import { MessagingHub } from "@/components/messaging-hub"
 import { EbookStudio } from "@/components/ebook-studio"
@@ -859,7 +860,8 @@ The way the world will live`
       { keywords: ["cria apresentacao", "criar slides", "fazer slides", "apresentacao", "powerpoint"], tab: "presentations", response: "A abrir o criador de Apresentacoes! Qual e o tema?" },
       { keywords: ["cria ebook", "criar ebook", "escreve um livro", "fazer ebook"], tab: "ebooks", response: "A abrir o criador de Ebooks! Sobre que tema queres escrever?" },
       { keywords: ["clipper", "corta video", "clips", "tiktok", "reels", "shorts"], tab: "clipper", response: "A abrir o Clipper AI para cortar videos em clips virais!" },
-      { keywords: ["marketing", "cria post", "post instagram", "post facebook", "redes sociais"], tab: "marketing", response: "A abrir as ferramentas de Marketing Digital!" },\n      { keywords: ["creator intelligence", "creator intel", "analisa instagram", "analisa tiktok", "conteudo viral", "conteúdo viral", "padroes de conteudo", "padrões de conteúdo"], tab: "creator-intelligence", response: "A abrir o Creator Intelligence para analisar os padrões que estão a funcionar!" },
+      { keywords: ["marketing", "cria post", "post instagram", "post facebook", "redes sociais"], tab: "marketing", response: "A abrir as ferramentas de Marketing Digital!" },
+      { keywords: ["creator intelligence", "creator intel", "analisa instagram", "analisa tiktok", "conteudo viral", "conteúdo viral", "padroes de conteudo", "padrões de conteúdo"], tab: "creator-intelligence", response: "A abrir o Creator Intelligence para analisar os padrões que estão a funcionar!" },
       { keywords: ["sms", "enviar sms", "mensagens sms"], tab: "sms", response: "A abrir o SMS em Massa!" },
       { keywords: ["whatsapp", "enviar whatsapp"], tab: "whatsapp-web", response: "A abrir o WhatsApp Web em Massa!" },
       { keywords: ["facebook app", "ferramentas facebook"], tab: "facebook-app", response: "A abrir as ferramentas do Facebook!" },
