@@ -32,7 +32,8 @@ const NAV_DEFINITIONS = [
   { id: "presentations", labels: ["apresentações", "apresentacoes", "slides"], label: "Apresentações", icon: Presentation },
   { id: "ebooks", labels: ["ebooks", "ebook", "livros"], label: "Ebooks", icon: BookOpen },
   { id: "clipper", labels: ["clipper", "clips"], label: "Clipper", icon: Scissors },
-  { id: "marketing", labels: ["marketing"], label: "Marketing", icon: Megaphone },\n  { id: "creator-intelligence", labels: ["creator intelligence", "creator intel"], label: "Creator Intelligence", icon: Sparkles },
+  { id: "marketing", labels: ["marketing"], label: "Marketing", icon: Megaphone },
+  { id: "creator-intelligence", labels: ["creator intelligence", "creator intel"], label: "Creator Intelligence", icon: Sparkles },
   { id: "messaging", labels: ["mensagens", "messaging", "sms", "whatsapp"], label: "Mensagens", icon: Video },
 ] as const
 
