@@ -55,8 +55,11 @@ const githubProfile = async (accessToken: string) => {
 const metaProfile = async (accessToken: string) => {
   const url = new URL("https://graph.facebook.com/me")
   url.searchParams.set("fields", "id,name,email")
-  url.searchParams.set("access_token", accessToken)
-  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) })
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error?.message || "Não foi possível ler a conta Meta.")
   return { id: data.id, name: data.name, email: data.email }
