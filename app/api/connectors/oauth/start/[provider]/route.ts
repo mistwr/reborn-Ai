@@ -6,6 +6,7 @@ import {
   randomVerifier,
   sealOAuthState,
 } from "@/lib/connectors/oauth"
+import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -25,9 +26,8 @@ export async function GET(
     return NextResponse.redirect(new URL("/connectors?oauth=unsupported", req.nextUrl.origin))
   }
 
-  const clientId = provider.clientId()
-  const clientSecret = provider.clientSecret()
-  if (!clientId || !clientSecret) {
+  const credentials = await resolveOAuthAppCredentials(provider.id)
+  if (!credentials.configured) {
     const url = new URL("/connectors", req.nextUrl.origin)
     url.searchParams.set("oauth", "not_configured")
     url.searchParams.set("provider", provider.id)
@@ -49,6 +49,7 @@ export async function GET(
     redirectUri,
     state,
     verifier: verifier || undefined,
+    clientId: credentials.clientId,
   })
 
   return NextResponse.redirect(authorizationUrl)
