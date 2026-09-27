@@ -128,6 +128,86 @@ async function testMcp(row: any, secret: string) {
   }
 }
 
+async function fetchTest(url: string, init?: RequestInit) {
+  const response = await fetch(url, {
+    ...init,
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  })
+  const text = await response.text().catch(() => "")
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 260) || response.statusText}`)
+  let data: any = text
+  try { data = JSON.parse(text) } catch {}
+  return { response, data, text }
+}
+
+async function testMetricool(row: any, secret: string) {
+  const userId = String(row.config?.userId || "").trim()
+  if (!userId) throw new Error("Indica o userId do Metricool.")
+  const url = new URL("https://app.metricool.com/api/admin/simpleProfiles")
+  url.searchParams.set("userId", userId)
+  const { data } = await fetchTest(url.toString(), {
+    headers: { "X-Mc-Auth": secret, "Content-Type": "application/json" },
+  })
+  const count = Array.isArray(data) ? data.length : Array.isArray(data?.data) ? data.data.length : null
+  return { ok: true, detail: count === null ? "Metricool ligado" : `Metricool ligado · ${count} marcas acessíveis` }
+}
+
+async function testVercel(secret: string) {
+  const { data } = await fetchTest("https://api.vercel.com/v2/user", {
+    headers: { Authorization: `Bearer ${secret}` },
+  })
+  return { ok: true, detail: `Vercel · ${data?.user?.username || data?.user?.email || "conta validada"}` }
+}
+
+async function testSupabase(secret: string) {
+  const { data } = await fetchTest("https://api.supabase.com/v1/projects", {
+    headers: { Authorization: `Bearer ${secret}` },
+  })
+  return { ok: true, detail: `Supabase · ${Array.isArray(data) ? data.length : 0} projetos acessíveis` }
+}
+
+async function testStripe(secret: string) {
+  const { data } = await fetchTest("https://api.stripe.com/v1/account", {
+    headers: { Authorization: `Bearer ${secret}` },
+  })
+  return { ok: true, detail: `Stripe · ${data?.business_profile?.name || data?.settings?.dashboard?.display_name || data?.id || "conta validada"}` }
+}
+
+async function testTwilio(row: any, secret: string) {
+  const accountSid = String(row.config?.accountSid || "").trim()
+  if (!/^AC[0-9a-fA-F]{32}$/.test(accountSid)) throw new Error("Account SID Twilio inválido.")
+  const { data } = await fetchTest(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`, {
+    headers: { Authorization: `Basic ${Buffer.from(`${accountSid}:${secret}`).toString("base64")}` },
+  })
+  return { ok: true, detail: `Twilio · ${data?.friendly_name || data?.friendlyName || accountSid}` }
+}
+
+async function testClose(secret: string) {
+  const { data } = await fetchTest("https://api.close.com/api/v1/me/", {
+    headers: { Authorization: `Basic ${Buffer.from(`${secret}:`).toString("base64")}` },
+  })
+  return { ok: true, detail: `Close · ${data?.first_name || data?.email || data?.id || "conta validada"}` }
+}
+
+async function testResend(secret: string) {
+  const { data } = await fetchTest("https://api.resend.com/domains", {
+    headers: { Authorization: `Bearer ${secret}` },
+  })
+  const domains = Array.isArray(data?.data) ? data.data.length : null
+  return { ok: true, detail: domains === null ? "Resend ligado" : `Resend · ${domains} domínios` }
+}
+
+async function testRailway(secret: string) {
+  const { data } = await fetchTest("https://backboard.railway.com/graphql/v2", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query: "query { me { name email } }" }),
+  })
+  if (data?.errors?.length) throw new Error(String(data.errors[0]?.message || "Railway recusou o token."))
+  return { ok: true, detail: `Railway · ${data?.data?.me?.name || data?.data?.me?.email || "conta validada"}` }
+}
+
 async function testConnection(row: any) {
   const root = String(row.provider).split(":")[0]
   if (row.auth_type === "oauth") return testOAuthConnection(row)
@@ -135,7 +215,16 @@ async function testConnection(row: any) {
   if (root === "rest") return testRest(row, secret)
   if (root === "openapi") return testOpenApi(row, secret)
   if (root === "mcp") return testMcp(row, secret)
-  throw new Error("Este conector usa OAuth nativo e ainda precisa da configuração do fornecedor.")
+  if (!secret) throw new Error("Falta a credencial deste conector.")
+  if (root === "metricool") return testMetricool(row, secret)
+  if (root === "vercel") return testVercel(secret)
+  if (root === "supabase") return testSupabase(secret)
+  if (root === "stripe") return testStripe(secret)
+  if (root === "twilio") return testTwilio(row, secret)
+  if (root === "close") return testClose(secret)
+  if (root === "resend") return testResend(secret)
+  if (root === "railway") return testRailway(secret)
+  throw new Error("Ainda não existe um teste nativo para este conector. Usa MCP, OpenAPI ou REST.")
 }
 
 export async function GET(req: NextRequest) {
@@ -210,9 +299,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const defaultAuth: Record<string, string> = {
+      metricool: "api_key",
+      vercel: "bearer",
+      supabase: "bearer",
+      stripe: "bearer",
+      twilio: "basic",
+      close: "api_key",
+      resend: "bearer",
+      railway: "bearer",
+    }
     const authType = ["none","api_key","bearer","basic","oauth","mcp"].includes(String(body?.authType))
       ? String(body.authType)
-      : root === "mcp" ? "mcp" : "none"
+      : root === "mcp" ? "mcp" : defaultAuth[root] || "none"
 
     const cleanConfig = sanitizeConfig(body?.config)
     if (root === "rest" && cleanConfig.baseUrl) safeExternalUrl(String(cleanConfig.baseUrl))
@@ -221,6 +320,12 @@ export async function POST(req: NextRequest) {
     }
     if (root === "mcp" && (cleanConfig.serverUrl || cleanConfig.baseUrl)) {
       safeExternalUrl(String(cleanConfig.serverUrl || cleanConfig.baseUrl))
+    }
+    if (root === "metricool" && !String(cleanConfig.userId || "").trim()) {
+      throw new Error("Indica o userId do Metricool.")
+    }
+    if (root === "twilio" && !String(cleanConfig.accountSid || "").trim()) {
+      throw new Error("Indica o Account SID da Twilio.")
     }
 
     const row = await upsertConnection({
