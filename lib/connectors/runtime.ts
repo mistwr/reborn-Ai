@@ -496,6 +496,19 @@ async function runCredentialProvider(row: ConnectorRow, message: string, secret:
     return `Stripe (leitura real):\n${trimResult(data)}`
   }
 
+  if (root === "whatsapp") {
+    const phoneNumberId=String(row.config?.phoneNumberId||"")
+    const url=new URL(`https://graph.facebook.com/${encodeURIComponent(phoneNumberId)}`)
+    url.searchParams.set("fields","display_phone_number,verified_name,quality_rating")
+    const response=await fetch(url,{
+      headers:{Authorization:`Bearer ${secret}`},
+      cache:"no-store",signal:AbortSignal.timeout(15000),
+    })
+    const data=await response.json().catch(()=>({}))
+    if(!response.ok) throw new Error(data?.error?.message||`WhatsApp HTTP ${response.status}`)
+    return `WhatsApp Business (conta real):\n${trimResult(data)}`
+  }
+
   if (root === "twilio") {
     const accountSid=String(row.config?.accountSid||"")
     const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}.json`,{
