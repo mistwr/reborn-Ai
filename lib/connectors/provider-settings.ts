@@ -140,8 +140,10 @@ export async function listOAuthProviderStatuses(origin?: string) {
       clientIdPreview: preview(creds.clientId),
       hasVaultSecret: Boolean(row?.secret_id),
       enabled: row?.enabled ?? true,
-      callbackPath: `/api/connectors/oauth/callback/${provider}`,
-      callbackUrl: origin ? `${origin.replace(/\/$/, "")}/api/connectors/oauth/callback/${provider}` : null,
+      callbackPath: provider === "google" ? "/api/auth/callback/google" : `/api/connectors/oauth/callback/${provider}`,
+      callbackUrl: origin
+        ? `${origin.replace(/\/$/, "")}${provider === "google" ? "/api/auth/callback/google" : `/api/connectors/oauth/callback/${provider}`}`
+        : null,
       updatedAt: row?.updated_at || null,
     }
   }))
