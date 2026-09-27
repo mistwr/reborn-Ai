@@ -16,6 +16,7 @@ import {
   Plug,
   Radio,
   Scissors,
+  ShieldAlert,
   Sparkles,
   Video,
 } from "lucide-react"
@@ -38,6 +39,7 @@ const NAV_DEFINITIONS = [
   { id: "messaging", labels: ["mensagens", "messaging", "sms", "whatsapp"], label: "Mensagens", icon: Video },
 ] as const
 
+const EMERGENCY_ITEM: LuminShellNavItem = { id: "emergency", label: "LUMIN Emergency", icon: ShieldAlert }
 const CONNECTORS_ITEM: LuminShellNavItem = { id: "connectors", label: "Conectores", icon: Plug }
 const CREDITS_ITEM: LuminShellNavItem = { id: "credits", label: "Comprar créditos", icon: Coins }
 
@@ -237,6 +239,7 @@ export function LuminShellFunctionalBridge() {
   const navItems = useMemo<LuminShellNavItem[]>(
     () => [
       ...NAV_DEFINITIONS.filter((item) => legacyNavigation.has(item.id)).map(({ id, label, icon }) => ({ id, label, icon })),
+      EMERGENCY_ITEM,
       CONNECTORS_ITEM,
       CREDITS_ITEM,
     ],
@@ -251,6 +254,10 @@ export function LuminShellFunctionalBridge() {
   }
 
   const selectNavigation = (id: string) => {
+    if (id === "emergency") {
+      window.location.assign("https://luminai.pt/emergencia/")
+      return
+    }
     if (id === "connectors") {
       window.location.assign("/connectors")
       return
