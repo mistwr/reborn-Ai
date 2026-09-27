@@ -13,6 +13,7 @@ import {
   Megaphone,
   MessageSquare,
   Presentation,
+  Plug,
   Radio,
   Scissors,
   Sparkles,
@@ -37,6 +38,7 @@ const NAV_DEFINITIONS = [
   { id: "messaging", labels: ["mensagens", "messaging", "sms", "whatsapp"], label: "Mensagens", icon: Video },
 ] as const
 
+const CONNECTORS_ITEM: LuminShellNavItem = { id: "connectors", label: "Conectores", icon: Plug }
 const CREDITS_ITEM: LuminShellNavItem = { id: "credits", label: "Comprar créditos", icon: Coins }
 
 function normalise(value: string) {
@@ -235,6 +237,7 @@ export function LuminShellFunctionalBridge() {
   const navItems = useMemo<LuminShellNavItem[]>(
     () => [
       ...NAV_DEFINITIONS.filter((item) => legacyNavigation.has(item.id)).map(({ id, label, icon }) => ({ id, label, icon })),
+      CONNECTORS_ITEM,
       CREDITS_ITEM,
     ],
     [legacyNavigation],
@@ -248,6 +251,10 @@ export function LuminShellFunctionalBridge() {
   }
 
   const selectNavigation = (id: string) => {
+    if (id === "connectors") {
+      window.location.assign("/connectors")
+      return
+    }
     if (id === "credits") {
       window.location.assign("/credits")
       return
