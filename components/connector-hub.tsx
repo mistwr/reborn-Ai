@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Database,
-  ExternalLink,
   KeyRound,
   Link2,
   Loader2,
@@ -24,7 +23,8 @@ type CatalogItem = {
   name: string
   category: string
   description: string
-  mode: "oauth" | "native" | "generic"
+  mode: "oauth" | "credentials" | "generic"
+  authProvider?: string
   capabilities: string[]
   enabledNow: boolean
 }
@@ -42,7 +42,38 @@ type Connection = {
   lastError?: string | null
 }
 
+type OAuthStatus = {
+  id: string
+  label: string
+  configured: boolean
+  callbackPath: string
+}
+
 const GENERIC = new Set(["rest", "openapi", "mcp"])
+
+const AUTH_TYPES: Record<string, string> = {
+  metricool: "api_key",
+  vercel: "bearer",
+  supabase: "bearer",
+  stripe: "bearer",
+  twilio: "basic",
+  close: "api_key",
+  resend: "bearer",
+  railway: "bearer",
+  whatsapp: "bearer",
+}
+
+const SECRET_LABELS: Record<string, string> = {
+  metricool: "API access token",
+  vercel: "Vercel access token",
+  supabase: "Supabase Personal Access Token",
+  stripe: "Stripe restricted/secret key",
+  twilio: "Twilio Auth Token",
+  close: "Close API key",
+  resend: "Resend API key",
+  railway: "Railway account token",
+  whatsapp: "WhatsApp Cloud API access token",
+}
 
 function rootProvider(value: string) {
   return value.split(":")[0]
@@ -61,22 +92,28 @@ function slug(value: string) {
 export function ConnectorHub() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
+  const [oauthProviders, setOauthProviders] = useState<OAuthStatus[]>([])
   const [scope, setScope] = useState("")
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState("")
+
   const [editor, setEditor] = useState<"rest" | "openapi" | "mcp" | null>(null)
+  const [credentialItem, setCredentialItem] = useState<CatalogItem | null>(null)
   const [label, setLabel] = useState("")
   const [url, setUrl] = useState("")
   const [defaultPath, setDefaultPath] = useState("")
   const [authType, setAuthType] = useState("none")
   const [headerName, setHeaderName] = useState("x-api-key")
   const [secret, setSecret] = useState("")
+  const [userId, setUserId] = useState("")
+  const [blogId, setBlogId] = useState("")
+  const [accountSid, setAccountSid] = useState("")
+  const [phoneNumberId, setPhoneNumberId] = useState("")
 
   const refresh = async () => {
     setLoading(true)
-    setError("")
     try {
       const response = await fetch("/api/connectors", { cache: "no-store" })
       const data = await response.json()
@@ -84,6 +121,7 @@ export function ConnectorHub() {
       if (!response.ok) throw new Error(data?.error || "Não foi possível carregar os conectores.")
       setCatalog(data.catalog || [])
       setConnections(data.connections || [])
+      setOauthProviders(data.oauthProviders || [])
       setScope(data.scope || "")
     } catch (e: any) {
       setError(e?.message || "Erro a carregar conectores.")
@@ -92,27 +130,75 @@ export function ConnectorHub() {
     }
   }
 
-  useEffect(() => { void refresh() }, [])
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search)
+    const oauth = qs.get("oauth")
+    const provider = qs.get("provider") || ""
+    const reason = qs.get("reason") || ""
+    if (oauth === "success") setMessage(`${provider || "Conta"} ligada ao Lumin com sucesso.`)
+    if (oauth === "not_configured") setError(`A app OAuth de ${provider} ainda não está configurada pelo administrador do Lumin.`)
+    if (oauth === "denied") setError(`Autorização ${provider} recusada${reason ? `: ${reason}` : "."}`)
+    if (oauth === "error" || oauth === "session_expired") setError(reason || "A ligação OAuth não foi concluída.")
+    if (oauth) window.history.replaceState({}, "", "/connectors")
+    void refresh()
+  }, [])
 
-  const connectedByRoot = useMemo(() => {
-    const map = new Map<string, Connection[]>()
-    for (const item of connections) {
-      const root = rootProvider(item.provider)
-      map.set(root, [...(map.get(root) || []), item])
-    }
+  const oauthStatus = useMemo(
+    () => new Map(oauthProviders.map((item) => [item.id, item])),
+    [oauthProviders],
+  )
+
+  const connectionMap = useMemo(() => {
+    const map = new Map<string, Connection>()
+    for (const item of connections) map.set(item.provider, item)
     return map
   }, [connections])
 
-  const openGeneric = (type: "rest" | "openapi" | "mcp") => {
-    setEditor(type)
-    setLabel(type === "mcp" ? "Meu MCP" : type === "openapi" ? "Minha OpenAPI" : "Minha API")
+  const resetEditors = () => {
+    setEditor(null)
+    setCredentialItem(null)
+    setLabel("")
     setUrl("")
     setDefaultPath("")
-    setAuthType(type === "mcp" ? "mcp" : "none")
+    setAuthType("none")
     setHeaderName("x-api-key")
     setSecret("")
+    setUserId("")
+    setBlogId("")
+    setAccountSid("")
+    setPhoneNumberId("")
+  }
+
+  const openGeneric = (type: "rest" | "openapi" | "mcp") => {
+    resetEditors()
+    setEditor(type)
+    setLabel(type === "mcp" ? "Meu MCP" : type === "openapi" ? "Minha OpenAPI" : "Minha API")
+    setAuthType(type === "mcp" ? "mcp" : "none")
     setError("")
     setMessage("")
+  }
+
+  const openCredentials = (item: CatalogItem) => {
+    resetEditors()
+    setCredentialItem(item)
+    setLabel(item.name)
+    setAuthType(AUTH_TYPES[item.id] || "bearer")
+    setError("")
+    setMessage("")
+  }
+
+  const startOAuth = (item: CatalogItem) => {
+    const provider = item.authProvider || item.id
+    const status = oauthStatus.get(provider)
+    setError("")
+    setMessage("")
+    if (!status?.configured) {
+      setError(
+        `${item.name} já tem o fluxo OAuth no Lumin, mas falta configurar a app ${status?.label || provider} no servidor. Callback: ${window.location.origin}${status?.callbackPath || `/api/connectors/oauth/callback/${provider}`}`,
+      )
+      return
+    }
+    window.location.assign(`/api/connectors/oauth/start/${provider}`)
   }
 
   const saveGeneric = async () => {
@@ -135,28 +221,60 @@ export function ConnectorHub() {
         config.serverUrl = url
       }
 
-      const response = await fetch("/api/connectors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider,
-          label,
-          authType,
-          config,
-          secret: secret || undefined,
-        }),
+      await saveAndTest({
+        provider,
+        label,
+        authType,
+        config,
+        secret: secret || undefined,
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || "Não foi possível guardar.")
-      setMessage("Conector guardado. Agora vamos testar a ligação.")
-      await refresh()
-      await test(provider)
-      setEditor(null)
+      resetEditors()
     } catch (e: any) {
       setError(e?.message || "Erro a guardar conector.")
     } finally {
       setBusy("")
     }
+  }
+
+  const saveCredentials = async () => {
+    if (!credentialItem) return
+    setBusy("save")
+    setError("")
+    setMessage("")
+    try {
+      const config: Record<string, any> = {}
+      if (credentialItem.id === "metricool") {
+        config.userId = userId.trim()
+        if (blogId.trim()) config.blogId = blogId.trim()
+      }
+      if (credentialItem.id === "twilio") config.accountSid = accountSid.trim()
+      if (credentialItem.id === "whatsapp") config.phoneNumberId = phoneNumberId.trim()
+
+      await saveAndTest({
+        provider: credentialItem.id,
+        label: credentialItem.name,
+        authType: AUTH_TYPES[credentialItem.id] || "bearer",
+        config,
+        secret,
+      })
+      resetEditors()
+    } catch (e: any) {
+      setError(e?.message || "Erro a guardar conector.")
+    } finally {
+      setBusy("")
+    }
+  }
+
+  const saveAndTest = async (payload: any) => {
+    const response = await fetch("/api/connectors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data?.error || "Não foi possível guardar.")
+    await refresh()
+    await test(payload.provider)
   }
 
   const test = async (provider: string) => {
@@ -176,6 +294,7 @@ export function ConnectorHub() {
     } catch (e: any) {
       setError(e?.message || "Falha no teste.")
       await refresh()
+      throw e
     } finally {
       setBusy("")
     }
@@ -193,7 +312,7 @@ export function ConnectorHub() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || "Não foi possível desligar.")
-      setMessage("Conector desligado.")
+      setMessage("Conector desligado e credencial removida do Vault.")
       await refresh()
     } catch (e: any) {
       setError(e?.message || "Erro ao desligar.")
@@ -222,7 +341,7 @@ export function ConnectorHub() {
           </div>
           <div className="ml-auto hidden items-center gap-2 rounded-full border border-white/[.07] bg-white/[.025] px-3 py-1.5 text-xs text-zinc-500 sm:flex">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-            Segredos encriptados no Vault
+            Credenciais encriptadas no Vault
           </div>
         </div>
       </header>
@@ -234,9 +353,9 @@ export function ConnectorHub() {
               <Zap className="h-3.5 w-3.5" />
               {scope === "organization" ? "Ligações partilhadas pela empresa" : "Ligações da tua conta"}
             </div>
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Liga as ferramentas. O Lumin usa-as.</h2>
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Liga a tua conta. O Lumin trabalha com ela.</h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-              MCP, OpenAPI e REST já podem ser ligados aqui. O runtime do Lumin só executa leitura nesta primeira camada; ações que alterem dados ficam bloqueadas até existir confirmação explícita.
+              OAuth para contas pessoais, tokens/API keys quando o fornecedor assim funciona, e MCP/OpenAPI/REST para qualquer sistema compatível. Cada utilizador liga apenas as suas próprias contas.
             </p>
           </div>
 
@@ -255,14 +374,11 @@ export function ConnectorHub() {
 
         {editor && (
           <section className="mt-6 rounded-[26px] border border-amber-300/15 bg-[#0a0a0a] p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs uppercase tracking-[.18em] text-amber-300/70">Novo conector</div>
-                <h3 className="mt-1 text-xl font-semibold">{editor === "mcp" ? "Servidor MCP" : editor === "openapi" ? "OpenAPI" : "REST API"}</h3>
-              </div>
-              <button onClick={() => setEditor(null)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Fechar</button>
-            </div>
-
+            <EditorHeader
+              eyebrow="Conector universal"
+              title={editor === "mcp" ? "Servidor MCP" : editor === "openapi" ? "OpenAPI" : "REST API"}
+              onClose={resetEditors}
+            />
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <Field label="Nome">
                 <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: CRM da empresa" className="input" />
@@ -270,19 +386,16 @@ export function ConnectorHub() {
               <Field label={editor === "mcp" ? "URL do servidor MCP" : editor === "openapi" ? "URL do openapi.json" : "Base URL"}>
                 <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="input" />
               </Field>
-
               {editor === "rest" && (
                 <Field label="Endpoint GET padrão (opcional)">
                   <input value={defaultPath} onChange={(e) => setDefaultPath(e.target.value)} placeholder="/v1/customers" className="input" />
                 </Field>
               )}
-
               {editor === "openapi" && (
                 <Field label="Base URL (opcional se vier no OpenAPI)">
                   <input value={defaultPath} onChange={(e) => setDefaultPath(e.target.value)} placeholder="https://api.exemplo.com" className="input" />
                 </Field>
               )}
-
               <Field label="Autenticação">
                 <select value={authType} onChange={(e) => setAuthType(e.target.value)} className="input">
                   <option value={editor === "mcp" ? "mcp" : "none"}>{editor === "mcp" ? "Bearer / MCP token" : "Sem autenticação"}</option>
@@ -291,31 +404,61 @@ export function ConnectorHub() {
                   {editor !== "mcp" && <option value="basic">Basic (user:password)</option>}
                 </select>
               </Field>
-
               {authType === "api_key" && (
                 <Field label="Nome do header">
                   <input value={headerName} onChange={(e) => setHeaderName(e.target.value)} placeholder="x-api-key" className="input" />
                 </Field>
               )}
-
               {authType !== "none" && (
                 <Field label="Segredo / token">
                   <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="Guardado encriptado no Vault" className="input" />
                 </Field>
               )}
             </div>
+            <SaveButton
+              onClick={saveGeneric}
+              disabled={busy === "save" || !label.trim() || !url.trim()}
+              busy={busy === "save"}
+            />
+          </section>
+        )}
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button
-                onClick={saveGeneric}
-                disabled={busy === "save" || !label.trim() || !url.trim()}
-                className="inline-flex items-center gap-2 rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
-              >
-                {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                Guardar e testar
-              </button>
-              <p className="text-xs text-zinc-600">Apenas HTTPS. Redes locais e localhost são bloqueados.</p>
+        {credentialItem && (
+          <section className="mt-6 rounded-[26px] border border-amber-300/15 bg-[#0a0a0a] p-5 sm:p-6">
+            <EditorHeader eyebrow="Ligação por credencial" title={credentialItem.name} onClose={resetEditors} />
+            <p className="mt-2 text-sm text-zinc-500">
+              A credencial fica cifrada no Supabase Vault e nunca é devolvida ao browser depois de guardada.
+            </p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {credentialItem.id === "metricool" && (
+                <>
+                  <Field label="Metricool userId">
+                    <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Ex.: 1234567" className="input" />
+                  </Field>
+                  <Field label="blogId / marca (opcional)">
+                    <input value={blogId} onChange={(e) => setBlogId(e.target.value)} placeholder="Ex.: 6895405" className="input" />
+                  </Field>
+                </>
+              )}
+              {credentialItem.id === "twilio" && (
+                <Field label="Account SID">
+                  <input value={accountSid} onChange={(e) => setAccountSid(e.target.value)} placeholder="AC..." className="input" />
+                </Field>
+              )}
+              {credentialItem.id === "whatsapp" && (
+                <Field label="Phone Number ID">
+                  <input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} placeholder="ID do número no WhatsApp Cloud API" className="input" />
+                </Field>
+              )}
+              <Field label={SECRET_LABELS[credentialItem.id] || "Token / API key"}>
+                <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="Cola aqui a credencial" className="input" />
+              </Field>
             </div>
+            <SaveButton
+              onClick={saveCredentials}
+              disabled={busy === "save" || !secret.trim() || (credentialItem.id === "metricool" && !userId.trim()) || (credentialItem.id === "twilio" && !accountSid.trim()) || (credentialItem.id === "whatsapp" && !phoneNumberId.trim())}
+              busy={busy === "save"}
+            />
           </section>
         )}
 
@@ -323,7 +466,7 @@ export function ConnectorHub() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-xl font-semibold">As tuas ligações</h3>
-              <p className="mt-1 text-sm text-zinc-500">MCP, OpenAPI e REST ficam disponíveis ao chat para consultas de leitura.</p>
+              <p className="mt-1 text-sm text-zinc-500">O Lumin só vê contas que este utilizador ou esta empresa autorizou.</p>
             </div>
             <button onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">
               <RefreshCw className="h-3.5 w-3.5" /> Atualizar
@@ -353,7 +496,7 @@ export function ConnectorHub() {
                   </div>
                   <div className="mt-4 flex gap-2">
                     <button
-                      onClick={() => void test(connection.provider)}
+                      onClick={() => void test(connection.provider).catch(() => null)}
                       disabled={busy === connection.provider}
                       className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[.05] px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
                     >
@@ -381,32 +524,45 @@ export function ConnectorHub() {
         <section className="mt-9">
           <div className="mb-4">
             <h3 className="text-xl font-semibold">Catálogo Lumin</h3>
-            <p className="mt-1 text-sm text-zinc-500">A base para os conectores nativos. Os universais já estão operacionais; os OAuth entram por fornecedor.</p>
+            <p className="mt-1 text-sm text-zinc-500">OAuth, API keys e conectores universais — sem contas partilhadas entre utilizadores.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {catalog.map((item) => {
-              const current = connectedByRoot.get(item.id) || []
+              const providerKey = item.authProvider || item.id
+              const current = connectionMap.get(providerKey)
               const isGeneric = GENERIC.has(item.id)
+              const oauth = item.mode === "oauth" ? oauthStatus.get(providerKey) : null
+              const actionable = isGeneric || item.mode === "credentials" || Boolean(oauth?.configured)
+
               return (
                 <button
                   key={item.id}
-                  onClick={() => isGeneric ? openGeneric(item.id as any) : undefined}
-                  className={`group rounded-2xl border p-4 text-left transition ${isGeneric ? "border-amber-300/10 bg-amber-300/[.025] hover:border-amber-300/25" : "border-white/[.06] bg-white/[.015]"}`}
+                  onClick={() => {
+                    if (isGeneric) openGeneric(item.id as any)
+                    else if (item.mode === "oauth") startOAuth(item)
+                    else openCredentials(item)
+                  }}
+                  className={`group rounded-2xl border p-4 text-left transition ${actionable ? "border-amber-300/10 bg-amber-300/[.025] hover:border-amber-300/25" : "border-white/[.06] bg-white/[.015]"}`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[.07] bg-black/30">
-                      {item.enabledNow ? <Zap className="h-4 w-4 text-amber-300" /> : <Plug className="h-4 w-4 text-zinc-500" />}
+                      {current?.status === "connected" ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Plug className={`h-4 w-4 ${actionable ? "text-amber-300" : "text-zinc-600"}`} />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium text-zinc-200">{item.name}</h4>
-                        {current.some((x) => x.status === "connected") && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                        {current?.status === "connected" && <span className="text-[10px] text-emerald-400">LIGADO</span>}
                       </div>
                       <p className="mt-1 text-xs leading-5 text-zinc-600">{item.description}</p>
-                      <div className="mt-3 flex items-center justify-between">
+                      <div className="mt-3 flex items-center justify-between gap-2">
                         <span className="text-[10px] uppercase tracking-[.14em] text-zinc-700">{item.category}</span>
-                        <span className={`flex items-center gap-1 text-xs ${item.enabledNow ? "text-amber-300/80" : "text-zinc-700"}`}>
-                          {item.enabledNow ? "Ligar" : "OAuth a preparar"} {item.enabledNow && <ChevronRight className="h-3.5 w-3.5" />}
+                        <span className={`flex items-center gap-1 text-xs ${actionable ? "text-amber-300/80" : "text-zinc-700"}`}>
+                          {current?.status === "connected"
+                            ? "Reconectar"
+                            : item.mode === "oauth" && !oauth?.configured
+                              ? "Falta app OAuth"
+                              : "Ligar"}
+                          <ChevronRight className="h-3.5 w-3.5" />
                         </span>
                       </div>
                     </div>
@@ -448,6 +604,34 @@ function QuickCard({ icon: Icon, title, subtitle, onClick }: any) {
       </span>
       <ChevronRight className="h-4 w-4 text-zinc-700 transition group-hover:text-amber-300" />
     </button>
+  )
+}
+
+function EditorHeader({ eyebrow, title, onClose }: { eyebrow: string; title: string; onClose: () => void }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <div className="text-xs uppercase tracking-[.18em] text-amber-300/70">{eyebrow}</div>
+        <h3 className="mt-1 text-xl font-semibold">{title}</h3>
+      </div>
+      <button onClick={onClose} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Fechar</button>
+    </div>
+  )
+}
+
+function SaveButton({ onClick, disabled, busy }: { onClick: () => void; disabled: boolean; busy: boolean }) {
+  return (
+    <div className="mt-5 flex flex-wrap items-center gap-3">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className="inline-flex items-center gap-2 rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+        Guardar e testar
+      </button>
+      <p className="text-xs text-zinc-600">O Lumin só marca como ligado depois de validar a credencial.</p>
+    </div>
   )
 }
 
