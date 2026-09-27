@@ -11,7 +11,8 @@ export type OAuthProviderSetting = {
   updated_at: string
 }
 
-const OAUTH_PROVIDERS = ["google","github","meta","canva","figma","netlify"] as const\nconst STORED_PROVIDERS = [...OAUTH_PROVIDERS, "twilio"] as const
+const OAUTH_PROVIDERS = ["google","github","meta","canva","figma","netlify"] as const
+const STORED_PROVIDERS = [...OAUTH_PROVIDERS, "twilio"] as const
 
 const ENV_MAP: Record<string, { clientId: string[]; clientSecret: string[] }> = {
   google: {
@@ -37,6 +38,10 @@ const ENV_MAP: Record<string, { clientId: string[]; clientSecret: string[] }> = 
   netlify: {
     clientId: ["NETLIFY_CONNECTOR_CLIENT_ID"],
     clientSecret: ["NETLIFY_CONNECTOR_CLIENT_SECRET"],
+  },
+  twilio: {
+    clientId: ["TWILIO_ACCOUNT_SID"],
+    clientSecret: ["TWILIO_AUTH_TOKEN"],
   },
 }
 
@@ -185,8 +190,7 @@ export async function saveOAuthProviderSetting(params: {
     })
   }
 
-  const final = await getOAuthProviderSetting(params.provider)
-  return final
+  return getOAuthProviderSetting(params.provider)
 }
 
 export async function removeOAuthProviderSetting(provider: string) {
