@@ -198,6 +198,17 @@ async function testResend(secret: string) {
   return { ok: true, detail: domains === null ? "Resend ligado" : `Resend · ${domains} domínios` }
 }
 
+async function testWhatsApp(row: any, secret: string) {
+  const phoneNumberId = String(row.config?.phoneNumberId || "").trim()
+  if (!phoneNumberId) throw new Error("Indica o Phone Number ID do WhatsApp Business.")
+  const url = new URL(`https://graph.facebook.com/${encodeURIComponent(phoneNumberId)}`)
+  url.searchParams.set("fields", "display_phone_number,verified_name,quality_rating")
+  const { data } = await fetchTest(url.toString(), {
+    headers: { Authorization: `Bearer ${secret}` },
+  })
+  return { ok: true, detail: `WhatsApp · ${data?.verified_name || data?.display_phone_number || phoneNumberId}` }
+}
+
 async function testRailway(secret: string) {
   const { data } = await fetchTest("https://backboard.railway.com/graphql/v2", {
     method: "POST",
@@ -224,6 +235,7 @@ async function testConnection(row: any) {
   if (root === "close") return testClose(secret)
   if (root === "resend") return testResend(secret)
   if (root === "railway") return testRailway(secret)
+  if (root === "whatsapp") return testWhatsApp(row, secret)
   throw new Error("Ainda não existe um teste nativo para este conector. Usa MCP, OpenAPI ou REST.")
 }
 
@@ -308,6 +320,7 @@ export async function POST(req: NextRequest) {
       close: "api_key",
       resend: "bearer",
       railway: "bearer",
+      whatsapp: "bearer",
     }
     const authType = ["none","api_key","bearer","basic","oauth","mcp"].includes(String(body?.authType))
       ? String(body.authType)
@@ -326,6 +339,9 @@ export async function POST(req: NextRequest) {
     }
     if (root === "twilio" && !String(cleanConfig.accountSid || "").trim()) {
       throw new Error("Indica o Account SID da Twilio.")
+    }
+    if (root === "whatsapp" && !String(cleanConfig.phoneNumberId || "").trim()) {
+      throw new Error("Indica o Phone Number ID do WhatsApp Business.")
     }
 
     const row = await upsertConnection({
