@@ -311,6 +311,23 @@ export function ConnectorHub() {
         config,
         secret,
       })
+
+      if (credentialItem.id === "twilio" && isOwner) {
+        const settingsResponse = await fetch("/api/whatsapp/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accountSid: accountSid.trim(),
+            authToken: secret.trim() || undefined,
+          }),
+        })
+        const settingsData = await settingsResponse.json()
+        if (!settingsResponse.ok) {
+          throw new Error(settingsData?.error || "Twilio ligou, mas não foi possível ativá-la no WhatsApp do Lumin.")
+        }
+        setMessage(`Twilio ligada e ativa no WhatsApp do Lumin. Webhook: ${settingsData.webhookUrl}`)
+      }
+
       resetEditors()
     } catch (e: any) {
       setError(e?.message || "Erro a guardar conector.")
