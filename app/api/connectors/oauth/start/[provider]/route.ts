@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 import {
   buildAuthorizationUrl,
-  oauthCookieName,
   oauthProvider,
-  randomState,
   randomVerifier,
+  sealOAuthState,
 } from "@/lib/connectors/oauth"
 
 export const runtime = "nodejs"
@@ -36,8 +35,14 @@ export async function GET(
   }
 
   const redirectUri = new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
-  const state = randomState()
   const verifier = provider.pkce ? randomVerifier() : ""
+  const state = sealOAuthState({
+    provider: provider.id,
+    userId: String(token.sub),
+    organizationId: token.organizationId ? String(token.organizationId) : null,
+    verifier: verifier || undefined,
+    createdAt: Date.now(),
+  })
 
   const authorizationUrl = buildAuthorizationUrl({
     provider,
@@ -46,17 +51,5 @@ export async function GET(
     verifier: verifier || undefined,
   })
 
-  const response = NextResponse.redirect(authorizationUrl)
-  response.cookies.set(
-    oauthCookieName(provider.id),
-    Buffer.from(JSON.stringify({ state, verifier, createdAt: Date.now() })).toString("base64url"),
-    {
-      httpOnly: true,
-      secure: req.nextUrl.protocol === "https:",
-      sameSite: "lax",
-      path: `/api/connectors/oauth/callback/${provider.id}`,
-      maxAge: 10 * 60,
-    },
-  )
-  return response
+  return NextResponse.redirect(authorizationUrl)
 }
