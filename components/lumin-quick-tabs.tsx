@@ -8,6 +8,7 @@ type GroupId = "create" | "tools" | "social" | "more"
 type ToolLink = {
   label: string
   aliases: string[]
+  href?: string
 }
 
 const GROUPS: Record<GroupId, { label: string; items: ToolLink[] }> = {
@@ -40,6 +41,7 @@ const GROUPS: Record<GroupId, { label: string; items: ToolLink[] }> = {
     label: "Mais",
     items: [
       { label: "Live", aliases: ["live", "modo live"] },
+      { label: "LUMIN Emergency", aliases: ["emergency", "emergência", "emergencia", "sos"], href: "https://luminai.pt/emergencia/" },
       { label: "Pro", aliases: ["pro"] },
     ],
   },
@@ -84,6 +86,10 @@ export function LuminQuickTabs() {
   }
 
   const openItem = (item: ToolLink) => {
+    if (item.href) {
+      window.location.assign(item.href)
+      return
+    }
     openNativeTool(item.aliases)
     setOpenGroup(null)
   }
