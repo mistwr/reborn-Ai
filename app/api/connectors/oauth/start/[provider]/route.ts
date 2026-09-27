@@ -34,13 +34,19 @@ export async function GET(
     return NextResponse.redirect(url)
   }
 
-  const redirectUri = new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
+  const redirectUri = new URL(
+    provider.id === "google"
+      ? "/api/auth/callback/google"
+      : `/api/connectors/oauth/callback/${provider.id}`,
+    req.nextUrl.origin,
+  ).toString()
   const verifier = provider.pkce ? randomVerifier() : ""
   const state = sealOAuthState({
     provider: provider.id,
     userId: String(token.sub),
     organizationId: token.organizationId ? String(token.organizationId) : null,
     verifier: verifier || undefined,
+    redirectUri,
     createdAt: Date.now(),
   })
 
