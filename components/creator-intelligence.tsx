@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { BarChart3, Brain, Loader2, Sparkles, Target, TrendingUp } from "lucide-react"
+import { BarChart3, Brain, Globe2, Loader2, Sparkles, Target, TrendingUp } from "lucide-react"
 
 type Post = {
   plays: number
@@ -26,6 +26,16 @@ type DecisionResponse = {
   model?: string
   answers?: Record<string, any>
   error?: string
+}
+
+type SocialResponse = {
+  status?: string
+  stopReason?: string
+  report?: string
+  posts?: Post[]
+  source?: string
+  error?: string
+  details?: string
 }
 
 const SAMPLE = `plays|likes|comments|shares|saves|caption
@@ -185,31 +195,20 @@ export function CreatorIntelligence() {
   const [decision, setDecision] = useState<DecisionResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [socialQuery, setSocialQuery] = useState("")
+  const [socialPlatform, setSocialPlatform] = useState("instagram")
+  const [socialLoading, setSocialLoading] = useState(false)
+  const [social, setSocial] = useState<SocialResponse | null>(null)
 
   const topHook = useMemo(
     () => local ? winnerFromCounts(local.hookCounts) : "curiosity",
     [local],
   )
 
-  async function analyse() {
-    setError(null)
-    setDecision(null)
-
-    let parsed: Post[]
-    try {
-      parsed = parseRows(input)
-    } catch {
-      setError("Não consegui ler os dados. Usa JSON ou linhas separadas por |.")
-      return
-    }
-
-    if (parsed.length < 2) {
-      setError("Cola pelo menos 2 publicações para comparar padrões.")
-      return
-    }
-
+  async function analysePosts(parsed: Post[]) {
     const localResult = analyseLocal(parsed)
     setLocal(localResult)
+    setDecision(null)
     setLoading(true)
 
     try {
@@ -273,6 +272,58 @@ export function CreatorIntelligence() {
     }
   }
 
+  async function analyse() {
+    setError(null)
+    let parsed: Post[]
+    try {
+      parsed = parseRows(input)
+    } catch {
+      setError("Não consegui ler os dados. Usa JSON ou linhas separadas por |.")
+      return
+    }
+    if (parsed.length < 2) {
+      setError("Cola pelo menos 2 publicações para comparar padrões.")
+      return
+    }
+    await analysePosts(parsed)
+  }
+
+  async function researchSocial() {
+    const query = socialQuery.trim()
+    if (query.length < 2) {
+      setError("Indica uma conta, URL ou objetivo para o Lumin pesquisar.")
+      return
+    }
+
+    setError(null)
+    setSocial(null)
+    setSocialLoading(true)
+    try {
+      const response = await fetch("/api/creator-intelligence/social", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, platform: socialPlatform, limit: 8, maxSteps: 12 }),
+      })
+      const json: SocialResponse = await response.json()
+      setSocial(json)
+      if (!response.ok) throw new Error(json.error || "Erro na pesquisa social local")
+
+      const posts = Array.isArray(json.posts) ? json.posts : []
+      if (posts.length >= 2) {
+        setInput(JSON.stringify(posts, null, 2))
+        await analysePosts(posts)
+      } else if (json.status === "blocked" || /login/i.test(json.stopReason || "")) {
+        setError("A pesquisa chegou à rede social, mas falta iniciar sessão no browser local.")
+      } else {
+        setError("A pesquisa terminou, mas ainda não recolheu publicações suficientes para comparar padrões.")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido")
+    } finally {
+      setSocialLoading(false)
+    }
+  }
+
   const hookDecision = decision?.answers?.best_hook?.choice as string | undefined
   const formatDecision = decision?.answers?.next_format?.choice as string | undefined
   const scoreDecision = Number(decision?.answers?.replication_score?.score ?? 0)
@@ -298,6 +349,57 @@ export function CreatorIntelligence() {
             Analisa publicações, engagement, hooks e formatos. O Lumin transforma os sinais da conta numa decisão prática sobre o próximo conteúdo a testar.
           </p>
         </div>
+
+        <section className="mb-4 rounded-3xl border border-amber-300/15 bg-gradient-to-br from-amber-300/[.06] via-white/[.02] to-violet-500/[.06] p-4 sm:p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Globe2 className="h-4 w-4 text-amber-300" />
+            <div className="text-sm font-medium text-white">Pesquisa social automática</div>
+            <span className="ml-auto rounded-full border border-emerald-400/15 bg-emerald-400/[.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.14em] text-emerald-300">
+              LOCAL
+            </span>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-[150px_1fr_auto]">
+            <select
+              value={socialPlatform}
+              onChange={(event) => setSocialPlatform(event.target.value)}
+              className="min-h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-zinc-200 outline-none focus:border-amber-300/30"
+            >
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="auto">Auto</option>
+            </select>
+            <input
+              value={socialQuery}
+              onChange={(event) => setSocialQuery(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter" && !socialLoading) void researchSocial() }}
+              placeholder="Ex.: analisa @conta e encontra os padrões dos vídeos que mais resultam"
+              className="min-h-11 rounded-xl border border-white/10 bg-black/25 px-4 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-300/30"
+            />
+            <button
+              type="button"
+              onClick={researchSocial}
+              disabled={socialLoading || loading}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {socialLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe2 className="h-4 w-4" />}
+              {socialLoading ? "A pesquisar..." : "Analisar conta"}
+            </button>
+          </div>
+
+          {social && (
+            <div className="mt-3 rounded-2xl border border-white/[.06] bg-black/20 p-3 text-xs leading-relaxed text-zinc-400">
+              <div className="flex flex-wrap items-center gap-2">
+                <b className="text-zinc-200">Jev Social:</b>
+                <span>{social.status || "concluído"}</span>
+                {social.posts && <span>· {social.posts.length} publicações recolhidas</span>}
+              </div>
+              {social.stopReason && <div className="mt-1 text-zinc-500">{social.stopReason}</div>}
+              {social.report && <div className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-zinc-500">{social.report}</div>}
+            </div>
+          )}
+        </section>
 
         <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
           <section className="rounded-3xl border border-white/[.08] bg-white/[.025] p-4 sm:p-5">
