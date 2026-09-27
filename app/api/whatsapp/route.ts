@@ -1,4 +1,5 @@
-import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"\nimport { createHmac, timingSafeEqual } from "node:crypto"
+import { createHmac, timingSafeEqual } from "node:crypto"
+import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -19,8 +20,7 @@ function publicRequestUrl(request: Request) {
   return `${proto}://${host}${original.pathname}${original.search}`
 }
 
-function validateTwilioSignature(request: Request, params: Array<[string, string]>) {
-  const authToken = process.env.TWILIO_AUTH_TOKEN
+function validateTwilioSignature(request: Request, params: Array<[string, string]>, authToken: string) {
   if (!authToken) return false
 
   const signature = request.headers.get("x-twilio-signature")
@@ -56,17 +56,20 @@ function twiml(message: string, status = 200) {
 }
 
 export async function GET() {
+  const credentials = await resolveOAuthAppCredentials("twilio").catch(() => null)
   return Response.json({
     ok: true,
     service: "Lumin WhatsApp",
-    configured: Boolean(process.env.TWILIO_AUTH_TOKEN),
+    configured: Boolean(credentials?.configured),
+    source: credentials?.source || "missing",
   })
 }
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.TWILIO_AUTH_TOKEN) {
-      console.error("[Lumin WhatsApp] TWILIO_AUTH_TOKEN is not configured")
+    const credentials = await resolveOAuthAppCredentials("twilio")
+    if (!credentials.configured || !credentials.clientSecret) {
+      console.error("[Lumin WhatsApp] Twilio credentials are not configured")
       return twiml("O Lumin WhatsApp ainda não está configurado no servidor.", 503)
     }
 
