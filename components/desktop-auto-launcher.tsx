@@ -59,6 +59,13 @@ export function DesktopAutoLauncher() {
         </a>
 
         <div className="grid grid-cols-2 gap-3">
+          <a
+            href="https://luminai.pt/emergencia/"
+            className="rounded-xl border border-red-400/25 bg-red-500/[0.06] px-4 py-4 text-sm font-semibold text-white transition hover:border-red-300/45 hover:bg-red-500/10"
+          >
+            LUMIN Emergency
+            <span className="mt-1 block text-[10px] font-normal text-zinc-400">SOS · GPS · offline</span>
+          </a>
           {items.map(([tab, label]) => (
             <a
               key={tab}
