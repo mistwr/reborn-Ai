@@ -1,5 +1,6 @@
 import "server-only"
 import { oauthProvider } from "@/lib/connectors/oauth"
+import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
 import {
   ConnectorRow,
   getConnectionSecret,
@@ -15,6 +16,9 @@ async function refreshOAuthToken(row: ConnectorRow, data: any) {
   const provider = oauthProvider(row.provider)
   if (!provider || !data?.refresh_token) return data
 
+  const credentials = await resolveOAuthAppCredentials(row.provider)
+  if (!credentials.configured) throw new Error("A app OAuth deste fornecedor não está configurada.")
+
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: String(data.refresh_token),
@@ -26,10 +30,10 @@ async function refreshOAuthToken(row: ConnectorRow, data: any) {
   }
 
   if (provider.tokenAuth === "basic") {
-    headers.Authorization = `Basic ${Buffer.from(`${provider.clientId()}:${provider.clientSecret()}`).toString("base64")}`
+    headers.Authorization = `Basic ${Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString("base64")}`
   } else {
-    body.set("client_id", provider.clientId())
-    body.set("client_secret", provider.clientSecret())
+    body.set("client_id", credentials.clientId)
+    body.set("client_secret", credentials.clientSecret)
   }
 
   const response = await fetch(provider.tokenUrl, {

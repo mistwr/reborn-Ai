@@ -192,15 +192,6 @@ export function oauthProvider(id: string) {
   return OAUTH_PROVIDERS[id as OAuthProviderId] || null
 }
 
-export function oauthProviderStatus() {
-  return Object.values(OAUTH_PROVIDERS).map((provider) => ({
-    id: provider.id,
-    label: provider.label,
-    configured: Boolean(provider.clientId() && provider.clientSecret()),
-    callbackPath: `/api/connectors/oauth/callback/${provider.id}`,
-  }))
-}
-
 export function randomState() {
   return crypto.randomBytes(24).toString("base64url")
 }
@@ -220,6 +211,7 @@ export function sealOAuthState(payload: {
   userId: string
   organizationId?: string | null
   verifier?: string
+  redirectUri?: string
   createdAt: number
 }) {
   const iv = crypto.randomBytes(12)
@@ -253,6 +245,7 @@ export function openOAuthState(value: string) {
     userId: string
     organizationId?: string | null
     verifier?: string
+    redirectUri?: string
     createdAt: number
   }
 }
@@ -270,9 +263,10 @@ export function buildAuthorizationUrl(params: {
   redirectUri: string
   state: string
   verifier?: string
+  clientId?: string
 }) {
   const url = new URL(params.provider.authorizationUrl)
-  url.searchParams.set("client_id", params.provider.clientId())
+  url.searchParams.set("client_id", params.clientId || params.provider.clientId())
   url.searchParams.set("redirect_uri", params.redirectUri)
   url.searchParams.set("response_type", "code")
   url.searchParams.set("state", params.state)
@@ -292,15 +286,20 @@ export async function exchangeAuthorizationCode(params: {
   code: string
   redirectUri: string
   verifier?: string
+  clientId?: string
+  clientSecret?: string
 }) {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code: params.code,
     redirect_uri: params.redirectUri,
   })
+  const clientId = params.clientId || params.provider.clientId()
+  const clientSecret = params.clientSecret || params.provider.clientSecret()
+
   if (params.provider.tokenAuth !== "basic") {
-    body.set("client_id", params.provider.clientId())
-    body.set("client_secret", params.provider.clientSecret())
+    body.set("client_id", clientId)
+    body.set("client_secret", clientSecret)
   }
   if (params.verifier) body.set("code_verifier", params.verifier)
 
@@ -309,7 +308,7 @@ export async function exchangeAuthorizationCode(params: {
     "Content-Type": "application/x-www-form-urlencoded",
   }
   if (params.provider.tokenAuth === "basic") {
-    headers.Authorization = `Basic ${Buffer.from(`${params.provider.clientId()}:${params.provider.clientSecret()}`).toString("base64")}`
+    headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
   }
 
   const response = await fetch(params.provider.tokenUrl, {

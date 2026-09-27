@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 import { connectorDefinition, LUMIN_CONNECTOR_CATALOG } from "@/lib/connectors/catalog"
-import { oauthProviderStatus } from "@/lib/connectors/oauth"
+import { listOAuthProviderStatuses } from "@/lib/connectors/provider-settings"
 import { testOAuthConnection } from "@/lib/connectors/oauth-token"
 import {
   connectorAuthHeaders,
@@ -245,12 +245,16 @@ export async function GET(req: NextRequest) {
     const scope = scopeFromToken(token)
     if (!scope) return NextResponse.json({ authenticated: false }, { status: 401 })
 
-    const rows = await listConnections(scope)
+    const [rows, oauthProviders] = await Promise.all([
+      listConnections(scope),
+      listOAuthProviderStatuses(req.nextUrl.origin),
+    ])
     return NextResponse.json({
       authenticated: true,
       scope: scope.type,
+      isOwner: Boolean((token as any)?.isFounder || (token as any)?.role === "owner"),
       catalog: LUMIN_CONNECTOR_CATALOG,
-      oauthProviders: oauthProviderStatus(),
+      oauthProviders,
       connections: rows.map(publicConnection),
     })
   } catch (error: any) {

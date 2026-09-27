@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { isUserPro } from "@/lib/billing/store"
+import { openOAuthState } from "@/lib/connectors/oauth"
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim()
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
@@ -248,4 +249,28 @@ export const authOptions = {
 }
 
 const handler = NextAuth(authOptions)
-export { handler as GET, handler as POST }
+
+export async function GET(req: any, context: any) {
+  try {
+    const url = new URL(req.url)
+    const state = url.searchParams.get("state") || ""
+    if (state) {
+      const saved = openOAuthState(state)
+      if (saved.provider === "google") {
+        const target = new URL("/api/connectors/oauth/callback/google", url.origin)
+        for (const key of ["code", "state", "error", "error_description"]) {
+          const value = url.searchParams.get(key)
+          if (value) target.searchParams.set(key, value)
+        }
+        return Response.redirect(target, 302)
+      }
+    }
+  } catch {
+    // Normal NextAuth OAuth states are not LUMIN Connector Hub states.
+  }
+  return handler(req, context)
+}
+
+export async function POST(req: any, context: any) {
+  return handler(req, context)
+}

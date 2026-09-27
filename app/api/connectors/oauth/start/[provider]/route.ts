@@ -6,6 +6,7 @@ import {
   randomVerifier,
   sealOAuthState,
 } from "@/lib/connectors/oauth"
+import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -25,22 +26,27 @@ export async function GET(
     return NextResponse.redirect(new URL("/connectors?oauth=unsupported", req.nextUrl.origin))
   }
 
-  const clientId = provider.clientId()
-  const clientSecret = provider.clientSecret()
-  if (!clientId || !clientSecret) {
+  const credentials = await resolveOAuthAppCredentials(provider.id)
+  if (!credentials.configured) {
     const url = new URL("/connectors", req.nextUrl.origin)
     url.searchParams.set("oauth", "not_configured")
     url.searchParams.set("provider", provider.id)
     return NextResponse.redirect(url)
   }
 
-  const redirectUri = new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
+  const redirectUri = new URL(
+    provider.id === "google"
+      ? "/api/auth/callback/google"
+      : `/api/connectors/oauth/callback/${provider.id}`,
+    req.nextUrl.origin,
+  ).toString()
   const verifier = provider.pkce ? randomVerifier() : ""
   const state = sealOAuthState({
     provider: provider.id,
     userId: String(token.sub),
     organizationId: token.organizationId ? String(token.organizationId) : null,
     verifier: verifier || undefined,
+    redirectUri,
     createdAt: Date.now(),
   })
 
@@ -49,6 +55,7 @@ export async function GET(
     redirectUri,
     state,
     verifier: verifier || undefined,
+    clientId: credentials.clientId,
   })
 
   return NextResponse.redirect(authorizationUrl)

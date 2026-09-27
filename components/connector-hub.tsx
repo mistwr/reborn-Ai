@@ -11,6 +11,7 @@ import {
   Loader2,
   Plug,
   RefreshCw,
+  Settings,
   Server,
   ShieldCheck,
   Unplug,
@@ -44,9 +45,14 @@ type Connection = {
 
 type OAuthStatus = {
   id: string
-  label: string
+  label?: string
   configured: boolean
   callbackPath: string
+  callbackUrl?: string | null
+  source?: "vault" | "env" | "missing"
+  clientIdPreview?: string
+  hasVaultSecret?: boolean
+  updatedAt?: string | null
 }
 
 const GENERIC = new Set(["rest", "openapi", "mcp"])
@@ -94,6 +100,7 @@ export function ConnectorHub() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [oauthProviders, setOauthProviders] = useState<OAuthStatus[]>([])
   const [scope, setScope] = useState("")
+  const [isOwner, setIsOwner] = useState(false)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
@@ -111,6 +118,9 @@ export function ConnectorHub() {
   const [blogId, setBlogId] = useState("")
   const [accountSid, setAccountSid] = useState("")
   const [phoneNumberId, setPhoneNumberId] = useState("")
+  const [providerEditor, setProviderEditor] = useState<OAuthStatus | null>(null)
+  const [providerClientId, setProviderClientId] = useState("")
+  const [providerSecret, setProviderSecret] = useState("")
 
   const refresh = async () => {
     setLoading(true)
@@ -123,6 +133,7 @@ export function ConnectorHub() {
       setConnections(data.connections || [])
       setOauthProviders(data.oauthProviders || [])
       setScope(data.scope || "")
+      setIsOwner(Boolean(data.isOwner))
     } catch (e: any) {
       setError(e?.message || "Erro a carregar conectores.")
     } finally {
@@ -167,6 +178,9 @@ export function ConnectorHub() {
     setBlogId("")
     setAccountSid("")
     setPhoneNumberId("")
+    setProviderEditor(null)
+    setProviderClientId("")
+    setProviderSecret("")
   }
 
   const openGeneric = (type: "rest" | "openapi" | "mcp") => {
@@ -185,6 +199,46 @@ export function ConnectorHub() {
     setAuthType(AUTH_TYPES[item.id] || "bearer")
     setError("")
     setMessage("")
+  }
+
+  const openProviderSettings = (status: OAuthStatus) => {
+    resetEditors()
+    setProviderEditor(status)
+    setProviderClientId("")
+    setProviderSecret("")
+    setError("")
+    setMessage("")
+  }
+
+  const saveProviderSettings = async () => {
+    if (!providerEditor) return
+    setBusy("provider-save")
+    setError("")
+    setMessage("")
+    try {
+      if (!providerClientId.trim()) throw new Error("Indica o Client ID.")
+      const response = await fetch("/api/connectors/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: providerEditor.id,
+          clientId: providerClientId.trim(),
+          clientSecret: providerSecret.trim() || undefined,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || "Não foi possível guardar a app OAuth.")
+      setOauthProviders(data.providers || [])
+      setMessage(`App OAuth ${providerEditor.id} guardada. Confirma agora o callback no fornecedor e testa Ligar.`)
+      setProviderEditor(null)
+      setProviderClientId("")
+      setProviderSecret("")
+      await refresh()
+    } catch (e: any) {
+      setError(e?.message || "Erro a configurar app OAuth.")
+    } finally {
+      setBusy("")
+    }
   }
 
   const startOAuth = (item: CatalogItem) => {
@@ -370,6 +424,88 @@ export function ConnectorHub() {
           <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${error ? "border-red-400/20 bg-red-400/[.06] text-red-200" : "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-200"}`}>
             {error || message}
           </div>
+        )}
+
+        {isOwner && (
+          <section className="mt-6 rounded-[26px] border border-violet-400/15 bg-violet-400/[.025] p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-400/[.07]">
+                <Settings className="h-4 w-4 text-violet-300" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300/70">Admin do Lumin</div>
+                <h3 className="mt-1 text-lg font-semibold">Apps OAuth dos fornecedores</h3>
+                <p className="mt-1 text-sm leading-6 text-zinc-500">
+                  Configura uma vez Google, Meta, GitHub, Canva, Figma e Netlify. Depois qualquer utilizador só carrega em Ligar e autoriza a própria conta.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {oauthProviders.map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => openProviderSettings(provider)}
+                  className="rounded-2xl border border-white/[.07] bg-black/25 p-4 text-left hover:border-violet-400/20"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium capitalize">{provider.id}</span>
+                    <span className={`text-[10px] ${provider.configured ? "text-emerald-400" : "text-amber-300"}`}>
+                      {provider.configured ? `CONFIGURADO · ${provider.source || ""}` : "POR CONFIGURAR"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-600">
+                    {provider.clientIdPreview ? `Client ID: ${provider.clientIdPreview}` : "Sem Client ID ativo"}
+                  </p>
+                  <p className="mt-2 break-all text-[10px] leading-4 text-zinc-700">
+                    {provider.callbackUrl || `${window.location.origin}${provider.callbackPath}`}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {providerEditor && (
+          <section className="mt-6 rounded-[26px] border border-violet-400/20 bg-[#0a0a0a] p-5 sm:p-6">
+            <EditorHeader eyebrow="Configuração da app OAuth" title={providerEditor.id.toUpperCase()} onClose={resetEditors} />
+            <div className="mt-4 rounded-xl border border-white/[.07] bg-white/[.02] p-3">
+              <div className="text-[10px] uppercase tracking-[.14em] text-zinc-600">Callback obrigatório no fornecedor</div>
+              <div className="mt-1 break-all text-xs text-amber-200">
+                {providerEditor.callbackUrl || `${window.location.origin}${providerEditor.callbackPath}`}
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <Field label="Client ID / App ID">
+                <input
+                  value={providerClientId}
+                  onChange={(e) => setProviderClientId(e.target.value)}
+                  placeholder={providerEditor.clientIdPreview || "Client ID"}
+                  className="input"
+                />
+              </Field>
+              <Field label="Client Secret / App Secret">
+                <input
+                  type="password"
+                  value={providerSecret}
+                  onChange={(e) => setProviderSecret(e.target.value)}
+                  placeholder={providerEditor.hasVaultSecret ? "Deixa vazio para manter o secret atual" : "Client Secret"}
+                  className="input"
+                />
+              </Field>
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <button
+                onClick={saveProviderSettings}
+                disabled={busy === "provider-save" || !providerClientId.trim()}
+                className="inline-flex items-center gap-2 rounded-xl bg-violet-300 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
+              >
+                {busy === "provider-save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Guardar app OAuth
+              </button>
+              <span className="text-xs text-zinc-600">O secret é cifrado no Vault e nunca volta ao browser.</span>
+            </div>
+          </section>
         )}
 
         {editor && (

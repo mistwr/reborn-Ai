@@ -5,6 +5,7 @@ import {
   oauthProvider,
   openOAuthState,
 } from "@/lib/connectors/oauth"
+import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
 import {
   getConnection,
   getConnectionSecret,
@@ -76,12 +77,19 @@ export async function GET(
       throw new Error("A autorização expirou. Tenta novamente.")
     }
 
-    const redirectUri = new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
+    const credentials = await resolveOAuthAppCredentials(provider.id)
+    if (!credentials.configured) throw new Error("A app OAuth deste fornecedor deixou de estar configurada.")
+
+    const redirectUri = saved.redirectUri
+      ? String(saved.redirectUri)
+      : new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
     const tokenData = await exchangeAuthorizationCode({
       provider,
       code,
       redirectUri,
       verifier: saved.verifier || undefined,
+      clientId: credentials.clientId,
+      clientSecret: credentials.clientSecret,
     })
 
     const profile = await provider.profile(String(tokenData.access_token))
