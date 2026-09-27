@@ -60,6 +60,7 @@ const AUTH_TYPES: Record<string, string> = {
   close: "api_key",
   resend: "bearer",
   railway: "bearer",
+  whatsapp: "bearer",
 }
 
 const SECRET_LABELS: Record<string, string> = {
@@ -71,6 +72,7 @@ const SECRET_LABELS: Record<string, string> = {
   close: "Close API key",
   resend: "Resend API key",
   railway: "Railway account token",
+  whatsapp: "WhatsApp Cloud API access token",
 }
 
 function rootProvider(value: string) {
@@ -108,6 +110,7 @@ export function ConnectorHub() {
   const [userId, setUserId] = useState("")
   const [blogId, setBlogId] = useState("")
   const [accountSid, setAccountSid] = useState("")
+  const [phoneNumberId, setPhoneNumberId] = useState("")
 
   const refresh = async () => {
     setLoading(true)
@@ -163,6 +166,7 @@ export function ConnectorHub() {
     setUserId("")
     setBlogId("")
     setAccountSid("")
+    setPhoneNumberId("")
   }
 
   const openGeneric = (type: "rest" | "openapi" | "mcp") => {
@@ -244,6 +248,7 @@ export function ConnectorHub() {
         if (blogId.trim()) config.blogId = blogId.trim()
       }
       if (credentialItem.id === "twilio") config.accountSid = accountSid.trim()
+      if (credentialItem.id === "whatsapp") config.phoneNumberId = phoneNumberId.trim()
 
       await saveAndTest({
         provider: credentialItem.id,
@@ -440,13 +445,18 @@ export function ConnectorHub() {
                   <input value={accountSid} onChange={(e) => setAccountSid(e.target.value)} placeholder="AC..." className="input" />
                 </Field>
               )}
+              {credentialItem.id === "whatsapp" && (
+                <Field label="Phone Number ID">
+                  <input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} placeholder="ID do número no WhatsApp Cloud API" className="input" />
+                </Field>
+              )}
               <Field label={SECRET_LABELS[credentialItem.id] || "Token / API key"}>
                 <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="Cola aqui a credencial" className="input" />
               </Field>
             </div>
             <SaveButton
               onClick={saveCredentials}
-              disabled={busy === "save" || !secret.trim() || (credentialItem.id === "metricool" && !userId.trim()) || (credentialItem.id === "twilio" && !accountSid.trim())}
+              disabled={busy === "save" || !secret.trim() || (credentialItem.id === "metricool" && !userId.trim()) || (credentialItem.id === "twilio" && !accountSid.trim()) || (credentialItem.id === "whatsapp" && !phoneNumberId.trim())}
               busy={busy === "save"}
             />
           </section>
