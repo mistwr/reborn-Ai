@@ -209,6 +209,54 @@ export function randomVerifier() {
   return crypto.randomBytes(48).toString("base64url")
 }
 
+function oauthStateKey() {
+  const secret = process.env.NEXTAUTH_SECRET?.trim()
+  if (!secret) throw new Error("NEXTAUTH_SECRET não configurado.")
+  return crypto.createHash("sha256").update(secret).digest()
+}
+
+export function sealOAuthState(payload: {
+  provider: string
+  userId: string
+  organizationId?: string | null
+  verifier?: string
+  createdAt: number
+}) {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv("aes-256-gcm", oauthStateKey(), iv)
+  const plaintext = Buffer.from(JSON.stringify(payload), "utf8")
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return [iv.toString("base64url"), tag.toString("base64url"), ciphertext.toString("base64url")].join(".")
+}
+
+export function openOAuthState(value: string) {
+  const parts = value.split(".")
+  if (parts.length !== 3) throw new Error("Estado OAuth inválido.")
+  const [ivPart, tagPart, bodyPart] = parts
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    oauthStateKey(),
+    Buffer.from(ivPart, "base64url"),
+  )
+  decipher.setAuthTag(Buffer.from(tagPart, "base64url"))
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(bodyPart, "base64url")),
+    decipher.final(),
+  ]).toString("utf8")
+  const parsed = JSON.parse(plaintext)
+  if (!parsed?.provider || !parsed?.userId || !parsed?.createdAt) {
+    throw new Error("Estado OAuth incompleto.")
+  }
+  return parsed as {
+    provider: string
+    userId: string
+    organizationId?: string | null
+    verifier?: string
+    createdAt: number
+  }
+}
+
 export function challengeFor(verifier: string) {
   return crypto.createHash("sha256").update(verifier).digest("base64url")
 }
