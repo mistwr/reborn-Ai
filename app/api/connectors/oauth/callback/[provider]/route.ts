@@ -80,7 +80,9 @@ export async function GET(
     const credentials = await resolveOAuthAppCredentials(provider.id)
     if (!credentials.configured) throw new Error("A app OAuth deste fornecedor deixou de estar configurada.")
 
-    const redirectUri = new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
+    const redirectUri = saved.redirectUri
+      ? String(saved.redirectUri)
+      : new URL(`/api/connectors/oauth/callback/${provider.id}`, req.nextUrl.origin).toString()
     const tokenData = await exchangeAuthorizationCode({
       provider,
       code,
