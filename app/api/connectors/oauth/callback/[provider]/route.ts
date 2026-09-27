@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 import {
   exchangeAuthorizationCode,
-  oauthCookieName,
   oauthProvider,
+  openOAuthState,
 } from "@/lib/connectors/oauth"
 import {
   getConnection,
@@ -58,18 +58,19 @@ export async function GET(
 
     const code = req.nextUrl.searchParams.get("code") || ""
     const returnedState = req.nextUrl.searchParams.get("state") || ""
-    const cookie = req.cookies.get(oauthCookieName(provider.id))?.value || ""
-    if (!code || !returnedState || !cookie) throw new Error("Fluxo OAuth incompleto ou expirado.")
+    if (!code || !returnedState) throw new Error("Fluxo OAuth incompleto ou expirado.")
 
-    let saved: any = {}
-    try {
-      saved = JSON.parse(Buffer.from(cookie, "base64url").toString("utf8"))
-    } catch {
-      throw new Error("Estado OAuth inválido.")
-    }
-
-    if (!saved?.state || saved.state !== returnedState) {
+    const saved = openOAuthState(returnedState)
+    if (saved.provider !== provider.id) {
       throw new Error("Validação de segurança OAuth falhou.")
+    }
+    if (String(saved.userId) !== String(token?.sub || "")) {
+      throw new Error("A autorização pertence a outra sessão. Tenta novamente.")
+    }
+    const tokenOrganizationId = token?.organizationId ? String(token.organizationId) : null
+    const savedOrganizationId = saved.organizationId ? String(saved.organizationId) : null
+    if (savedOrganizationId !== tokenOrganizationId) {
+      throw new Error("O contexto da empresa mudou durante a autorização. Tenta novamente.")
     }
     if (Date.now() - Number(saved.createdAt || 0) > 10 * 60 * 1000) {
       throw new Error("A autorização expirou. Tenta novamente.")
@@ -125,15 +126,7 @@ export async function GET(
 
     await setConnectionSecret(row.id, JSON.stringify(secretPayload))
 
-    const response = back(req, { oauth: "success", provider: provider.id })
-    response.cookies.set(oauthCookieName(provider.id), "", {
-      httpOnly: true,
-      secure: req.nextUrl.protocol === "https:",
-      sameSite: "lax",
-      path: `/api/connectors/oauth/callback/${provider.id}`,
-      maxAge: 0,
-    })
-    return response
+    return back(req, { oauth: "success", provider: provider.id })
   } catch (error: any) {
     console.error("[Lumin OAuth] callback failed", provider.id, error)
     return back(req, {
