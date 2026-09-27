@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 import { connectorDefinition, LUMIN_CONNECTOR_CATALOG } from "@/lib/connectors/catalog"
+import { oauthProviderStatus } from "@/lib/connectors/oauth"
+import { testOAuthConnection } from "@/lib/connectors/oauth-token"
 import {
   connectorAuthHeaders,
   getConnection,
@@ -128,6 +130,7 @@ async function testMcp(row: any, secret: string) {
 
 async function testConnection(row: any) {
   const root = String(row.provider).split(":")[0]
+  if (row.auth_type === "oauth") return testOAuthConnection(row)
   const secret = row.secret_id ? await getConnectionSecret(row.id) : ""
   if (root === "rest") return testRest(row, secret)
   if (root === "openapi") return testOpenApi(row, secret)
@@ -146,6 +149,7 @@ export async function GET(req: NextRequest) {
       authenticated: true,
       scope: scope.type,
       catalog: LUMIN_CONNECTOR_CATALOG,
+      oauthProviders: oauthProviderStatus(),
       connections: rows.map(publicConnection),
     })
   } catch (error: any) {
