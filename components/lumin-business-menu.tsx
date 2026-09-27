@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Megaphone,
   PhoneCall,
+  Plug,
   Sparkles,
   X,
 } from "lucide-react"
@@ -99,6 +100,15 @@ export function LuminBusinessMenu() {
                   onClick={() => {
                     setOpen(false)
                     window.location.assign("/agentes-voz")
+                  }}
+                />
+                <BusinessItem
+                  icon={Plug}
+                  title="Conectores"
+                  subtitle="Liga MCP, APIs e ferramentas ao Lumin"
+                  onClick={() => {
+                    setOpen(false)
+                    window.location.assign("/connectors")
                   }}
                 />
                 <BusinessItem icon={Globe2} title="Websites & Apps" subtitle="Lumin AI Studio" onClick={() => goTo(["webcraft", "lumin ai studio"])} />
