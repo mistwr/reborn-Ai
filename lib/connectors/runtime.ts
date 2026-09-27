@@ -391,8 +391,11 @@ async function runMeta(row: ConnectorRow) {
   const accessToken = await oauthAccessToken(row)
   const url = new URL("https://graph.facebook.com/me/accounts")
   url.searchParams.set("fields", "id,name,category,instagram_business_account")
-  url.searchParams.set("access_token", accessToken)
-  const response = await fetch(url, { cache:"no-store", signal:AbortSignal.timeout(15000) })
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache:"no-store",
+    signal:AbortSignal.timeout(15000),
+  })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error?.message || `Meta HTTP ${response.status}`)
   const pages = (data?.data || []).slice(0,30).map((page: any) => ({
