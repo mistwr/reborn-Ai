@@ -211,6 +211,7 @@ export function sealOAuthState(payload: {
   userId: string
   organizationId?: string | null
   verifier?: string
+  redirectUri?: string
   createdAt: number
 }) {
   const iv = crypto.randomBytes(12)
@@ -244,6 +245,7 @@ export function openOAuthState(value: string) {
     userId: string
     organizationId?: string | null
     verifier?: string
+    redirectUri?: string
     createdAt: number
   }
 }
