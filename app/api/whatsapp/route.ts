@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"\nimport { createHmac, timingSafeEqual } from "node:crypto"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     const body = new URLSearchParams(raw)
     const params = Array.from(body.entries())
 
-    if (!validateTwilioSignature(request, params)) {
+    if (!validateTwilioSignature(request, params, credentials.clientSecret)) {
       console.warn("[Lumin WhatsApp] rejected invalid Twilio signature")
       return new Response("Forbidden", { status: 403 })
     }
