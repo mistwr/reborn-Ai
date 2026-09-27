@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LUMIN Voice Studio | Agentes de Voz</title>
+<meta name="description" content="Cria e testa agentes de voz LUMIN AI para chamadas telefónicas e atendimento.">
+<meta name="theme-color" content="#050505">
+<link rel="icon" href="/lumin-ai-logo.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#050505;--panel:#0b0b0b;--panel2:#111;--line:#26221a;--gold:#e7b95f;--gold2:#ffdda0;
+  --text:#f6f4ef;--muted:#8d8982;--green:#55d889;--red:#ff6b6b;--blue:#79b8ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:radial-gradient(900px 500px at 60% -10%,rgba(231,185,95,.11),transparent 60%),var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
+.app{min-height:100svh;display:grid;grid-template-columns:240px 1fr}
+.sidebar{border-right:1px solid var(--line);background:rgba(7,7,7,.9);padding:22px 16px;position:sticky;top:0;height:100svh}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:30px}.brand img{width:42px;height:42px}.brand b{font-size:18px}.brand small{display:block;color:var(--muted);font-size:11px}
+.nav{display:grid;gap:7px}.nav button{border:0;background:transparent;color:#aaa;text-align:left;padding:12px 14px;border-radius:12px;font-weight:750}.nav button.active{background:#17140e;color:var(--gold2);border:1px solid #332a1b}.nav button:hover{background:#111}
+.sideFoot{position:absolute;bottom:20px;left:16px;right:16px;color:#68635d;font-size:11px;line-height:1.5}
+.main{padding:28px;max-width:1250px;width:100%;margin:auto}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:26px}
+.eyebrow{color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.11em}.title{font-size:32px;font-weight:900;letter-spacing:-.04em;margin:4px 0}.sub{color:var(--muted);font-size:14px}
+.pill{display:inline-flex;align-items:center;gap:7px;border:1px solid #2a2a2a;background:#0d0d0d;border-radius:999px;padding:8px 11px;font-size:11px;color:#aaa}.dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 12px rgba(85,216,137,.5)}
+.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:20px}.card{background:linear-gradient(180deg,#0d0d0d,#090909);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 22px 70px rgba(0,0,0,.22)}
+.card h2{font-size:18px;margin:0 0 4px}.card p.desc{color:var(--muted);font-size:12px;margin:0 0 18px}
+.agentList{display:grid;gap:10px}.agentRow{border:1px solid #24211c;border-radius:16px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0b0b0b}.agentInfo{display:flex;align-items:center;gap:12px;min-width:0}.avatar{width:44px;height:44px;border-radius:14px;background:radial-gradient(circle,#4a3210,#100c05 65%);border:1px solid #6d5428;display:grid;place-items:center;color:var(--gold2);font-weight:900}.agentText{min-width:0}.agentText b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.agentText span{font-size:11px;color:var(--muted)}.rowBtns{display:flex;gap:7px}.iconBtn{border:1px solid #2a2a2a;background:#121212;color:#bbb;border-radius:10px;padding:9px 10px}
+.primary,.secondary,.danger{border-radius:12px;padding:12px 15px;font-weight:900;border:0}.primary{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#191108}.secondary{background:#161616;color:#eee;border:1px solid #2b2b2b}.danger{background:#351010;color:#ffcccc;border:1px solid #6d1b1b}
+.formGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:7px}.field.full{grid-column:1/-1}.field label{font-size:11px;color:#9c978f;font-weight:800}.field input,.field textarea,.field select{width:100%;background:#080808;border:1px solid #28251f;color:#fff;border-radius:12px;padding:12px;outline:none}.field textarea{min-height:84px;resize:vertical}.field input:focus,.field textarea:focus,.field select:focus{border-color:#71592d;box-shadow:0 0 0 3px rgba(231,185,95,.07)}
+.callHero{padding:24px;border-radius:20px;background:radial-gradient(500px 260px at 50% 0%,rgba(231,185,95,.12),transparent 65%),#090909;border:1px solid #2a2419;text-align:center}.phoneCircle{width:90px;height:90px;border-radius:50%;margin:8px auto 18px;display:grid;place-items:center;background:radial-gradient(circle,#3d2a0c,#090704 65%);border:1px solid #7b5b27;box-shadow:0 0 50px rgba(231,185,95,.12);font-size:30px}.callState{font-size:13px;color:var(--muted);min-height:20px}.callState.good{color:var(--green)}.callState.bad{color:#ff9c9c}.callBtn{width:100%;margin-top:14px;min-height:52px}
+.progress{display:flex;justify-content:center;gap:7px;margin:17px 0 3px}.progress i{width:8px;height:8px;background:#26221b;border-radius:50%}.progress i.on{background:var(--gold);box-shadow:0 0 12px rgba(231,185,95,.4)}
+.history{display:grid;gap:8px}.hist{display:grid;grid-template-columns:1fr auto;gap:12px;border-bottom:1px solid #1d1b17;padding:12px 0}.hist:last-child{border-bottom:0}.hist b{font-size:13px}.hist small{display:block;color:var(--muted);margin-top:4px}.status{font-size:10px;font-weight:900;text-transform:uppercase;padding:6px 8px;border-radius:999px;height:fit-content;background:#161616;color:#bbb}.status.connected{background:#0e2a18;color:#86e5a8}.status.failed{background:#301010;color:#ffabab}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap}.empty{padding:26px;text-align:center;color:#777;font-size:12px;border:1px dashed #2a2823;border-radius:14px}
+.view{display:none}.view.active{display:block}
+.loginOverlay{position:fixed;inset:0;background:radial-gradient(900px 500px at 50% 0%,rgba(231,185,95,.14),transparent 70%),#050505;z-index:20;display:grid;place-items:center;padding:22px}.loginBox{width:min(430px,100%);background:#0b0b0b;border:1px solid #30291e;border-radius:26px;padding:26px;text-align:center}.loginLogo{width:76px;height:76px;margin:auto;border-radius:20px;background:#070a14 url('/lumin-ai-logo.svg') center/58% no-repeat;border:1px solid #634d27}.loginBox h1{margin:18px 0 6px}.loginBox p{color:var(--muted);font-size:13px}.loginBox input{width:100%;background:#060606;border:1px solid #2c2821;color:#fff;border-radius:13px;padding:14px;margin:14px 0 10px}.loginError{color:#ff9e9e;font-size:12px;min-height:18px}
+.toast{position:fixed;right:20px;bottom:20px;background:#111;border:1px solid #332b1d;border-radius:13px;padding:12px 15px;color:#ddd;box-shadow:0 20px 60px #000;z-index:30;font-size:12px}
+.badge{font-size:10px;padding:5px 8px;border-radius:999px;background:#14110c;color:var(--gold2);border:1px solid #302719}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{height:auto;position:sticky;z-index:10;padding:10px 12px;display:flex;align-items:center;gap:10px;overflow:auto}.brand{margin:0;min-width:max-content}.brand img{width:34px;height:34px}.brand small{display:none}.nav{display:flex;gap:4px}.nav button{white-space:nowrap;padding:10px 11px}.sideFoot{display:none}.main{padding:18px 14px 36px}.grid{grid-template-columns:1fr}.topbar{align-items:flex-start}.title{font-size:27px}.formGrid{grid-template-columns:1fr}.field.full{grid-column:auto}}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" class="loginOverlay">
+  <div class="loginBox">
+    <div class="loginLogo"></div>
+    <h1>LUMIN Voice Studio</h1>
+    <p>Área protegida para configurar agentes de voz e realizar chamadas.</p>
+    <input id="accessCode" type="password" placeholder="Código de acesso" autocomplete="current-password">
+    <button id="loginBtn" class="primary" style="width:100%">Entrar</button>
+    <div id="loginError" class="loginError"></div>
+    <p style="font-size:10px">A sessão expira automaticamente. O código nunca fica guardado no browser.</p>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><img src="/lumin-ai-logo.svg" alt=""><div><b>LUMIN</b><small>VOICE STUDIO</small></div></div>
+    <nav class="nav">
+      <button class="active" data-view="call">📞 Chamar</button>
+      <button data-view="agents">🤖 Agentes</button>
+      <button data-view="history">◷ Histórico</button>
+    </nav>
+    <div class="sideFoot">LUMIN AI · chamadas via LiveKit + Twilio<br>Agentes personalizados por chamada<br><a href="/" style="display:inline-block;margin-top:8px;color:#e7b95f;text-decoration:none">← Voltar ao Lumin</a></div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><div class="eyebrow">LUMIN AI · VOICE</div><div class="title" id="pageTitle">Fazer chamada</div><div class="sub" id="pageSub">Escolhe o agente, introduz o contacto e o Lumin liga.</div></div>
+      <div class="toolbar"><span class="pill"><i class="dot"></i> Sistema operacional</span><a class="secondary" href="/voz/" style="text-decoration:none;font-size:12px">Testar no browser</a></div>
+    </div>
+
+    <section id="view-call" class="view active">
+      <div class="grid">
+        <div class="card">
+          <h2>Nova chamada</h2><p class="desc">O agente só entra depois do cliente atender.</p>
+          <div class="formGrid">
+            <div class="field full"><label>AGENTE</label><select id="callAgent"></select></div>
+            <div class="field"><label>NOME DO CONTACTO</label><input id="callName" placeholder="Ex.: António"></div>
+            <div class="field"><label>NÚMERO</label><input id="callPhone" inputmode="tel" placeholder="+351 9XX XXX XXX"></div>
+            <div class="field full"><label>RESUMO DO AGENTE</label><div id="agentSummary" class="agentRow" style="display:block"></div></div>
+          </div>
+        </div>
+
+        <div class="callHero">
+          <div class="phoneCircle">☎</div>
+          <div style="font-size:12px;color:var(--gold2);font-weight:900;letter-spacing:.08em">LUMIN OUTBOUND</div>
+          <h2 id="callHeadline" style="margin:8px 0 5px">Pronto para ligar</h2>
+          <div id="callState" class="callState">A chamada será iniciada pelo teu Caller ID autorizado.</div>
+          <div class="progress" id="callProgress"><i></i><i></i><i></i><i></i></div>
+          <button id="callBtn" class="primary callBtn">📞 CHAMAR AGORA</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-agents" class="view">
+      <div class="grid">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px"><div><h2>Os teus agentes</h2><p class="desc" style="margin:3px 0 0">Cada agente leva o seu contexto para a chamada.</p></div><button id="newAgentBtn" class="primary">+ Novo</button></div>
+          <div id="agentList" class="agentList"></div>
+        </div>
+        <div class="card">
+          <h2 id="editorTitle">Configurar agente</h2><p class="desc">Só esta camada é personalizada. O motor de voz continua protegido.</p>
+          <form id="agentForm" class="formGrid">
+            <input id="agentId" type="hidden">
+            <div class="field"><label>NOME DO AGENTE</label><input id="agentName" placeholder="Lumin Comercial"></div>
+            <div class="field"><label>EMPRESA / MARCA</label><input id="agentCompany" placeholder="LUMIN AI"></div>
+            <div class="field"><label>VOZ / RITMO</label><select id="agentVoice"><option value="natural">Lumin Natural · PT-PT local</option><option value="clear">Lumin Clara · PT-PT mais pausada</option><option value="commercial">Lumin Comercial · PT-PT mais energética</option></select></div>
+            <div class="field full"><label>OBJETIVO</label><input id="agentObjective" placeholder="Qualificar lead e apresentar a solução"></div>
+            <div class="field full"><label>ABERTURA</label><textarea id="agentOpening" placeholder="Ex.: estou a ligar porque pediu informações..."></textarea></div>
+            <div class="field full"><label>PRODUTO / SERVIÇO</label><textarea id="agentProduct" placeholder="O que vende, para quem e principais vantagens"></textarea></div>
+            <div class="field full"><label>OFERTA / CONDIÇÕES</label><textarea id="agentOffer" placeholder="Preços, campanhas e condições que o agente pode dizer"></textarea></div>
+            <div class="field full"><label>OBJEÇÕES</label><textarea id="agentObjections" placeholder="Preço → resposta...&#10;Fidelização → resposta..."></textarea></div>
+            <div class="field full"><label>NOTAS / REGRAS</label><textarea id="agentNotes" placeholder="Informação adicional autorizada"></textarea></div>
+            <div class="field full"><label>TOM</label><input id="agentTone" placeholder="Natural, profissional, direto"></div>
+            <div class="field full" style="display:flex;gap:9px;grid-template-columns:none"><button type="submit" class="primary" style="flex:1">Guardar agente</button><button type="button" id="cancelEdit" class="secondary">Limpar</button></div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-history" class="view">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2>Histórico local</h2><p class="desc">Primeira versão: guardado neste dispositivo. Depois ligamos ao CRM / SD Dialer.</p></div><button id="clearHistory" class="secondary">Limpar</button></div>
+        <div id="historyList" class="history"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+(()=>{
+const API='/api/voice-gateway';
+const $=id=>document.getElementById(id);
+let token=sessionStorage.getItem('lumin_voice_session')||'';
+let pollTimer=null;
+
+const DEFAULT_AGENT={
+  id:'lumin-comercial',name:'Lumin Comercial',company:'LUMIN AI',voice:'commercial',builtinVersion:3,
+  objective:'Vender a LUMIN AI de forma consultiva: descobrir uma dor real do negócio, ligar essa dor a uma solução concreta e fechar o próximo passo para demonstração, proposta ou contacto humano.',
+  opening:'Queria fazer-lhe uma pergunta rápida: hoje, onde é que perde mais tempo no negócio — a responder a clientes, a tratar contactos, a criar conteúdo ou em tarefas repetitivas?',
+  product:'LUMIN AI é uma plataforma de inteligência artificial e automação para empresas. Pode apoiar atendimento e qualificação de contactos, agentes de voz, automação comercial, criação de sites e aplicações, conteúdos e fluxos de trabalho. Apresentar apenas as capacidades relevantes para a necessidade que o cliente revelar; não despejar todas as funcionalidades.',
+  offer:'Não inventar preços, descontos, resultados ou garantias. Quando a condição comercial não estiver definida, confirmar apenas o interesse e indicar que a equipa humana apresenta a proposta adequada.',
+  objections:'SEM TEMPO → pedir vinte segundos e fazer uma pergunta de diagnóstico. JÁ USO IA → perguntar o que usa hoje e o que ainda continua manual. É CARO → não discutir preço sem contexto; perguntar quanto trabalho/processo quer automatizar e reforçar que a proposta depende da necessidade. MANDE INFORMAÇÃO → perguntar qual é o principal problema para enviar/apresentar apenas o que é relevante. NÃO TENHO INTERESSE → esclarecer uma única vez se é falta de necessidade, timing ou prioridade; se continuar sem interesse, agradecer e terminar.',
+  notes:'VENDA CONSULTIVA: 1) criar curiosidade; 2) descobrir problema com uma pergunta de cada vez; 3) perceber impacto; 4) apresentar só a solução que resolve esse problema; 5) testar interesse; 6) fechar o próximo passo. Falar de resultados práticos antes da tecnologia. Fazer perguntas e ouvir mais do que falar. Ser transparente que é IA. Nunca usar pressão enganosa, urgência falsa ou promessas de faturação.',
+  tone:'Humano, confiante, comercial e próximo. Frases curtas, ritmo natural e energia moderada. Não soar a call center nem a guião lido.'
+};
+
+const ENERGY_AGENT={
+  id:'solucoes-diferentes-energia',
+  name:'Lumin Energia',
+  company:'Soluções Diferentes',
+  voice:'commercial',
+  objective:'Transformar uma lead fria de energia numa lead quente. Seguir um funil simples: apresentação curta, diagnóstico do contrato e satisfação atual, identificação de possível margem de poupança, confirmação de interesse e fecho para receber uma comparação/proposta ou ser contactado por um consultor humano.',
+  opening:'Faço parte da equipa de consultoria energética da Soluções Diferentes. Estamos a ajudar clientes a rever contratos de eletricidade porque muitos ficam desatualizados com o tempo. Queria perceber em menos de um minuto se faz sentido comparar o seu.',
+  product:'Serviço de comparação e consultoria energética. O objetivo é analisar as condições atuais do cliente e perceber se existe alternativa com melhor preço ou condições. Não prometer poupança antes de analisar o contrato e não inventar valores, comercializadores, descontos ou condições.',
+  offer:'A comparação é apresentada como uma revisão do contrato atual. Se existir margem real, o cliente pode receber uma proposta e decidir sem pressão. O objetivo da chamada é obter autorização clara para avançar para proposta ou contacto humano; não fechar um contrato sem confirmação do cliente.',
+  objections:'Se disser "estou satisfeito": responder que é ótimo e perguntar há quanto tempo não revê o contrato, explicando que comparar não obriga a mudar. Se disser "não tenho tempo": pedir vinte segundos para fazer uma única pergunta e, se continuar sem tempo, sugerir contacto noutra altura. Se disser "já tenho bom preço": perguntar quando foi a última revisão e se conhece o preço atual da energia; não discutir. Se disser "não quero mudar": esclarecer que a chamada é primeiro para comparar, não para obrigar a mudar. Se disser "mande proposta": confirmar que quer ser contactado/receber comparação e resumir o pedido. Se pedir para não voltar a ligar, agradecer, terminar imediatamente e não insistir.',
+  notes:'FUNIL: 1) Apresenta-te sempre como Lumin, assistente virtual de inteligência artificial e consultor energético da Soluções Diferentes. 2) Usa o nome do cliente uma vez no início, se estiver disponível. 3) Não afirmes que o contrato está desatualizado sem dados; diz que pode estar e que queres verificar. 4) DIAGNÓSTICO: pergunta se está satisfeito com o fornecedor e com o valor que paga; pergunta quando reviu o contrato pela última vez; se fizer sentido pergunta se já comparou recentemente. Faz apenas uma pergunta de cada vez. 5) CRIA INTERESSE: explica em linguagem simples que pequenas diferenças de preço e condições podem justificar uma comparação. 6) FECHO: pergunta diretamente "Se eu conseguir identificar uma opção melhor, quer receber uma proposta para comparar?" Se sim, confirma: "Perfeito, então quer que um consultor humano lhe apresente a comparação e as condições, certo?" 7) Se disser sim, trata como lead quente e termina com uma confirmação curta. 8) Não digas que transferiste a chamada nem que agendaste algo se essa integração não estiver ativa. Diz apenas que ficou confirmado o interesse para contacto humano. 9) Nunca escondas que és IA, nunca inventes dados do contrato, nunca cries urgência falsa e nunca insistas depois de uma recusa clara.',
+  tone:'Comercial, muito direto, confiante e assertivo, mas respeitador. Ritmo energético, frases curtas, perguntas fechadas quando ajudam a avançar. Sem pressão enganosa.'
+};
+
+const BUILTIN_AGENTS=[ENERGY_AGENT,DEFAULT_AGENT];
+
+function getAgents(){
+  let agents=[];
+  try{const a=JSON.parse(localStorage.getItem('lumin_voice_agents')||'[]');if(Array.isArray(a))agents=a}catch(e){}
+  if(!agents.length)agents=[...BUILTIN_AGENTS];
+
+  let changed=false;
+  const allowedVoices=new Set(['natural','clear','commercial']);
+  agents=agents.map(a=>{
+    if(a.id===DEFAULT_AGENT.id && (a.builtinVersion||0)<DEFAULT_AGENT.builtinVersion){
+      changed=true;
+      return {...DEFAULT_AGENT};
+    }
+    if(!a.voice || !allowedVoices.has(a.voice)){
+      changed=true;
+      return {...a,voice:a.id==='solucoes-diferentes-energia'?'commercial':'natural'};
+    }
+    return a;
+  });
+  BUILTIN_AGENTS.forEach(b=>{
+    if(!agents.some(a=>a.id===b.id)){agents.push(b);changed=true}
+  });
+  if(changed || !localStorage.getItem('lumin_voice_agents')){
+    localStorage.setItem('lumin_voice_agents',JSON.stringify(agents));
+  }
+  return agents;
+}
+function saveAgents(a){localStorage.setItem('lumin_voice_agents',JSON.stringify(a));renderAgents();populateSelect()}
+function getHistory(){try{return JSON.parse(localStorage.getItem('lumin_voice_history')||'[]')}catch(e){return[]}}
+function saveHistory(h){localStorage.setItem('lumin_voice_history',JSON.stringify(h.slice(0,100)));renderHistory()}
+function toast(t){$('toast').textContent=t;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),2600)}
+async function login(){
+  const code=$('accessCode').value.trim();$('loginError').textContent='';$('loginBtn').disabled=true;$('loginBtn').textContent='A entrar…';
+  try{
+    const r=await fetch(API+'/api/platform/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Não foi possível entrar.');
+    token=d.token;sessionStorage.setItem('lumin_voice_session',token);$('accessCode').value='';$('loginOverlay').classList.add('hidden');
+  }catch(e){$('loginError').textContent=e.message}
+  finally{$('loginBtn').disabled=false;$('loginBtn').textContent='Entrar'}
+}
+$('loginBtn').onclick=login;$('accessCode').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+if(token)$('loginOverlay').classList.add('hidden');
+
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  const v=b.dataset.view;document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$('view-'+v).classList.add('active');
+  const map={call:['Fazer chamada','Escolhe o agente, introduz o contacto e o Lumin liga.'],agents:['Agentes de voz','Personaliza o comportamento comercial sem tocar no motor do Lumin.'],history:['Histórico','Chamadas iniciadas neste dispositivo.']};
+  $('pageTitle').textContent=map[v][0];$('pageSub').textContent=map[v][1];
+  if(v==='history')renderHistory();
+});
+
+function populateSelect(){
+  const agents=getAgents(),sel=$('callAgent'),old=sel.value;sel.innerHTML='';
+  agents.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.name+' · '+a.company;sel.appendChild(o)});
+  if(agents.some(a=>a.id===old))sel.value=old;updateSummary();
+}
+function updateSummary(){
+  const a=getAgents().find(x=>x.id===$('callAgent').value)||getAgents()[0];if(!a)return;
+  const voiceLabel={natural:'Natural',clear:'Clara',commercial:'Comercial'}[a.voice||'natural']||'Natural';
+  $('agentSummary').innerHTML='<b>'+esc(a.name)+'</b> <span class="badge">'+esc(a.company)+'</span> <span class="badge">Voz '+esc(voiceLabel)+'</span><div style="color:#8d8982;font-size:12px;margin-top:7px">'+esc(a.objective)+'</div>';
+}
+$('callAgent').onchange=updateSummary;
+
+function renderAgents(){
+  const root=$('agentList'),agents=getAgents();root.innerHTML='';
+  agents.forEach(a=>{
+    const row=document.createElement('div');row.className='agentRow';
+    row.innerHTML='<div class="agentInfo"><div class="avatar">LI</div><div class="agentText"><b>'+esc(a.name)+'</b><span>'+esc(a.company)+' · '+esc(a.objective)+'</span></div></div><div class="rowBtns"><button class="iconBtn edit">Editar</button><button class="iconBtn dup">Duplicar</button></div>';
+    row.querySelector('.edit').onclick=()=>editAgent(a.id);row.querySelector('.dup').onclick=()=>duplicateAgent(a.id);root.appendChild(row);
+  });
+}
+function editAgent(id){
+  const a=getAgents().find(x=>x.id===id);if(!a)return;
+  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;$('agentVoice').value=a.voice||'natural';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('editorTitle').textContent='Editar '+a.name;
+}
+function clearEditor(){
+  ['agentId','agentName','agentCompany','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('editorTitle').textContent='Novo agente';
+}
+function duplicateAgent(id){const a=getAgents().find(x=>x.id===id);if(!a)return;const n={...a,id:'agent-'+Date.now(),name:a.name+' cópia'};const all=getAgents();all.unshift(n);saveAgents(all);toast('Agente duplicado')}
+$('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
+$('agentForm').onsubmit=e=>{
+  e.preventDefault();const id=$('agentId').value||('agent-'+Date.now());
+  const a={id,name:$('agentName').value.trim()||'Novo Agente',company:$('agentCompany').value.trim()||'Minha Empresa',voice:$('agentVoice').value||'natural',objective:$('agentObjective').value.trim()||'Conversar e qualificar o contacto',opening:$('agentOpening').value.trim(),product:$('agentProduct').value.trim(),offer:$('agentOffer').value.trim(),objections:$('agentObjections').value.trim(),notes:$('agentNotes').value.trim(),tone:$('agentTone').value.trim()||'Natural, profissional e direto'};
+  const all=getAgents(),i=all.findIndex(x=>x.id===id);if(i>=0)all[i]=a;else all.unshift(a);saveAgents(all);$('callAgent').value=id;updateSummary();clearEditor();toast('Agente guardado');
+};
+
+async function makeCall(){
+  if(!token){$('loginOverlay').classList.remove('hidden');return}
+  const phone=$('callPhone').value.trim().replace(/[\s-]/g,''),name=$('callName').value.trim()||'Cliente',agent=getAgents().find(x=>x.id===$('callAgent').value);
+  if(!/^\+[1-9]\d{7,14}$/.test(phone)){toast('Usa o formato +3519XXXXXXXX');return}
+  $('callBtn').disabled=true;$('callBtn').textContent='A iniciar…';setState('A preparar chamada…','',0);
+  try{
+    const wireAgent={...agent,tone:'[VOICE:'+(agent?.voice||'natural')+'] '+(agent?.tone||'Natural, profissional e direto')};
+    const r=await fetch(API+'/api/platform/call',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({phone,name,agent:wireAgent})});
+    const d=await r.json();
+    if(r.status===401){token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');throw new Error('Sessão expirada. Entra novamente.')}
+    if(!r.ok)throw new Error(d.detail||'Falha ao iniciar chamada');
+    const item={callId:d.callId,phone,name,agentName:agent?.name||'Lumin',status:d.status,createdAt:Date.now()};const h=getHistory();h.unshift(item);saveHistory(h);
+    pollCall(d.callId,item);
+  }catch(e){setState(e.message,'bad',0);$('callBtn').disabled=false;$('callBtn').textContent='📞 CHAMAR AGORA'}
+}
+$('callBtn').onclick=makeCall;
+
+function setState(text,cls='',step=0){
+  $('callState').textContent=text;$('callState').className='callState '+cls;
+  [...$('callProgress').children].forEach((x,i)=>x.classList.toggle('on',i<step));
+  $('callHeadline').textContent=step>=4?'Chamada ligada':step>=3?'Cliente atendeu':step>=2?'A chamar…':step>=1?'A preparar…':'Pronto para ligar';
+}
+function pollCall(callId,histItem){
+  clearInterval(pollTimer);
+  const run=async()=>{
+    try{
+      const r=await fetch(API+'/api/platform/call/'+callId,{headers:{'Authorization':'Bearer '+token}});const d=await r.json();
+      if(!r.ok)throw new Error(d.detail||'Erro de estado');
+      const map={queued:['Na fila…','',1],preparing:['A preparar a ligação…','',1],ringing:['Telefone a tocar…','',2],answered:['Cliente atendeu. A ligar o agente…','good',3],connected:['Lumin ligado à chamada.','good',4],failed:[d.error||'Chamada falhou.','bad',0]};
+      const s=map[d.status]||[d.status,'',1];setState(...s);
+      const h=getHistory(),i=h.findIndex(x=>x.callId===callId);if(i>=0){h[i].status=d.status;h[i].error=d.error||'';saveHistory(h)}
+      if(['connected','failed'].includes(d.status)){clearInterval(pollTimer);$('callBtn').disabled=false;$('callBtn').textContent='📞 NOVA CHAMADA'}
+    }catch(e){clearInterval(pollTimer);setState(e.message,'bad',0);$('callBtn').disabled=false;$('callBtn').textContent='📞 TENTAR NOVAMENTE'}
+  };
+  run();pollTimer=setInterval(run,1200);
+}
+function renderHistory(){
+  const root=$('historyList'),h=getHistory();root.innerHTML='';
+  if(!h.length){root.innerHTML='<div class="empty">Ainda não existem chamadas neste dispositivo.</div>';return}
+  h.forEach(x=>{const el=document.createElement('div');el.className='hist';const dt=new Date(x.createdAt);el.innerHTML='<div><b>'+esc(x.name)+' · '+esc(x.phone)+'</b><small>'+esc(x.agentName)+' · '+dt.toLocaleString('pt-PT')+(x.error?' · '+esc(x.error):'')+'</small></div><span class="status '+esc(x.status)+'">'+esc(x.status)+'</span>';root.appendChild(el)})
+}
+$('clearHistory').onclick=()=>{localStorage.removeItem('lumin_voice_history');renderHistory()};
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+renderAgents();populateSelect();renderHistory();clearEditor();
+})();
+</script>
+</body>
+</html>
