@@ -138,6 +138,63 @@ const API='/api/voice-gateway';
 const $=id=>document.getElementById(id);
 let token=sessionStorage.getItem('lumin_voice_session')||'';
 let pollTimer=null;
+let cloudEnabled=false;
+let cloudReady=false;
+let cloudSyncTimer=null;
+
+function queueCloudSync(){
+  if(!cloudEnabled||!cloudReady)return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(async()=>{
+    try{
+      const agents=JSON.parse(localStorage.getItem('lumin_voice_agents')||'[]');
+      const history=JSON.parse(localStorage.getItem('lumin_voice_history')||'[]');
+      await fetch('/api/voice-workspace',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({agents,history}),
+        credentials:'same-origin'
+      });
+    }catch(e){console.warn('LUMIN voice cloud sync failed',e)}
+  },350);
+}
+
+async function hydrateCloudState(){
+  try{
+    const r=await fetch('/api/voice-workspace',{cache:'no-store',credentials:'same-origin'});
+    if(r.status===401)return;
+    if(!r.ok)throw new Error('cloud unavailable');
+    const d=await r.json();
+    cloudEnabled=true;
+
+    const localAgents=getAgents();
+    const localHistory=getHistory();
+
+    if(d.exists){
+      if(Array.isArray(d.agents)&&d.agents.length){
+        localStorage.setItem('lumin_voice_agents',JSON.stringify(d.agents));
+      }
+      if(Array.isArray(d.history)){
+        localStorage.setItem('lumin_voice_history',JSON.stringify(d.history.slice(0,100)));
+      }
+    }else{
+      await fetch('/api/voice-workspace',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({agents:localAgents,history:localHistory}),
+        credentials:'same-origin'
+      });
+    }
+
+    cloudReady=true;
+    renderAgents();populateSelect();renderHistory();
+    const pill=document.querySelector('.pill');
+    if(pill)pill.innerHTML='<i class="dot"></i> Conta sincronizada';
+  }catch(e){
+    cloudReady=true;
+    console.warn('LUMIN voice cloud hydrate failed',e);
+  }
+}
 
 const DEFAULT_AGENT={
   id:'lumin-comercial',name:'Lumin Comercial',company:'LUMIN AI',voice:'commercial',builtinVersion:3,
@@ -192,9 +249,9 @@ function getAgents(){
   }
   return agents;
 }
-function saveAgents(a){localStorage.setItem('lumin_voice_agents',JSON.stringify(a));renderAgents();populateSelect()}
+function saveAgents(a){localStorage.setItem('lumin_voice_agents',JSON.stringify(a));renderAgents();populateSelect();queueCloudSync()}
 function getHistory(){try{return JSON.parse(localStorage.getItem('lumin_voice_history')||'[]')}catch(e){return[]}}
-function saveHistory(h){localStorage.setItem('lumin_voice_history',JSON.stringify(h.slice(0,100)));renderHistory()}
+function saveHistory(h){localStorage.setItem('lumin_voice_history',JSON.stringify(h.slice(0,100)));renderHistory();queueCloudSync()}
 function toast(t){$('toast').textContent=t;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),2600)}
 async function login(){
   const code=$('accessCode').value.trim();$('loginError').textContent='';$('loginBtn').disabled=true;$('loginBtn').textContent='A entrar…';
@@ -292,10 +349,10 @@ function renderHistory(){
   if(!h.length){root.innerHTML='<div class="empty">Ainda não existem chamadas neste dispositivo.</div>';return}
   h.forEach(x=>{const el=document.createElement('div');el.className='hist';const dt=new Date(x.createdAt);el.innerHTML='<div><b>'+esc(x.name)+' · '+esc(x.phone)+'</b><small>'+esc(x.agentName)+' · '+dt.toLocaleString('pt-PT')+(x.error?' · '+esc(x.error):'')+'</small></div><span class="status '+esc(x.status)+'">'+esc(x.status)+'</span>';root.appendChild(el)})
 }
-$('clearHistory').onclick=()=>{localStorage.removeItem('lumin_voice_history');renderHistory()};
+$('clearHistory').onclick=()=>{saveHistory([])};
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
-renderAgents();populateSelect();renderHistory();clearEditor();
+renderAgents();populateSelect();renderHistory();clearEditor();hydrateCloudState();
 })();
 </script>
 </body>
