@@ -11,7 +11,7 @@ export type OAuthProviderSetting = {
   updated_at: string
 }
 
-const PROVIDERS = ["google","github","meta","canva","figma","netlify"] as const
+const OAUTH_PROVIDERS = ["google","github","meta","canva","figma","netlify"] as const\nconst STORED_PROVIDERS = [...OAUTH_PROVIDERS, "twilio"] as const
 
 const ENV_MAP: Record<string, { clientId: string[]; clientSecret: string[] }> = {
   google: {
@@ -76,7 +76,7 @@ async function request(path: string, init?: RequestInit) {
 }
 
 function validProvider(provider: string) {
-  return (PROVIDERS as readonly string[]).includes(provider)
+  return (STORED_PROVIDERS as readonly string[]).includes(provider)
 }
 
 export async function getOAuthProviderSetting(provider: string): Promise<OAuthProviderSetting | null> {
@@ -130,7 +130,7 @@ function preview(value: string) {
 }
 
 export async function listOAuthProviderStatuses(origin?: string) {
-  return Promise.all(PROVIDERS.map(async (provider) => {
+  return Promise.all(OAUTH_PROVIDERS.map(async (provider) => {
     const creds = await resolveOAuthAppCredentials(provider)
     const row = await getOAuthProviderSetting(provider).catch(() => null)
     return {
