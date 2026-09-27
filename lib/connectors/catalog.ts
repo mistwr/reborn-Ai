@@ -16,7 +16,7 @@ export const LUMIN_CONNECTOR_CATALOG: LuminConnectorDefinition[] = [
   { id:"drive", name:"Google Drive", category:"Produtividade", description:"Pesquisa ficheiros e documentos da conta Google", mode:"oauth", authProvider:"google", capabilities:["read","search"], enabledNow:true },
   { id:"instagram", name:"Instagram", category:"Redes sociais", description:"Liga Instagram profissional através da Meta", mode:"oauth", authProvider:"meta", capabilities:["analytics","read"], enabledNow:true },
   { id:"facebook", name:"Facebook", category:"Redes sociais", description:"Liga Páginas Facebook através da Meta", mode:"oauth", authProvider:"meta", capabilities:["analytics","read"], enabledNow:true },
-  { id:"whatsapp", name:"WhatsApp", category:"Comunicação", description:"WhatsApp Business via Meta; requer permissões adicionais da app", mode:"oauth", authProvider:"meta", capabilities:["read","send"], enabledNow:true },
+  { id:"whatsapp", name:"WhatsApp", category:"Comunicação", description:"Liga WhatsApp Business Cloud API com token e Phone Number ID", mode:"credentials", capabilities:["read","send"], enabledNow:true },
   { id:"metricool", name:"Metricool", category:"Marketing", description:"Liga com token API Metricool", mode:"credentials", capabilities:["analytics","schedule","publish"], enabledNow:true },
   { id:"canva", name:"Canva", category:"Criação", description:"Liga designs e assets do Canva", mode:"oauth", authProvider:"canva", capabilities:["read","create","export"], enabledNow:true },
   { id:"github", name:"GitHub", category:"Desenvolvimento", description:"Liga o perfil e repositórios GitHub", mode:"oauth", authProvider:"github", capabilities:["read"], enabledNow:true },
