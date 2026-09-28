@@ -61,6 +61,24 @@ export async function listConnections(scope: ConnectorScope): Promise<ConnectorR
   return Array.isArray(rows) ? rows : []
 }
 
+
+export async function getConnectedTwilioByAccountSid(accountSid: string): Promise<ConnectorRow | null> {
+  const normalized = String(accountSid || "").trim()
+  if (!/^AC[0-9a-fA-F]{32}$/.test(normalized)) return null
+  const rows = await request(
+    "lumin_connector_connections?provider=eq.twilio&status=eq.connected&select=*&order=updated_at.desc&limit=50",
+  )
+  if (!Array.isArray(rows)) return null
+  return rows.find((row: ConnectorRow) => String(row?.config?.accountSid || "").trim() === normalized) || null
+}
+
+export async function getLatestConnectedTwilio(): Promise<ConnectorRow | null> {
+  const rows = await request(
+    "lumin_connector_connections?provider=eq.twilio&status=eq.connected&select=*&order=updated_at.desc&limit=1",
+  )
+  return Array.isArray(rows) ? rows[0] || null : null
+}
+
 export async function getConnection(scope: ConnectorScope, provider: string): Promise<ConnectorRow | null> {
   const rows = await request(
     `lumin_connector_connections?scope_type=eq.${scope.type}&scope_id=eq.${encodeURIComponent(scope.id)}&provider=eq.${encodeURIComponent(provider)}&select=*&limit=1`,
