@@ -28,7 +28,7 @@ button{cursor:pointer}
 .pill{display:inline-flex;align-items:center;gap:7px;border:1px solid #2a2a2a;background:#0d0d0d;border-radius:999px;padding:8px 11px;font-size:11px;color:#aaa}.dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 12px rgba(85,216,137,.5)}
 .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:20px}.card{background:linear-gradient(180deg,#0d0d0d,#090909);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 22px 70px rgba(0,0,0,.22)}
 .card h2{font-size:18px;margin:0 0 4px}.card p.desc{color:var(--muted);font-size:12px;margin:0 0 18px}
-.agentList{display:grid;gap:10px}.agentRow{border:1px solid #24211c;border-radius:16px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0b0b0b}.agentInfo{display:flex;align-items:center;gap:12px;min-width:0}.avatar{width:44px;height:44px;border-radius:14px;background:radial-gradient(circle,#4a3210,#100c05 65%);border:1px solid #6d5428;display:grid;place-items:center;color:var(--gold2);font-weight:900}.agentText{min-width:0}.agentText b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.agentText span{font-size:11px;color:var(--muted)}.rowBtns{display:flex;gap:7px}.iconBtn{border:1px solid #2a2a2a;background:#121212;color:#bbb;border-radius:10px;padding:9px 10px}
+.agentList{display:grid;gap:10px}.agentRow{border:1px solid #24211c;border-radius:16px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0b0b0b}.agentInfo{display:flex;align-items:center;gap:12px;min-width:0}.avatar{width:44px;height:44px;border-radius:14px;background:radial-gradient(circle,#4a3210,#100c05 65%);border:1px solid #6d5428;display:grid;place-items:center;color:var(--gold2);font-weight:900;overflow:hidden}.avatar img{width:100%;height:100%;object-fit:cover}.assetBox{border:1px dashed #393127;border-radius:14px;padding:12px;background:#090807}.assetRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.assetPreview{width:64px;height:64px;border-radius:16px;border:1px solid #42351f;background:#0d0b07;display:grid;place-items:center;overflow:hidden;color:var(--gold2);font-weight:900}.assetPreview img{width:100%;height:100%;object-fit:cover}.assetStatus{font-size:11px;color:var(--muted)}.miniBtn{border:1px solid #332d24;background:#14110d;color:#ddd;border-radius:10px;padding:9px 11px;font-weight:800}.consent{display:flex;gap:8px;align-items:flex-start;color:#aaa;font-size:11px;line-height:1.45}.consent input{width:auto!important;margin-top:2px}.agentText{min-width:0}.agentText b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.agentText span{font-size:11px;color:var(--muted)}.rowBtns{display:flex;gap:7px}.iconBtn{border:1px solid #2a2a2a;background:#121212;color:#bbb;border-radius:10px;padding:9px 10px}
 .primary,.secondary,.danger{border-radius:12px;padding:12px 15px;font-weight:900;border:0}.primary{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#191108}.secondary{background:#161616;color:#eee;border:1px solid #2b2b2b}.danger{background:#351010;color:#ffcccc;border:1px solid #6d1b1b}
 .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:7px}.field.full{grid-column:1/-1}.field label{font-size:11px;color:#9c978f;font-weight:800}.field input,.field textarea,.field select{width:100%;background:#080808;border:1px solid #28251f;color:#fff;border-radius:12px;padding:12px;outline:none}.field textarea{min-height:84px;resize:vertical}.field input:focus,.field textarea:focus,.field select:focus{border-color:#71592d;box-shadow:0 0 0 3px rgba(231,185,95,.07)}
 .callHero{padding:24px;border-radius:20px;background:radial-gradient(500px 260px at 50% 0%,rgba(231,185,95,.12),transparent 65%),#090909;border:1px solid #2a2419;text-align:center}.phoneCircle{width:90px;height:90px;border-radius:50%;margin:8px auto 18px;display:grid;place-items:center;background:radial-gradient(circle,#3d2a0c,#090704 65%);border:1px solid #7b5b27;box-shadow:0 0 50px rgba(231,185,95,.12);font-size:30px}.callState{font-size:13px;color:var(--muted);min-height:20px}.callState.good{color:var(--green)}.callState.bad{color:#ff9c9c}.callBtn{width:100%;margin-top:14px;min-height:52px}
@@ -108,7 +108,13 @@ button{cursor:pointer}
             <input id="agentId" type="hidden">
             <div class="field"><label>NOME DO AGENTE</label><input id="agentName" placeholder="Lumin Comercial"></div>
             <div class="field"><label>EMPRESA / MARCA</label><input id="agentCompany" placeholder="LUMIN AI"></div>
-            <div class="field"><label>VOZ / RITMO</label><select id="agentVoice"><option value="natural">Lumin Natural · PT-PT local</option><option value="clear">Lumin Clara · PT-PT mais pausada</option><option value="commercial">Lumin Comercial · PT-PT mais energética</option></select></div>
+            <div class="field"><label>VOZ</label><select id="agentVoice"><option value="natural">Lumin PT · Natural · Piper local</option><option value="clear">Lumin PT · Clara · Piper local</option><option value="commercial">Lumin PT · Comercial · Piper local</option><option value="neural">Lumin PT · Neural · Chatterbox open-source</option><option value="custom">A minha voz · clonagem Chatterbox</option></select></div>
+            <div class="field"><label>AVATAR</label><input id="agentAvatarFile" type="file" accept="image/jpeg,image/png,image/webp"></div>
+            <input id="agentAvatarPath" type="hidden">
+            <input id="agentVoiceAssetPath" type="hidden">
+            <div class="field full"><label>AVATAR DO AGENTE</label><div class="assetBox"><div class="assetRow"><div id="agentAvatarPreview" class="assetPreview">AI</div><div><button type="button" id="uploadAvatarBtn" class="miniBtn">Carregar fotografia</button><div id="avatarStatus" class="assetStatus">JPG, PNG ou WebP · até 4 MB</div></div></div></div></div>
+            <div class="field full"><label>DESCRIÇÃO / PERSONALIDADE</label><textarea id="agentDescription" placeholder="Ex.: Assistente comercial direto, simpático, faz uma pergunta de cada vez e procura perceber a necessidade antes de apresentar a solução."></textarea></div>
+            <div id="customVoiceBox" class="field full hidden"><label>MINHA VOZ</label><div class="assetBox"><div class="assetRow"><input id="agentVoiceFile" type="file" accept="audio/*,video/webm" style="max-width:280px"><button type="button" id="recordVoiceBtn" class="miniBtn">🎙️ Gravar amostra</button><button type="button" id="uploadVoiceBtn" class="miniBtn">Carregar áudio</button></div><div id="voiceStatus" class="assetStatus" style="margin-top:8px">Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.</div><audio id="voicePreview" controls class="hidden" style="width:100%;margin-top:10px"></audio><label class="consent" style="margin-top:10px"><input id="voiceConsent" type="checkbox"><span>Confirmo que esta voz é minha ou que tenho autorização explícita para a utilizar e clonar neste agente.</span></label></div></div>
             <div class="field full"><label>OBJETIVO</label><input id="agentObjective" placeholder="Qualificar lead e apresentar a solução"></div>
             <div class="field full"><label>ABERTURA</label><textarea id="agentOpening" placeholder="Ex.: estou a ligar porque pediu informações..."></textarea></div>
             <div class="field full"><label>PRODUTO / SERVIÇO</label><textarea id="agentProduct" placeholder="O que vende, para quem e principais vantagens"></textarea></div>
@@ -223,13 +229,114 @@ const ENERGY_AGENT={
 
 const BUILTIN_AGENTS=[ENERGY_AGENT,DEFAULT_AGENT];
 
+const VOICE_LABELS={
+  natural:'Lumin PT Natural · Piper local',
+  clear:'Lumin PT Clara · Piper local',
+  commercial:'Lumin PT Comercial · Piper local',
+  neural:'Lumin PT Neural · Chatterbox',
+  custom:'Minha voz · Chatterbox'
+};
+
+function voiceEngineFor(voice){
+  return voice==='neural'||voice==='custom'?'chatterbox':'piper';
+}
+function voiceSourceFor(voice){
+  return voice==='custom'?'custom':'system';
+}
+
+async function signAsset(path){
+  if(!path)return '';
+  const r=await fetch('/api/voice-assets?path='+encodeURIComponent(path),{cache:'no-store',credentials:'same-origin'});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'Não foi possível abrir o ficheiro.');
+  return d.signedUrl||'';
+}
+
+async function uploadAgentAsset(file,kind){
+  const form=new FormData();
+  form.append('file',file);
+  form.append('kind',kind);
+  const r=await fetch('/api/voice-assets',{method:'POST',body:form,credentials:'same-origin'});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401)throw new Error('Inicia sessão no Lumin para guardar avatar e voz.');
+  if(!r.ok)throw new Error(d.error||'Falha ao guardar ficheiro.');
+  return d;
+}
+
+function setAvatarPreview(url){
+  const box=$('agentAvatarPreview');
+  box.innerHTML=url?'<img src="'+esc(url)+'" alt="Avatar">':'AI';
+}
+
+function updateVoiceEditor(){
+  const custom=$('agentVoice').value==='custom';
+  $('customVoiceBox').classList.toggle('hidden',!custom);
+}
+
+$('agentVoice').addEventListener('change',updateVoiceEditor);
+
+$('uploadAvatarBtn').onclick=async()=>{
+  const file=$('agentAvatarFile').files?.[0];
+  if(!file){$('agentAvatarFile').click();return}
+  $('avatarStatus').textContent='A guardar fotografia…';
+  try{
+    const d=await uploadAgentAsset(file,'avatar');
+    $('agentAvatarPath').value=d.path;
+    setAvatarPreview(d.signedUrl);
+    $('avatarStatus').textContent='Avatar guardado.';
+  }catch(e){$('avatarStatus').textContent=e.message}
+};
+$('agentAvatarFile').addEventListener('change',()=>{if($('agentAvatarFile').files?.[0])$('uploadAvatarBtn').click()});
+
+$('uploadVoiceBtn').onclick=async()=>{
+  const file=$('agentVoiceFile').files?.[0];
+  if(!file){$('agentVoiceFile').click();return}
+  $('voiceStatus').textContent='A guardar amostra de voz…';
+  try{
+    const d=await uploadAgentAsset(file,'voice');
+    $('agentVoiceAssetPath').value=d.path;
+    $('voicePreview').src=d.signedUrl;
+    $('voicePreview').classList.remove('hidden');
+    $('voiceStatus').textContent='Amostra guardada. Esta voz fica associada ao agente.';
+  }catch(e){$('voiceStatus').textContent=e.message}
+};
+$('agentVoiceFile').addEventListener('change',()=>{if($('agentVoiceFile').files?.[0])$('uploadVoiceBtn').click()});
+
+let voiceRecorder=null,voiceChunks=[];
+$('recordVoiceBtn').onclick=async()=>{
+  if(voiceRecorder&&voiceRecorder.state==='recording'){voiceRecorder.stop();return}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    voiceChunks=[];
+    voiceRecorder=new MediaRecorder(stream);
+    voiceRecorder.ondataavailable=e=>{if(e.data?.size)voiceChunks.push(e.data)};
+    voiceRecorder.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      $('recordVoiceBtn').textContent='🎙️ Gravar amostra';
+      const blob=new Blob(voiceChunks,{type:voiceRecorder.mimeType||'audio/webm'});
+      const file=new File([blob],'minha-voz.webm',{type:blob.type||'audio/webm'});
+      $('voiceStatus').textContent='A guardar gravação…';
+      try{
+        const d=await uploadAgentAsset(file,'voice');
+        $('agentVoiceAssetPath').value=d.path;
+        $('voicePreview').src=d.signedUrl;
+        $('voicePreview').classList.remove('hidden');
+        $('voiceStatus').textContent='Gravação guardada. Já pode ser usada na clonagem.';
+      }catch(e){$('voiceStatus').textContent=e.message}
+    };
+    voiceRecorder.start();
+    $('recordVoiceBtn').textContent='■ Parar gravação';
+    $('voiceStatus').textContent='A gravar… fala naturalmente durante 10–30 segundos.';
+  }catch(e){$('voiceStatus').textContent='Não foi possível aceder ao microfone.'}
+};
+
 function getAgents(){
   let agents=[];
   try{const a=JSON.parse(localStorage.getItem('lumin_voice_agents')||'[]');if(Array.isArray(a))agents=a}catch(e){}
   if(!agents.length)agents=[...BUILTIN_AGENTS];
 
   let changed=false;
-  const allowedVoices=new Set(['natural','clear','commercial']);
+  const allowedVoices=new Set(['natural','clear','commercial','neural','custom']);
   agents=agents.map(a=>{
     if(a.id===DEFAULT_AGENT.id && (a.builtinVersion||0)<DEFAULT_AGENT.builtinVersion){
       changed=true;
@@ -237,7 +344,7 @@ function getAgents(){
     }
     if(!a.voice || !allowedVoices.has(a.voice)){
       changed=true;
-      return {...a,voice:a.id==='solucoes-diferentes-energia'?'commercial':'natural'};
+      return {...a,voice:a.id==='solucoes-diferentes-energia'?'commercial':'natural',voiceEngine:'piper',voiceSource:'system'};
     }
     return a;
   });
@@ -247,6 +354,14 @@ function getAgents(){
   if(changed || !localStorage.getItem('lumin_voice_agents')){
     localStorage.setItem('lumin_voice_agents',JSON.stringify(agents));
   }
+  agents=agents.map(a=>({
+    ...a,
+    voiceEngine:a.voiceEngine||voiceEngineFor(a.voice||'natural'),
+    voiceSource:a.voiceSource||voiceSourceFor(a.voice||'natural'),
+    description:a.description||'',
+    avatarPath:a.avatarPath||'',
+    voiceAssetPath:a.voiceAssetPath||''
+  }));
   return agents;
 }
 function saveAgents(a){localStorage.setItem('lumin_voice_agents',JSON.stringify(a));renderAgents();populateSelect();queueCloudSync()}
@@ -280,8 +395,8 @@ function populateSelect(){
 }
 function updateSummary(){
   const a=getAgents().find(x=>x.id===$('callAgent').value)||getAgents()[0];if(!a)return;
-  const voiceLabel={natural:'Natural',clear:'Clara',commercial:'Comercial'}[a.voice||'natural']||'Natural';
-  $('agentSummary').innerHTML='<b>'+esc(a.name)+'</b> <span class="badge">'+esc(a.company)+'</span> <span class="badge">Voz '+esc(voiceLabel)+'</span><div style="color:#8d8982;font-size:12px;margin-top:7px">'+esc(a.objective)+'</div>';
+  const voiceLabel=VOICE_LABELS[a.voice||'natural']||VOICE_LABELS.natural;
+  $('agentSummary').innerHTML='<b>'+esc(a.name)+'</b> <span class="badge">'+esc(a.company)+'</span> <span class="badge">'+esc(voiceLabel)+'</span><div style="color:#8d8982;font-size:12px;margin-top:7px">'+esc(a.objective)+'</div>';
 }
 $('callAgent').onchange=updateSummary;
 
@@ -289,22 +404,32 @@ function renderAgents(){
   const root=$('agentList'),agents=getAgents();root.innerHTML='';
   agents.forEach(a=>{
     const row=document.createElement('div');row.className='agentRow';
-    row.innerHTML='<div class="agentInfo"><div class="avatar">LI</div><div class="agentText"><b>'+esc(a.name)+'</b><span>'+esc(a.company)+' · '+esc(a.objective)+'</span></div></div><div class="rowBtns"><button class="iconBtn edit">Editar</button><button class="iconBtn dup">Duplicar</button></div>';
+    row.innerHTML='<div class="agentInfo"><div class="avatar" data-avatar-path="'+esc(a.avatarPath||'')+'">AI</div><div class="agentText"><b>'+esc(a.name)+'</b><span>'+esc(a.company)+' · '+esc(a.description||a.objective)+'</span></div></div><div class="rowBtns"><button class="iconBtn edit">Editar</button><button class="iconBtn dup">Duplicar</button></div>';
     row.querySelector('.edit').onclick=()=>editAgent(a.id);row.querySelector('.dup').onclick=()=>duplicateAgent(a.id);root.appendChild(row);
+    if(a.avatarPath){
+      signAsset(a.avatarPath).then(url=>{const av=row.querySelector('.avatar');if(url&&av)av.innerHTML='<img src="'+esc(url)+'" alt="">'}).catch(()=>{});
+    }
   });
 }
-function editAgent(id){
+async function editAgent(id){
   const a=getAgents().find(x=>x.id===id);if(!a)return;
-  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;$('agentVoice').value=a.voice||'natural';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('editorTitle').textContent='Editar '+a.name;
+  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;$('agentVoice').value=a.voice||'natural';$('agentDescription').value=a.description||'';$('agentAvatarPath').value=a.avatarPath||'';$('agentVoiceAssetPath').value=a.voiceAssetPath||'';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('voiceConsent').checked=Boolean(a.voiceCloneConsent);$('editorTitle').textContent='Editar '+a.name;updateVoiceEditor();
+  setAvatarPreview('');
+  $('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');
+  if(a.avatarPath)signAsset(a.avatarPath).then(setAvatarPreview).catch(()=>{});
+  if(a.voiceAssetPath)signAsset(a.voiceAssetPath).then(url=>{if(url){$('voicePreview').src=url;$('voicePreview').classList.remove('hidden');$('voiceStatus').textContent='Amostra de voz guardada.'}}).catch(()=>{});
 }
 function clearEditor(){
-  ['agentId','agentName','agentCompany','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('editorTitle').textContent='Novo agente';
+  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';updateVoiceEditor();$('editorTitle').textContent='Novo agente';
 }
 function duplicateAgent(id){const a=getAgents().find(x=>x.id===id);if(!a)return;const n={...a,id:'agent-'+Date.now(),name:a.name+' cópia'};const all=getAgents();all.unshift(n);saveAgents(all);toast('Agente duplicado')}
 $('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
 $('agentForm').onsubmit=e=>{
   e.preventDefault();const id=$('agentId').value||('agent-'+Date.now());
-  const a={id,name:$('agentName').value.trim()||'Novo Agente',company:$('agentCompany').value.trim()||'Minha Empresa',voice:$('agentVoice').value||'natural',objective:$('agentObjective').value.trim()||'Conversar e qualificar o contacto',opening:$('agentOpening').value.trim(),product:$('agentProduct').value.trim(),offer:$('agentOffer').value.trim(),objections:$('agentObjections').value.trim(),notes:$('agentNotes').value.trim(),tone:$('agentTone').value.trim()||'Natural, profissional e direto'};
+  const voice=$('agentVoice').value||'natural';
+  if(voice==='custom'&&!$('agentVoiceAssetPath').value){toast('Grava ou carrega uma amostra da tua voz.');return}
+  if(voice==='custom'&&!$('voiceConsent').checked){toast('Confirma que tens autorização para usar essa voz.');return}
+  const a={id,name:$('agentName').value.trim()||'Novo Agente',company:$('agentCompany').value.trim()||'Minha Empresa',description:$('agentDescription').value.trim(),avatarPath:$('agentAvatarPath').value.trim(),voice,voiceEngine:voiceEngineFor(voice),voiceSource:voiceSourceFor(voice),voiceAssetPath:$('agentVoiceAssetPath').value.trim(),voiceCloneConsent:voice==='custom'?Boolean($('voiceConsent').checked):false,objective:$('agentObjective').value.trim()||'Conversar e qualificar o contacto',opening:$('agentOpening').value.trim(),product:$('agentProduct').value.trim(),offer:$('agentOffer').value.trim(),objections:$('agentObjections').value.trim(),notes:$('agentNotes').value.trim(),tone:$('agentTone').value.trim()||'Natural, profissional e direto'};
   const all=getAgents(),i=all.findIndex(x=>x.id===id);if(i>=0)all[i]=a;else all.unshift(a);saveAgents(all);$('callAgent').value=id;updateSummary();clearEditor();toast('Agente guardado');
 };
 
@@ -315,6 +440,9 @@ async function makeCall(){
   $('callBtn').disabled=true;$('callBtn').textContent='A iniciar…';setState('A preparar chamada…','',0);
   try{
     const wireAgent={...agent,tone:'[VOICE:'+(agent?.voice||'natural')+'] '+(agent?.tone||'Natural, profissional e direto')};
+    if(agent?.voice==='custom'&&agent?.voiceAssetPath){
+      try{wireAgent.voiceSampleUrl=await signAsset(agent.voiceAssetPath)}catch(e){throw new Error('Não consegui preparar a amostra da voz. Inicia sessão no Lumin e tenta novamente.')}
+    }
     const r=await fetch(API+'/api/platform/call',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({phone,name,agent:wireAgent})});
     const d=await r.json();
     if(r.status===401){token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');throw new Error('Sessão expirada. Entra novamente.')}
