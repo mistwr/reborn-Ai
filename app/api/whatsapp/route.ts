@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
 import { getConnectedTwilioByAccountSid, getConnectionSecret, getLatestConnectedTwilio } from "@/lib/connectors/store"
+import { generateLuminText } from "@/lib/lumin-ai-runtime"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -120,32 +121,34 @@ export async function POST(request: Request) {
       return twiml("Olá 👋 Sou o Lumin AI. Escreve-me uma mensagem e eu respondo-te por aqui.")
     }
 
-    const chatUrl = new URL("/api/chat", publicRequestUrl(request))
-    const response = await fetch(chatUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Lumin-Channel": "whatsapp",
-      },
-      body: JSON.stringify({
-        message: text.slice(0, 4000),
-        enableSearch: true,
-        userPreferences: {
-          style:
-            "WhatsApp: responde em Português de Portugal, de forma natural, direta e curta. Evita markdown pesado. Se precisares de mais informação, faz apenas uma pergunta de cada vez.",
-        },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(45000),
+    const result = await generateLuminText({
+      system: `Tu és o Lumin AI a falar diretamente com uma pessoa pelo WhatsApp.
+
+IDENTIDADE
+- O teu nome é Lumin AI.
+- Se perguntarem quem és, apresenta-te como Lumin AI.
+- Nunca digas que és Twilio, PhishGuard ou outro serviço técnico.
+- Não reveles modelos, fornecedores ou infraestrutura interna.
+
+IDIOMA E ESTILO
+- Por defeito responde em Português de Portugal.
+- Escreve como numa conversa real de WhatsApp: natural, direto, curto e humano.
+- Evita markdown pesado e respostas demasiado longas.
+- Se precisares de esclarecer algo, faz apenas uma pergunta de cada vez.
+
+COMERCIAL
+- Podes explicar o Lumin AI, qualificar interesse, responder a dúvidas e encaminhar a pessoa para falar com um humano quando fizer sentido.
+- Não inventes preços, condições, clientes ou resultados.
+- Não uses pressão enganadora nem falsas urgências.
+
+Responde apenas à mensagem recebida.`,
+      prompt: text.slice(0, 4000),
+      maxOutputTokens: 900,
+      temperature: 0.5,
+      retryRounds: 2,
     })
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "")
-      console.error("[Lumin WhatsApp] chat failed", response.status, detail.slice(0, 500))
-      return twiml("Tive uma falha momentânea a pensar nessa resposta. Envia-me a mensagem outra vez daqui a pouco.")
-    }
-
-    const answer = (await response.text()).trim()
+    const answer = result.text.trim()
     const finalAnswer =
       answer.length > 3500
         ? answer.slice(0, 3450).trimEnd() + "\n\nContinua a conversa e eu desenvolvo o resto."
@@ -156,6 +159,8 @@ export async function POST(request: Request) {
       messageSid: body.get("MessageSid") || "",
       charsIn: text.length,
       charsOut: finalAnswer.length,
+      model: result.model,
+      fallbacks: result.failures.length,
     })
 
     return twiml(finalAnswer)
