@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { resolveOAuthAppCredentials } from "@/lib/connectors/provider-settings"
+import { getConnectedTwilioByAccountSid, getConnectionSecret, getLatestConnectedTwilio } from "@/lib/connectors/store"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -56,23 +57,20 @@ function twiml(message: string, status = 200) {
 }
 
 export async function GET() {
-  const credentials = await resolveOAuthAppCredentials("twilio").catch(() => null)
+  const [vaultConnection, fallback] = await Promise.all([
+    getLatestConnectedTwilio().catch(() => null),
+    resolveOAuthAppCredentials("twilio").catch(() => null),
+  ])
   return Response.json({
     ok: true,
     service: "Lumin WhatsApp",
-    configured: Boolean(credentials?.configured),
-    source: credentials?.source || "missing",
+    configured: Boolean(vaultConnection?.secret_id || fallback?.configured),
+    source: vaultConnection?.secret_id ? "connector-vault" : fallback?.source || "missing",
   })
 }
 
 export async function POST(request: Request) {
   try {
-    const credentials = await resolveOAuthAppCredentials("twilio")
-    if (!credentials.configured || !credentials.clientSecret) {
-      console.error("[Lumin WhatsApp] Twilio credentials are not configured")
-      return twiml("O Lumin WhatsApp ainda não está configurado no servidor.", 503)
-    }
-
     const contentType = request.headers.get("content-type") || ""
     if (!contentType.includes("application/x-www-form-urlencoded")) {
       return twiml("Pedido inválido.", 415)
@@ -81,8 +79,27 @@ export async function POST(request: Request) {
     const raw = await request.text()
     const body = new URLSearchParams(raw)
     const params = Array.from(body.entries())
+    const accountSid = String(body.get("AccountSid") || "").trim()
 
-    if (!validateTwilioSignature(request, params, credentials.clientSecret)) {
+    const vaultConnection = accountSid
+      ? await getConnectedTwilioByAccountSid(accountSid).catch(() => null)
+      : null
+    const vaultSecret = vaultConnection?.secret_id
+      ? await getConnectionSecret(vaultConnection.id).catch(() => "")
+      : ""
+
+    let authToken = vaultSecret
+    if (!authToken) {
+      const fallback = await resolveOAuthAppCredentials("twilio").catch(() => null)
+      authToken = fallback?.clientSecret || ""
+    }
+
+    if (!authToken) {
+      console.error("[Lumin WhatsApp] Twilio credentials are not configured", { accountSid })
+      return twiml("O Lumin WhatsApp ainda não está configurado no servidor.", 503)
+    }
+
+    if (!validateTwilioSignature(request, params, authToken)) {
       console.warn("[Lumin WhatsApp] rejected invalid Twilio signature")
       return new Response("Forbidden", { status: 403 })
     }
