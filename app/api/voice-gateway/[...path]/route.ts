@@ -11,6 +11,7 @@ function isAllowedPath(path: string) {
     path === "api/platform/call" ||
     path === "api/platform/avatar" ||
     path === "api/platform/voice-preview" ||
+    path === "api/platform/voice-catalog" ||
     /^api\/platform\/call\/[^/]+$/.test(path) ||
     /^api\/platform\/avatar\/[0-9a-f]{32}$/.test(path) ||
     /^api\/platform\/avatar\/[0-9a-f]{32}\/video$/.test(path)
