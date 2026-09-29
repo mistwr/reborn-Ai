@@ -59,7 +59,7 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
   <div id="avatar" class="avatar">
     <div id="faceStage" class="faceStage hidden">
       <img id="faceBase" class="faceBase" alt="">
-      <div class="mouthCavity"></div>
+      <div id="mouthCavity" class="mouthCavity"></div>
       <img id="mouthLayer" class="mouthLayer" alt="">
     </div>
     <img id="logoFallback" class="logoFallback" src="/lumin-ai-logo.svg" alt="LUMIN AI">
@@ -95,6 +95,7 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
   const faceStage=document.getElementById('faceStage');
   const faceBase=document.getElementById('faceBase');
   const mouthLayer=document.getElementById('mouthLayer');
+  const mouthCavity=document.getElementById('mouthCavity');
   const logoFallback=document.getElementById('logoFallback');
   const liveLabel=document.getElementById('liveLabel');
   const agentNameEl=document.getElementById('agentName');
@@ -150,7 +151,14 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
       try{
         const url=await signAsset(currentAgent.avatarPath);
         if(url){
-          faceBase.src=url;mouthLayer.src=url;
+          const response=await fetch(url,{cache:'no-store'});
+          if(!response.ok)throw new Error('avatar unavailable');
+          const blob=await response.blob();
+          const objectUrl=URL.createObjectURL(blob);
+          if(faceBase.dataset.objectUrl)URL.revokeObjectURL(faceBase.dataset.objectUrl);
+          faceBase.dataset.objectUrl=objectUrl;
+          faceBase.onload=()=>{calibrateFaceMouth().catch(()=>{})};
+          faceBase.src=objectUrl;mouthLayer.src=objectUrl;
           faceStage.classList.remove('hidden');logoFallback.classList.add('hidden');
         }
       }catch(e){
@@ -158,6 +166,75 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
       }
     }
   }
+  async function calibrateFaceMouth(){
+    if(!faceBase.complete||!faceBase.naturalWidth)return;
+    try{
+      const vision=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm');
+      const fileset=await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+      let landmarker;
+      try{
+        landmarker=await vision.FaceLandmarker.createFromOptions(fileset,{
+          baseOptions:{
+            modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate:'GPU'
+          },
+          runningMode:'IMAGE',
+          numFaces:1
+        });
+      }catch(e){
+        landmarker=await vision.FaceLandmarker.createFromOptions(fileset,{
+          baseOptions:{
+            modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate:'CPU'
+          },
+          runningMode:'IMAGE',
+          numFaces:1
+        });
+      }
+      const result=landmarker.detect(faceBase);
+      const lm=result?.faceLandmarks?.[0];
+      if(!lm){landmarker.close?.();return}
+
+      const lipIds=[61,146,91,181,84,17,314,405,321,375,291,308,324,318,402,317,14,87,178,88,95,78,191,80,81,82,13,312,311,310,415];
+      const points=lipIds.map(i=>lm[i]).filter(Boolean);
+      if(points.length<8){landmarker.close?.();return}
+
+      const sw=faceStage.clientWidth||232,sh=faceStage.clientHeight||232;
+      const nw=faceBase.naturalWidth,nh=faceBase.naturalHeight;
+      const scale=Math.max(sw/nw,sh/nh);
+      const rw=nw*scale,rh=nh*scale;
+      const offsetX=(sw-rw)*.5;
+      const offsetY=(sh-rh)*.38;
+      const mapped=points.map(p=>({x:offsetX+p.x*rw,y:offsetY+p.y*rh}));
+      let minX=Math.min(...mapped.map(p=>p.x)),maxX=Math.max(...mapped.map(p=>p.x));
+      let minY=Math.min(...mapped.map(p=>p.y)),maxY=Math.max(...mapped.map(p=>p.y));
+      const lipW=Math.max(20,maxX-minX),lipH=Math.max(8,maxY-minY);
+      minX-=lipW*.30;maxX+=lipW*.30;
+      minY-=lipH*.95;maxY+=lipH*1.45;
+      minX=clamp(minX/sw)*sw;maxX=clamp(maxX/sw)*sw;
+      minY=clamp(minY/sh)*sh;maxY=clamp(maxY/sh)*sh;
+
+      const left=minX/sw*100,right=maxX/sw*100,top=minY/sh*100,bottom=maxY/sh*100;
+      const cx=(left+right)/2,cy=(top+bottom)/2;
+      mouthLayer.style.clipPath='inset('+top.toFixed(2)+'% '+(100-right).toFixed(2)+'% '+(100-bottom).toFixed(2)+'% '+left.toFixed(2)+'% round 24%)';
+      mouthLayer.style.transformOrigin=cx.toFixed(2)+'% '+cy.toFixed(2)+'%';
+
+      const cavityW=Math.max(10,(right-left)*.70);
+      const cavityH=Math.max(4,(bottom-top)*.33);
+      mouthCavity.style.left=(cx-cavityW/2).toFixed(2)+'%';
+      mouthCavity.style.top=(cy-cavityH*.18).toFixed(2)+'%';
+      mouthCavity.style.width=cavityW.toFixed(2)+'%';
+      mouthCavity.style.height=cavityH.toFixed(2)+'%';
+      mouthCavity.style.transformOrigin='50% 48%';
+
+      liveLabel.textContent='ROSTO PRONTO';
+      setTimeout(()=>{if(!room)liveLabel.textContent='PRONTO'},900);
+      landmarker.close?.();
+    }catch(e){
+      console.warn('LUMIN face landmark calibration fallback',e);
+    }
+  }
+
   function wireAgent(){
     if(!currentAgent)return null;
     return {
@@ -365,7 +442,7 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
     muteBtn.textContent=muted?'🔇 Ativar microfone':'🎙️ Silenciar';
     setStatus(muted?'Microfone desligado':(currentAgent?.name||'Lumin')+' está a ouvir');
   });
-  window.addEventListener('pagehide',()=>{stopLipSync();if(room)room.disconnect();if(audioContext)audioContext.close().catch(()=>{})});
+  window.addEventListener('pagehide',()=>{stopLipSync();if(room)room.disconnect();if(audioContext)audioContext.close().catch(()=>{});if(faceBase.dataset.objectUrl)URL.revokeObjectURL(faceBase.dataset.objectUrl)});
   hydrateAgent();
 })();
 </script>
