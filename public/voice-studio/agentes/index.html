@@ -570,7 +570,7 @@ $('liveAvatarBtn').onclick=()=>{
   if(a.voice==='custom'&&!a.voiceCloneConsent){toast('Confirma que tens autorização para usar essa voz.');return}
   localStorage.setItem('lumin_voice_preview_draft',JSON.stringify(a));
   localStorage.setItem('lumin_voice_preview_agent','__draft__');
-  window.open('/voz/?agent=__draft__','_blank','noopener');
+  window.location.href='/voz/?agent=__draft__';
 };
 
 $('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
