@@ -3,35 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Falar com o Lumin | LUMIN AI</title>
-<meta name="description" content="Fala com o Lumin por voz em tempo real, diretamente pelo navegador.">
+<title>Avatar Live | LUMIN AI</title>
+<meta name="description" content="Conversa em tempo real com um agente LUMIN AI com voz e avatar sincronizados.">
 <meta name="theme-color" content="#050505">
 <link rel="icon" href="/lumin-ai-logo.svg" type="image/svg+xml">
 <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <style>
-:root{--bg:#030303;--panel:#090909;--gold:#e7b95f;--gold2:#ffdda0;--mut:#9f9a92;--red:#ff4d4f;--green:#35d06f}
+:root{--bg:#030303;--gold:#e7b95f;--gold2:#ffdda0;--mut:#9f9a92;--red:#ff4d4f;--green:#35d06f}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:radial-gradient(800px 500px at 50% -10%,rgba(231,185,95,.15),transparent 65%),#030303;color:#fff;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
 body{min-height:100svh;display:grid;place-items:center;padding:24px}
-.shell{width:min(430px,100%);min-height:620px;border:1px solid rgba(255,221,160,.18);border-radius:34px;background:linear-gradient(180deg,#0c0b09,#050505 60%);box-shadow:0 35px 110px rgba(0,0,0,.55);padding:28px 22px 24px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
-.shell:before{content:"";position:absolute;width:310px;height:310px;border-radius:50%;top:55px;background:radial-gradient(circle,rgba(231,185,95,.13),rgba(231,185,95,.03) 45%,transparent 70%);pointer-events:none}
-.top{width:100%;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
-.back{color:#d8d1c5;text-decoration:none;font-size:14px}.secure{color:#847e75;font-size:11px}
-.avatar{margin-top:52px;width:142px;height:142px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,221,160,.35);background:radial-gradient(circle at 50% 20%,#402b0e,#0b0906 58%,#050505);box-shadow:0 0 0 16px rgba(231,185,95,.025),0 0 65px rgba(231,185,95,.12);position:relative;z-index:1;transition:.3s}
-.avatar.active{box-shadow:0 0 0 18px rgba(53,208,111,.035),0 0 70px rgba(53,208,111,.15)}
-.avatar.speaking{border-color:rgba(255,221,160,.72);animation:avatarPulse 1.1s ease-in-out infinite alternate;box-shadow:0 0 0 18px rgba(231,185,95,.05),0 0 86px rgba(231,185,95,.28)}
+.shell{width:min(460px,100%);min-height:660px;border:1px solid rgba(255,221,160,.18);border-radius:34px;background:linear-gradient(180deg,#0c0b09,#050505 60%);box-shadow:0 35px 110px rgba(0,0,0,.55);padding:24px 22px 24px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+.shell:before{content:"";position:absolute;width:390px;height:390px;border-radius:50%;top:30px;background:radial-gradient(circle,rgba(231,185,95,.14),rgba(231,185,95,.025) 50%,transparent 72%);pointer-events:none}
+.top{width:100%;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:4}
+.back{color:#d8d1c5;text-decoration:none;font-size:14px}.secure{color:#847e75;font-size:10px}
+.avatar{--mouth-open:0;--mouth-wide:0;--mouth-round:0;--energy:0;margin-top:34px;width:232px;height:232px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,221,160,.35);background:radial-gradient(circle at 50% 20%,#402b0e,#0b0906 58%,#050505);box-shadow:0 0 0 16px rgba(231,185,95,.025),0 0 75px rgba(231,185,95,.15);position:relative;z-index:2;transition:box-shadow .25s,border-color .25s;overflow:hidden}
+.avatar.active{box-shadow:0 0 0 18px rgba(53,208,111,.035),0 0 74px rgba(53,208,111,.16)}
+.avatar.speaking{border-color:rgba(255,221,160,.8);box-shadow:0 0 0 18px rgba(231,185,95,.05),0 0 calc(80px + var(--energy)*45px) rgba(231,185,95,.34)}
 .avatar.listening{box-shadow:0 0 0 18px rgba(53,208,111,.035),0 0 72px rgba(53,208,111,.16)}
-@keyframes avatarPulse{from{transform:scale(1);filter:brightness(1)}to{transform:scale(1.035);filter:brightness(1.12)}}
-.avatar img{width:76px;height:76px;filter:drop-shadow(0 0 18px rgba(231,185,95,.38))}
-h1{font-size:34px;letter-spacing:-.04em;margin:28px 0 4px;position:relative;z-index:1}
-.sub{color:var(--gold2);font-size:13px;font-weight:800;letter-spacing:.05em;position:relative;z-index:1}
-.voiceBadge{margin-top:10px;padding:6px 9px;border:1px solid rgba(255,221,160,.15);border-radius:999px;color:#8e887f;background:rgba(255,255,255,.018);font-size:9px;font-weight:800;letter-spacing:.09em;position:relative;z-index:1}
-.status{margin-top:22px;color:var(--mut);font-size:14px;min-height:22px;text-align:center;position:relative;z-index:1}
-.timer{margin-top:6px;color:#777169;font-variant-numeric:tabular-nums;font-size:13px;min-height:18px}
-.wave{height:44px;display:flex;align-items:center;justify-content:center;gap:4px;margin:20px 0 8px;opacity:.35}
-.wave i{display:block;width:3px;height:12px;border-radius:99px;background:linear-gradient(var(--gold2),var(--gold));animation:b 1.1s ease-in-out infinite alternate;animation-play-state:paused}
-.wave.active{opacity:1}.wave.active i{animation-play-state:running}.wave i:nth-child(2){animation-delay:.12s}.wave i:nth-child(3){animation-delay:.24s}.wave i:nth-child(4){animation-delay:.36s}.wave i:nth-child(5){animation-delay:.48s}.wave i:nth-child(6){animation-delay:.6s}.wave i:nth-child(7){animation-delay:.72s}
-@keyframes b{from{height:8px}to{height:38px}}
+.logoFallback{width:102px;height:102px;filter:drop-shadow(0 0 20px rgba(231,185,95,.4));z-index:2}
+.faceStage{position:absolute;inset:0;overflow:hidden;border-radius:50%;background:#090909;transform:scale(calc(1 + var(--energy)*.014)) translateY(calc(var(--energy)*-1px));transition:transform 80ms linear}
+.faceStage:after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 45px rgba(0,0,0,.34);pointer-events:none;z-index:5}
+.faceBase,.mouthLayer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 38%;user-select:none;-webkit-user-drag:none}
+.faceBase{transform:scale(1.035) translateY(calc(var(--energy)*-1.2px));transition:transform 85ms linear}
+.mouthCavity{position:absolute;left:35%;top:64%;width:30%;height:10%;border-radius:48% 48% 55% 55%;background:radial-gradient(ellipse at 50% 36%,#4b1719 0,#190607 46%,#030101 75%);transform-origin:50% 48%;transform:translateY(calc(var(--mouth-open)*2px)) scaleX(calc(.72 + var(--mouth-wide)*.32 - var(--mouth-round)*.12)) scaleY(calc(.08 + var(--mouth-open)*1.55));opacity:calc(var(--mouth-open)*.92);filter:blur(.15px);z-index:2;transition:opacity 35ms linear}
+.mouthLayer{clip-path:inset(57% 23% 13% 23% round 18%);transform-origin:50% 68%;transform:translateY(calc(var(--mouth-open)*2.3px)) scaleX(calc(1 + var(--mouth-wide)*.045 - var(--mouth-round)*.025)) scaleY(calc(1 + var(--mouth-open)*.16));z-index:3;transition:transform 35ms linear}
+.liveDot{position:absolute;right:12px;top:14px;z-index:8;display:flex;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.11);background:rgba(0,0,0,.72);backdrop-filter:blur(8px);border-radius:999px;padding:5px 8px;font-size:9px;font-weight:900;letter-spacing:.08em;color:#ddd}
+.liveDot i{width:6px;height:6px;border-radius:50%;background:#555}
+.avatar.active .liveDot i{background:var(--green);box-shadow:0 0 9px rgba(53,208,111,.65)}
+.avatar.speaking .liveDot i{background:var(--gold);box-shadow:0 0 10px rgba(231,185,95,.8)}
+h1{font-size:32px;letter-spacing:-.04em;margin:24px 0 3px;position:relative;z-index:1;text-align:center}
+.sub{color:var(--gold2);font-size:12px;font-weight:800;letter-spacing:.05em;position:relative;z-index:1;text-align:center}
+.voiceBadge{margin-top:9px;padding:6px 9px;border:1px solid rgba(255,221,160,.15);border-radius:999px;color:#8e887f;background:rgba(255,255,255,.018);font-size:9px;font-weight:800;letter-spacing:.07em;position:relative;z-index:1}
+.status{margin-top:18px;color:var(--mut);font-size:14px;min-height:22px;text-align:center;position:relative;z-index:1}
+.timer{margin-top:5px;color:#777169;font-variant-numeric:tabular-nums;font-size:12px;min-height:18px}
+.wave{height:36px;display:flex;align-items:center;justify-content:center;gap:4px;margin:12px 0 5px;opacity:.3}
+.wave i{display:block;width:3px;height:8px;border-radius:99px;background:linear-gradient(var(--gold2),var(--gold));transition:height 45ms linear}
+.wave.active{opacity:1}
 .spacer{flex:1}
 .controls{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative;z-index:1}
 button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit;font-weight:900;cursor:pointer}
@@ -39,29 +47,38 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
 .mute{background:#171717;color:#fff;border:1px solid rgba(255,255,255,.09)}
 .end{background:#3a1010;color:#ffd0d0;border:1px solid rgba(255,77,79,.24)}
 .hidden{display:none!important}
-.note{margin-top:18px;color:#68635c;font-size:11px;line-height:1.5;text-align:center}
-#error{color:#ff9898;margin-top:12px;font-size:12px;text-align:center;min-height:18px}
+.note{margin-top:16px;color:#68635c;font-size:10px;line-height:1.5;text-align:center}
+#error{color:#ff9898;margin-top:10px;font-size:12px;text-align:center;min-height:18px}
 #audioRoot{display:none}
+@media(max-width:520px){body{padding:0}.shell{width:100%;min-height:100svh;border:0;border-radius:0;padding-top:18px}.avatar{width:220px;height:220px;margin-top:30px}}
 </style>
 </head>
 <body>
 <main class="shell">
-  <div class="top"><a class="back" href="/">← LUMIN AI</a><span class="secure">voz via internet · WebRTC</span></div>
-  <div id="avatar" class="avatar"><img src="/lumin-ai-logo.svg" alt="LUMIN AI"></div>
-  <h1>Lumin</h1>
-  <div class="sub">ASSISTENTE VIRTUAL IA</div>
-  <div class="voiceBadge">VOZ PT-PT · OPEN SOURCE</div>
+  <div class="top"><a class="back" href="/agentes-voz/">← AGENTES</a><span class="secure">WebRTC · AVATAR LIVE</span></div>
+  <div id="avatar" class="avatar">
+    <div id="faceStage" class="faceStage hidden">
+      <img id="faceBase" class="faceBase" alt="">
+      <div class="mouthCavity"></div>
+      <img id="mouthLayer" class="mouthLayer" alt="">
+    </div>
+    <img id="logoFallback" class="logoFallback" src="/lumin-ai-logo.svg" alt="LUMIN AI">
+    <span class="liveDot"><i></i><span id="liveLabel">PRONTO</span></span>
+  </div>
+  <h1 id="agentName">Lumin</h1>
+  <div id="agentCompany" class="sub">ASSISTENTE VIRTUAL IA</div>
+  <div id="voiceBadge" class="voiceBadge">VOZ PT-PT · OPEN SOURCE</div>
   <div id="status" class="status">Pronto para falar contigo.</div>
   <div id="timer" class="timer"></div>
   <div id="wave" class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="spacer"></div>
   <div class="controls">
-    <button id="callBtn" class="call">📞 FALAR COM O LUMIN</button>
+    <button id="callBtn" class="call">⚡ FALAR COM O AVATAR</button>
     <button id="muteBtn" class="mute hidden">🎙️ Silenciar</button>
     <button id="endBtn" class="end hidden">✕ Desligar</button>
   </div>
   <div id="error"></div>
-  <div class="note">O microfone só é usado durante a conversa. Não é uma chamada telefónica: não usa saldo nem mostra qualquer número.</div>
+  <div class="note">O avatar reage ao áudio real do agente em tempo real. Usa uma fotografia frontal para o movimento labial ficar mais natural.</div>
 </main>
 <div id="audioRoot"></div>
 <script>
@@ -73,61 +90,218 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
   const statusEl=document.getElementById('status');
   const timerEl=document.getElementById('timer');
   const wave=document.getElementById('wave');
+  const bars=[...wave.querySelectorAll('i')];
   const avatar=document.getElementById('avatar');
+  const faceStage=document.getElementById('faceStage');
+  const faceBase=document.getElementById('faceBase');
+  const mouthLayer=document.getElementById('mouthLayer');
+  const logoFallback=document.getElementById('logoFallback');
+  const liveLabel=document.getElementById('liveLabel');
+  const agentNameEl=document.getElementById('agentName');
+  const agentCompanyEl=document.getElementById('agentCompany');
+  const voiceBadgeEl=document.getElementById('voiceBadge');
   const errorEl=document.getElementById('error');
   const audioRoot=document.getElementById('audioRoot');
 
-  let room=null, muted=false, startedAt=0, timerHandle=null;
-  const voiceChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('lumin-voice-single-session') : null;
-  const tabId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
+  let room=null,muted=false,startedAt=0,timerHandle=null;
+  let audioContext=null,analyser=null,analyserSource=null,analyserFrame=0,remoteMediaTrack=null;
+  let currentAgent=null,smoothedLevel=0;
+  const voiceChannel=('BroadcastChannel' in window)?new BroadcastChannel('lumin-voice-single-session'):null;
+  const tabId=(crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random();
 
+  const VOICE_LABELS={
+    natural:'PIPER · NATURAL',
+    clear:'PIPER · CLARA',
+    commercial:'PIPER · COMERCIAL',
+    kokoro:'KOKORO · PT-PT',
+    neural:'CHATTERBOX · NEURAL',
+    custom:'OPENVOICE · VOZ PRÓPRIA'
+  };
+
+  function clamp(v,min=0,max=1){return Math.max(min,Math.min(max,v))}
   function setStatus(t){statusEl.textContent=t}
+  function parseJson(key,fallback){
+    try{const v=JSON.parse(localStorage.getItem(key)||'');return v||fallback}catch(e){return fallback}
+  }
+  function selectedAgent(){
+    const params=new URLSearchParams(location.search);
+    const requested=params.get('agent')||localStorage.getItem('lumin_voice_preview_agent')||'';
+    if(requested==='__draft__'){
+      return parseJson('lumin_voice_preview_draft',null);
+    }
+    const agents=parseJson('lumin_voice_agents',[]);
+    return agents.find(a=>a.id===requested)||agents[0]||null;
+  }
+  async function signAsset(path){
+    if(!path)return '';
+    const r=await fetch('/api/voice-assets?path='+encodeURIComponent(path),{cache:'no-store',credentials:'same-origin'});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||'Não foi possível abrir o ficheiro do agente.');
+    return d.signedUrl||'';
+  }
+  async function hydrateAgent(){
+    currentAgent=selectedAgent();
+    if(!currentAgent)return;
+    agentNameEl.textContent=currentAgent.name||'Lumin';
+    agentCompanyEl.textContent=(currentAgent.company||'LUMIN AI').toUpperCase();
+    voiceBadgeEl.textContent=VOICE_LABELS[currentAgent.voice||'natural']||'VOZ PT-PT · OPEN SOURCE';
+    callBtn.textContent='⚡ FALAR COM '+String(currentAgent.name||'O AVATAR').toUpperCase();
+    if(currentAgent.avatarPath){
+      try{
+        const url=await signAsset(currentAgent.avatarPath);
+        if(url){
+          faceBase.src=url;mouthLayer.src=url;
+          faceStage.classList.remove('hidden');logoFallback.classList.add('hidden');
+        }
+      }catch(e){
+        console.warn('LUMIN avatar image unavailable',e);
+      }
+    }
+  }
+  function wireAgent(){
+    if(!currentAgent)return null;
+    return {
+      id:currentAgent.id||'lumin',
+      name:currentAgent.name||'Lumin',
+      company:currentAgent.company||'LUMIN AI',
+      description:currentAgent.description||'',
+      objective:currentAgent.objective||'Conversar e ajudar',
+      product:currentAgent.product||'',
+      offer:currentAgent.offer||'',
+      opening:currentAgent.opening||'',
+      objections:currentAgent.objections||'',
+      notes:currentAgent.notes||'',
+      tone:'[VOICE:'+(currentAgent.voice||'natural')+'] '+(currentAgent.tone||'Natural, profissional e direto'),
+      voice:currentAgent.voice||'natural',
+      voiceEngine:currentAgent.voiceEngine||((currentAgent.voice==='custom'||currentAgent.voice==='neural')?'chatterbox':'piper'),
+      voiceSource:currentAgent.voiceSource||(currentAgent.voice==='custom'?'custom':'system'),
+      voiceAssetPath:currentAgent.voiceAssetPath||'',
+      avatarPath:currentAgent.avatarPath||''
+    };
+  }
+  async function prepareAgentForLive(){
+    const a=wireAgent();
+    if(!a)return null;
+    if(a.voice==='custom'&&a.voiceAssetPath){
+      a.voiceSampleUrl=await signAsset(a.voiceAssetPath);
+    }
+    return a;
+  }
+  function setMouth(level,wide=0,round=0){
+    const open=clamp(level);
+    avatar.style.setProperty('--mouth-open',open.toFixed(3));
+    avatar.style.setProperty('--mouth-wide',clamp(wide).toFixed(3));
+    avatar.style.setProperty('--mouth-round',clamp(round).toFixed(3));
+    avatar.style.setProperty('--energy',open.toFixed(3));
+    bars.forEach((b,i)=>{
+      const weights=[.42,.72,1,.8,.56,.74,.45];
+      b.style.height=(6+open*28*weights[i])+'px';
+    });
+  }
+  function stopLipSync(){
+    if(analyserFrame)cancelAnimationFrame(analyserFrame);
+    analyserFrame=0;
+    try{analyserSource&&analyserSource.disconnect()}catch(e){}
+    analyserSource=null;analyser=null;remoteMediaTrack=null;smoothedLevel=0;setMouth(0,0,0);
+  }
+  async function startLipSync(track){
+    stopLipSync();
+    const mediaTrack=track&&track.mediaStreamTrack;
+    if(!mediaTrack)return;
+    remoteMediaTrack=mediaTrack;
+    try{
+      audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();
+      if(audioContext.state==='suspended')await audioContext.resume().catch(()=>{});
+      analyser=audioContext.createAnalyser();
+      analyser.fftSize=512;
+      analyser.smoothingTimeConstant=.58;
+      analyserSource=audioContext.createMediaStreamSource(new MediaStream([mediaTrack]));
+      analyserSource.connect(analyser);
+      const timeData=new Uint8Array(analyser.fftSize);
+      const freqData=new Uint8Array(analyser.frequencyBinCount);
+      const tick=()=>{
+        if(!analyser||!remoteMediaTrack)return;
+        analyser.getByteTimeDomainData(timeData);
+        analyser.getByteFrequencyData(freqData);
+        let sum=0;
+        for(let i=0;i<timeData.length;i++){
+          const n=(timeData[i]-128)/128;sum+=n*n;
+        }
+        const rms=Math.sqrt(sum/timeData.length);
+        let target=clamp((rms-.012)*13.5);
+        smoothedLevel=smoothedLevel*.58+target*.42;
+
+        const nyquist=audioContext.sampleRate/2;
+        const hzPerBin=nyquist/freqData.length;
+        let low=0,mid=0,high=0,lc=0,mc=0,hc=0;
+        for(let i=1;i<freqData.length;i++){
+          const hz=i*hzPerBin,v=freqData[i]/255;
+          if(hz<550){low+=v;lc++}
+          else if(hz<2200){mid+=v;mc++}
+          else if(hz<5200){high+=v;hc++}
+        }
+        low=lc?low/lc:0;mid=mc?mid/mc:0;high=hc?high/hc:0;
+        const total=low+mid+high+.001;
+        const wide=clamp((mid/total)*1.8);
+        const round=clamp((low/total)*1.7-(high/total)*.35);
+        setMouth(smoothedLevel,wide,round);
+        analyserFrame=requestAnimationFrame(tick);
+      };
+      tick();
+    }catch(e){
+      console.warn('LUMIN realtime lip sync analyser failed',e);
+      stopLipSync();
+    }
+  }
   function startTimer(){
-    startedAt=Date.now();
-    clearInterval(timerHandle);
+    startedAt=Date.now();clearInterval(timerHandle);
     timerHandle=setInterval(()=>{
       const s=Math.floor((Date.now()-startedAt)/1000);
       timerEl.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
     },500);
   }
   function resetUI(){
-    clearInterval(timerHandle);timerHandle=null;timerEl.textContent='';
+    clearInterval(timerHandle);timerHandle=null;startedAt=0;timerEl.textContent='';
     wave.classList.remove('active');avatar.classList.remove('active','speaking','listening');
+    liveLabel.textContent='PRONTO';setMouth(0,0,0);
     callBtn.classList.remove('hidden');muteBtn.classList.add('hidden');endBtn.classList.add('hidden');
-    callBtn.disabled=false;callBtn.textContent='📞 FALAR COM O LUMIN';
+    callBtn.disabled=false;callBtn.textContent='⚡ FALAR COM '+String(currentAgent?.name||'O AVATAR').toUpperCase();
     muted=false;muteBtn.textContent='🎙️ Silenciar';
   }
-
   async function endCall(silent=false){
+    stopLipSync();
     if(room){
       try{await room.localParticipant.setMicrophoneEnabled(false)}catch(e){}
       try{await room.disconnect()}catch(e){}
       room=null;
     }
     audioRoot.innerHTML='';
-    if(!silent) setStatus('Chamada terminada.');
+    if(!silent)setStatus('Conversa terminada.');
     resetUI();
   }
 
   if(voiceChannel){
-    voiceChannel.onmessage = (ev)=>{
-      if(ev.data && ev.data.type==='new-call' && ev.data.tabId!==tabId && room){
-        endCall(true);
-        setStatus('Chamada transferida para outro separador.');
+    voiceChannel.onmessage=(ev)=>{
+      if(ev.data&&ev.data.type==='new-call'&&ev.data.tabId!==tabId&&room){
+        endCall(true);setStatus('Conversa transferida para outro separador.');
       }
     };
   }
 
   async function startCall(){
-    if(voiceChannel) voiceChannel.postMessage({type:'new-call',tabId});
-    errorEl.textContent='';
-    callBtn.disabled=true;callBtn.textContent='A ligar…';
-    setStatus('A ligar ao Lumin…');
-    if(navigator.vibrate) navigator.vibrate([90,80,90]);
+    if(voiceChannel)voiceChannel.postMessage({type:'new-call',tabId});
+    errorEl.textContent='';callBtn.disabled=true;callBtn.textContent='A ligar…';
+    setStatus('A preparar agente e avatar…');liveLabel.textContent='A LIGAR';
+    if(navigator.vibrate)navigator.vibrate([90,80,90]);
 
     try{
-      const res=await fetch(GATEWAY+'/token',{method:'POST',headers:{'Content-Type':'application/json'}});
-      if(!res.ok) throw new Error('Não foi possível iniciar a sessão.');
+      const agent=await prepareAgentForLive();
+      const res=await fetch(GATEWAY+'/token',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(agent?{agent}:{})
+      });
+      if(!res.ok)throw new Error('Não foi possível iniciar a sessão.');
       const data=await res.json();
 
       room=new LivekitClient.Room({adaptiveStream:true,dynacast:true});
@@ -135,57 +309,51 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
       room.on(LivekitClient.RoomEvent.TrackSubscribed,(track)=>{
         if(track.kind===LivekitClient.Track.Kind.Audio){
           const el=track.attach();
-          el.autoplay=true;
-          audioRoot.appendChild(el);
+          el.autoplay=true;el.playsInline=true;audioRoot.appendChild(el);
           room.startAudio().catch(()=>{});
-          setStatus('Lumin atendeu · fala normalmente');
-          avatar.classList.add('active','listening');
-          if(!startedAt) startTimer();
+          startLipSync(track);
+          setStatus((currentAgent?.name||'Lumin')+' atendeu · fala normalmente');
+          avatar.classList.add('active','listening');liveLabel.textContent='LIVE';
+          if(!startedAt)startTimer();
         }
       });
 
+      room.on(LivekitClient.RoomEvent.TrackUnsubscribed,(track)=>{
+        if(track.kind===LivekitClient.Track.Kind.Audio)stopLipSync();
+      });
+
       room.on(LivekitClient.RoomEvent.ParticipantConnected,()=>{
-        setStatus('Lumin atendeu · a preparar voz…');
-        avatar.classList.add('active','listening');
+        setStatus((currentAgent?.name||'Lumin')+' entrou · a preparar voz…');
+        avatar.classList.add('active','listening');liveLabel.textContent='LIVE';
       });
 
       room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged,(speakers)=>{
-        if(!room) return;
-        const remoteSpeaking=speakers.some((p)=>p.identity!==room.localParticipant.identity);
+        if(!room)return;
+        const remoteSpeaking=speakers.some(p=>p.identity!==room.localParticipant.identity);
         avatar.classList.add('active');
         avatar.classList.toggle('speaking',remoteSpeaking);
         avatar.classList.toggle('listening',!remoteSpeaking);
         wave.classList.toggle('active',remoteSpeaking);
-        if(!muted){
-          setStatus(remoteSpeaking?'Lumin está a falar…':'Lumin está a ouvir…');
-        }
+        liveLabel.textContent=remoteSpeaking?'A FALAR':'A OUVIR';
+        if(!remoteSpeaking)setMouth(0,0,0);
+        if(!muted)setStatus(remoteSpeaking?(currentAgent?.name||'Lumin')+' está a falar…':(currentAgent?.name||'Lumin')+' está a ouvir…');
       });
 
       room.on(LivekitClient.RoomEvent.Disconnected,()=>{
-        room=null;
-        setStatus('Chamada terminada.');
-        resetUI();
+        room=null;stopLipSync();setStatus('Conversa terminada.');resetUI();
       });
 
       await room.connect(data.serverUrl,data.token);
       await room.startAudio().catch(()=>{});
-      await room.localParticipant.setMicrophoneEnabled(true,{
-        echoCancellation:true,
-        noiseSuppression:true,
-        autoGainControl:true
-      });
-
-      callBtn.classList.add('hidden');
-      muteBtn.classList.remove('hidden');
-      endBtn.classList.remove('hidden');
-      setStatus('Ligado · à espera do Lumin…');
-      startTimer();
+      await room.localParticipant.setMicrophoneEnabled(true,{echoCancellation:true,noiseSuppression:true,autoGainControl:true});
+      callBtn.classList.add('hidden');muteBtn.classList.remove('hidden');endBtn.classList.remove('hidden');
+      setStatus('Ligado · à espera do agente…');liveLabel.textContent='LIVE';startTimer();
     }catch(err){
       console.error(err);
-      errorEl.textContent=(err&&err.message)||'Não foi possível ligar. Confirma a permissão do microfone e tenta novamente.';
-      setStatus('Não foi possível iniciar a chamada.');
-      if(room){try{await room.disconnect()}catch(e){} room=null}
-      resetUI();
+      errorEl.textContent=(err&&err.message)||'Não foi possível ligar. Confirma o microfone e tenta novamente.';
+      setStatus('Não foi possível iniciar a conversa.');
+      if(room){try{await room.disconnect()}catch(e){}room=null}
+      stopLipSync();resetUI();
     }
   }
 
@@ -193,12 +361,12 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
   endBtn.addEventListener('click',endCall);
   muteBtn.addEventListener('click',async()=>{
     if(!room)return;
-    muted=!muted;
-    await room.localParticipant.setMicrophoneEnabled(!muted);
+    muted=!muted;await room.localParticipant.setMicrophoneEnabled(!muted);
     muteBtn.textContent=muted?'🔇 Ativar microfone':'🎙️ Silenciar';
-    setStatus(muted?'Microfone desligado':'Lumin está a ouvir');
+    setStatus(muted?'Microfone desligado':(currentAgent?.name||'Lumin')+' está a ouvir');
   });
-  window.addEventListener('pagehide',()=>{if(room)room.disconnect()});
+  window.addEventListener('pagehide',()=>{stopLipSync();if(room)room.disconnect();if(audioContext)audioContext.close().catch(()=>{})});
+  hydrateAgent();
 })();
 </script>
 </body>
