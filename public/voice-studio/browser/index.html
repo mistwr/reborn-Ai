@@ -555,8 +555,9 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
       setStatus('Avatar LIVE ligado · a preparar voz…');
       startTimer();
 
-      const opening=String(currentAgent.opening||'').trim()||
-        ('Olá. Sou '+(currentAgent.name||'Lumin')+', assistente virtual de IA da '+(currentAgent.company||'LUMIN AI')+'. Em que posso ajudar?');
+      const customOpening=String(currentAgent.opening||'').trim();
+      const disclosure='Olá. Sou '+(currentAgent.name||'Lumin')+', assistente virtual de IA da '+(currentAgent.company||'LUMIN AI')+'. ';
+      const opening=disclosure+(customOpening||'Em que posso ajudar?');
       await speakDirect(opening.slice(0,350));
       return true;
     }catch(e){
