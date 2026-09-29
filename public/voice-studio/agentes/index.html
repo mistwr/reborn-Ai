@@ -614,7 +614,7 @@ function getAgents(){
     description:a.description||'',
     avatarPath:a.avatarPath||'',
     voiceAssetPath:a.voiceAssetPath||'',
-    avatarPreset:a.avatarPath?'':(a.avatarPreset||'nova')
+    avatarPreset:a.avatarPath?'':(a.avatarPreset||(a.id==='solucoes-diferentes-energia'?'marta':'nova'))
   }));
   return agents;
 }
