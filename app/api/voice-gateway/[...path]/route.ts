@@ -7,7 +7,10 @@ function isAllowedPath(path: string) {
     path === "token" ||
     path === "api/platform/login" ||
     path === "api/platform/call" ||
-    /^api\/platform\/call\/[^/]+$/.test(path)
+    path === "api/platform/avatar" ||
+    /^api\/platform\/call\/[^/]+$/.test(path) ||
+    /^api\/platform\/avatar\/[0-9a-f]{32}$/.test(path) ||
+    /^api\/platform\/avatar\/[0-9a-f]{32}\/video$/.test(path)
   )
 }
 
