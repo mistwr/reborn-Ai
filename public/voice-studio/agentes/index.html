@@ -242,8 +242,13 @@ const VOICE_LABELS={
 };
 
 function voiceEngineFor(voice){
+  if(String(voice||'').startsWith('piper:'))return 'piper-catalog';
   if(voice==='kokoro')return 'kokoro';
   return voice==='neural'?'chatterbox':voice==='custom'?'openvoice':'piper';
+}
+function voiceLabelFor(voice){
+  if(String(voice||'').startsWith('piper:'))return 'Biblioteca · '+String(voice).slice(6);
+  return VOICE_LABELS[voice||'natural']||VOICE_LABELS.natural;
 }
 function voiceSourceFor(voice){
   return voice==='custom'?'custom':'system';
@@ -274,11 +279,84 @@ function setAvatarPreview(url){
 }
 
 function updateVoiceEditor(){
-  const custom=$('agentVoice').value==='custom';
+  const voice=$('agentVoice').value||'natural';
+  const custom=voice==='custom';
+  const catalog=voice==='__catalog__'||voice.startsWith('piper:');
   $('customVoiceBox').classList.toggle('hidden',!custom);
+  $('voiceCatalogBox').classList.toggle('hidden',!catalog);
+  if(voice==='__catalog__'&&!$('voiceCatalogList').children.length)loadVoiceCatalog();
 }
 
 $('agentVoice').addEventListener('change',updateVoiceEditor);
+
+function ensureCatalogOption(value,label){
+  if(!value||!String(value).startsWith('piper:'))return;
+  let option=[...$('agentVoice').options].find(o=>o.value===value);
+  if(!option){
+    option=document.createElement('option');
+    option.value=value;option.textContent=label||('Biblioteca · '+value.slice(6));
+    const customOption=[...$('agentVoice').options].find(o=>o.value==='custom');
+    $('agentVoice').insertBefore(option,customOption||null);
+  }
+}
+
+async function previewCatalogVoice(value,label){
+  if(!token){$('loginOverlay').classList.remove('hidden');return}
+  $('voiceCatalogStatus').textContent='A preparar '+label+'… na primeira vez pode demorar um pouco.';
+  try{
+    const r=await fetch(API+'/api/platform/voice-preview',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({voice:value,text:'Olá. Esta é uma amostra da voz escolhida para o teu agente Lumin.'})
+    });
+    if(r.status===401){token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');throw new Error('Sessão expirada. Entra novamente.')}
+    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||d.error||'Não foi possível ouvir esta voz.')}
+    const blob=await r.blob(),url=URL.createObjectURL(blob),audio=$('agentVoiceTest');
+    if(audio.dataset.objectUrl)URL.revokeObjectURL(audio.dataset.objectUrl);
+    audio.dataset.objectUrl=url;audio.src=url;audio.classList.remove('hidden');
+    audio.play().catch(()=>{});
+    $('voiceCatalogStatus').textContent=label+' pronta.';
+  }catch(e){$('voiceCatalogStatus').textContent=e.message}
+}
+
+function renderVoiceCatalog(voices){
+  const root=$('voiceCatalogList');root.innerHTML='';
+  if(!voices.length){root.innerHTML='<div class="assetStatus">Não encontrei vozes com estes filtros.</div>';return}
+  voices.slice(0,80).forEach(v=>{
+    const value='piper:'+v.key;
+    const label=(v.name||v.key)+' · '+(v.languageCode||'')+' · '+(v.quality||'');
+    const row=document.createElement('div');row.className='voiceCard';
+    row.innerHTML='<div><b>'+esc(v.name||v.key)+'</b><div class="voiceMeta">'+esc((v.languageCode||'')+' · '+(v.country||v.language||'')+' · '+(v.quality||'')+(v.speakers>1?' · '+v.speakers+' vozes':''))+'</div></div><div class="voiceActions"><button type="button" class="voiceListen">▶ Ouvir</button><button type="button" class="voiceUse">Usar</button></div>';
+    row.querySelector('.voiceListen').onclick=()=>previewCatalogVoice(value,v.name||v.key);
+    row.querySelector('.voiceUse').onclick=()=>{
+      ensureCatalogOption(value,'📚 '+label);
+      $('agentVoice').value=value;updateVoiceEditor();
+      $('voiceCatalogStatus').textContent='Selecionada: '+label;
+      toast('Voz selecionada');
+    };
+    root.appendChild(row);
+  });
+}
+
+async function loadVoiceCatalog(){
+  if(!token){$('loginOverlay').classList.remove('hidden');return}
+  const language=$('voiceCatalogLanguage').value||'';
+  const q=$('voiceCatalogSearch').value.trim();
+  $('voiceCatalogStatus').textContent='A carregar biblioteca de vozes…';
+  try{
+    const params=new URLSearchParams({language,q,limit:'500'});
+    const r=await fetch(API+'/api/platform/voice-catalog?'+params.toString(),{headers:{'Authorization':'Bearer '+token}});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===401){token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');throw new Error('Sessão expirada. Entra novamente.')}
+    if(!r.ok)throw new Error(d.detail||d.error||'Biblioteca temporariamente indisponível.');
+    const voices=Array.isArray(d.voices)?d.voices:[];
+    renderVoiceCatalog(voices);
+    $('voiceCatalogStatus').textContent=voices.length+' vozes encontradas. Ouve antes de escolher.';
+  }catch(e){$('voiceCatalogStatus').textContent=e.message}
+}
+$('voiceCatalogLoadBtn').onclick=loadVoiceCatalog;
+$('voiceCatalogSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();loadVoiceCatalog()}});
+$('voiceCatalogLanguage').addEventListener('change',loadVoiceCatalog);
 
 async function testSelectedVoice(){
   if(!token){$('loginOverlay').classList.remove('hidden');return}
@@ -455,7 +533,7 @@ function getAgents(){
       changed=true;
       return {...DEFAULT_AGENT};
     }
-    if(!a.voice || !allowedVoices.has(a.voice)){
+    if(!a.voice || (!allowedVoices.has(a.voice) && !String(a.voice).startsWith('piper:'))){
       changed=true;
       return {...a,voice:a.id==='solucoes-diferentes-energia'?'commercial':'natural',voiceEngine:'piper',voiceSource:'system'};
     }
@@ -508,7 +586,7 @@ function populateSelect(){
 }
 function updateSummary(){
   const a=getAgents().find(x=>x.id===$('callAgent').value)||getAgents()[0];if(!a)return;
-  const voiceLabel=VOICE_LABELS[a.voice||'natural']||VOICE_LABELS.natural;
+  const voiceLabel=voiceLabelFor(a.voice||'natural');
   $('agentSummary').innerHTML='<b>'+esc(a.name)+'</b> <span class="badge">'+esc(a.company)+'</span> <span class="badge">'+esc(voiceLabel)+'</span><div style="color:#8d8982;font-size:12px;margin-top:7px">'+esc(a.objective)+'</div>';
   localStorage.setItem('lumin_voice_preview_agent',a.id);
   if($('browserTestLink'))$('browserTestLink').href='/voz/?agent='+encodeURIComponent(a.id);
@@ -528,7 +606,7 @@ function renderAgents(){
 }
 async function editAgent(id){
   const a=getAgents().find(x=>x.id===id);if(!a)return;
-  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;$('agentVoice').value=a.voice||'natural';$('agentDescription').value=a.description||'';$('agentAvatarPath').value=a.avatarPath||'';$('agentVoiceAssetPath').value=a.voiceAssetPath||'';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('voiceConsent').checked=Boolean(a.voiceCloneConsent);$('avatarConsent').checked=Boolean(a.avatarConsent);$('editorTitle').textContent='Editar '+a.name;updateVoiceEditor();
+  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;ensureCatalogOption(a.voice,voiceLabelFor(a.voice));$('agentVoice').value=a.voice||'natural';$('agentDescription').value=a.description||'';$('agentAvatarPath').value=a.avatarPath||'';$('agentVoiceAssetPath').value=a.voiceAssetPath||'';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('voiceConsent').checked=Boolean(a.voiceCloneConsent);$('avatarConsent').checked=Boolean(a.avatarConsent);$('editorTitle').textContent='Editar '+a.name;updateVoiceEditor();
   setAvatarPreview('');
   $('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');
   if(a.avatarPath)signAsset(a.avatarPath).then(setAvatarPreview).catch(()=>{});
@@ -578,6 +656,7 @@ $('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
 $('agentForm').onsubmit=e=>{
   e.preventDefault();const id=$('agentId').value||('agent-'+Date.now());
   const voice=$('agentVoice').value||'natural';
+  if(voice==='__catalog__'){toast('Escolhe primeiro uma voz da biblioteca.');return}
   if(voice==='custom'&&!$('agentVoiceAssetPath').value){toast('Grava ou carrega uma amostra da tua voz.');return}
   if(voice==='custom'&&!$('voiceConsent').checked){toast('Confirma que tens autorização para usar essa voz.');return}
   if($('agentAvatarPath').value.trim()&&!$('avatarConsent').checked){toast('Confirma que tens autorização para usar essa fotografia.');return}
