@@ -120,6 +120,19 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
     neural:'CHATTERBOX · NEURAL',
     custom:'OPENVOICE · VOZ PRÓPRIA'
   };
+  const AVATAR_PRESETS={
+    nova:{url:'/voice-studio/avatars/nova.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    marta:{url:'/voice-studio/avatars/marta.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    sofia:{url:'/voice-studio/avatars/sofia.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    leonor:{url:'/voice-studio/avatars/leonor.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    ines:{url:'/voice-studio/avatars/ines.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    tiago:{url:'/voice-studio/avatars/tiago.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    rafael:{url:'/voice-studio/avatars/rafael.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    andre:{url:'/voice-studio/avatars/andre.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    tomas:{url:'/voice-studio/avatars/tomas.svg',mouth:{left:39,right:61,top:62,bottom:72}},
+    clara:{url:'/voice-studio/avatars/clara.svg',mouth:{left:39,right:61,top:62,bottom:72}}
+  };
+  function avatarPreset(id){return AVATAR_PRESETS[id]||AVATAR_PRESETS.nova}
 
   function clamp(v,min=0,max=1){return Math.max(min,Math.min(max,v))}
   function setStatus(t){statusEl.textContent=t}
@@ -142,12 +155,38 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
     if(!r.ok)throw new Error(d.error||'Não foi possível abrir o ficheiro do agente.');
     return d.signedUrl||'';
   }
+  function applyKnownMouth(mouth){
+    if(!mouth)return;
+    const left=mouth.left,right=mouth.right,top=mouth.top,bottom=mouth.bottom;
+    const cx=(left+right)/2,cy=(top+bottom)/2;
+    mouthLayer.style.clipPath='inset('+top+'% '+(100-right)+'% '+(100-bottom)+'% '+left+'% round 24%)';
+    mouthLayer.style.transformOrigin=cx+'% '+cy+'%';
+    const cavityW=Math.max(10,(right-left)*.70),cavityH=Math.max(4,(bottom-top)*.33);
+    mouthCavity.style.left=(cx-cavityW/2)+'%';
+    mouthCavity.style.top=(cy-cavityH*.18)+'%';
+    mouthCavity.style.width=cavityW+'%';
+    mouthCavity.style.height=cavityH+'%';
+    mouthCavity.style.transformOrigin='50% 48%';
+  }
+  async function showAvatarSource(url,knownMouth=null){
+    if(!url)return;
+    if(faceBase.dataset.objectUrl){
+      URL.revokeObjectURL(faceBase.dataset.objectUrl);
+      delete faceBase.dataset.objectUrl;
+    }
+    faceBase.onload=()=>{
+      if(knownMouth)applyKnownMouth(knownMouth);
+      else calibrateFaceMouth().catch(()=>{});
+    };
+    faceBase.src=url;mouthLayer.src=url;
+    faceStage.classList.remove('hidden');logoFallback.classList.add('hidden');
+  }
   async function hydrateAgent(){
     currentAgent=selectedAgent();
     if(!currentAgent)return;
     agentNameEl.textContent=currentAgent.name||'Lumin';
     agentCompanyEl.textContent=(currentAgent.company||'LUMIN AI').toUpperCase();
-    voiceBadgeEl.textContent=VOICE_LABELS[currentAgent.voice||'natural']||'VOZ PT-PT · OPEN SOURCE';
+    voiceBadgeEl.textContent=String(currentAgent.voice||'').startsWith('piper:')?'PIPER · BIBLIOTECA':(VOICE_LABELS[currentAgent.voice||'natural']||'VOZ PT-PT · OPEN SOURCE');
     callBtn.textContent='⚡ FALAR COM '+String(currentAgent.name||'O AVATAR').toUpperCase();
     if(currentAgent.avatarPath){
       try{
@@ -157,15 +196,15 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
           if(!response.ok)throw new Error('avatar unavailable');
           const blob=await response.blob();
           const objectUrl=URL.createObjectURL(blob);
-          if(faceBase.dataset.objectUrl)URL.revokeObjectURL(faceBase.dataset.objectUrl);
           faceBase.dataset.objectUrl=objectUrl;
-          faceBase.onload=()=>{calibrateFaceMouth().catch(()=>{})};
-          faceBase.src=objectUrl;mouthLayer.src=objectUrl;
-          faceStage.classList.remove('hidden');logoFallback.classList.add('hidden');
+          await showAvatarSource(objectUrl,null);
         }
       }catch(e){
         console.warn('LUMIN avatar image unavailable',e);
       }
+    }else{
+      const preset=avatarPreset(currentAgent.avatarPreset||'nova');
+      await showAvatarSource(preset.url,preset.mouth);
     }
   }
   async function calibrateFaceMouth(){
@@ -255,7 +294,8 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
       voiceEngine:currentAgent.voiceEngine||((currentAgent.voice==='custom'||currentAgent.voice==='neural')?'chatterbox':'piper'),
       voiceSource:currentAgent.voiceSource||(currentAgent.voice==='custom'?'custom':'system'),
       voiceAssetPath:currentAgent.voiceAssetPath||'',
-      avatarPath:currentAgent.avatarPath||''
+      avatarPath:currentAgent.avatarPath||'',
+      avatarPreset:currentAgent.avatarPreset||'nova'
     };
   }
   async function prepareAgentForLive(){
