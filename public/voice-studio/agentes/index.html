@@ -112,7 +112,7 @@ button{cursor:pointer}
             <div class="field"><label>AVATAR</label><input id="agentAvatarFile" type="file" accept="image/jpeg,image/png,image/webp"></div>
             <input id="agentAvatarPath" type="hidden">
             <input id="agentVoiceAssetPath" type="hidden">
-            <div class="field full"><label>AVATAR DO AGENTE</label><div class="assetBox"><div class="assetRow"><div id="agentAvatarPreview" class="assetPreview">AI</div><div><button type="button" id="uploadAvatarBtn" class="miniBtn">Carregar fotografia</button><div id="avatarStatus" class="assetStatus">JPG, PNG ou WebP · até 4 MB</div></div></div></div></div>
+            <div class="field full"><label>AVATAR DO AGENTE</label><div class="assetBox"><div class="assetRow"><div id="agentAvatarPreview" class="assetPreview">AI</div><div><button type="button" id="uploadAvatarBtn" class="miniBtn">Carregar fotografia</button><div id="avatarStatus" class="assetStatus">JPG, PNG ou WebP · até 4 MB</div></div></div><label class="consent" style="margin-top:10px"><input id="avatarConsent" type="checkbox"><span>Confirmo que esta fotografia é minha ou que tenho autorização explícita para criar e animar este avatar.</span></label><div class="assetRow" style="margin-top:12px"><button type="button" id="renderAvatarBtn" class="miniBtn">✨ Criar avatar falante</button><span id="avatarRenderStatus" class="assetStatus">Usa a fotografia e a amostra de voz do agente.</span></div><video id="avatarVideoPreview" controls playsinline class="hidden" style="width:100%;max-height:380px;margin-top:12px;border-radius:14px;background:#000"></video></div></div>
             <div class="field full"><label>DESCRIÇÃO / PERSONALIDADE</label><textarea id="agentDescription" placeholder="Ex.: Assistente comercial direto, simpático, faz uma pergunta de cada vez e procura perceber a necessidade antes de apresentar a solução."></textarea></div>
             <div id="customVoiceBox" class="field full hidden"><label>MINHA VOZ</label><div class="assetBox"><div class="assetRow"><input id="agentVoiceFile" type="file" accept="audio/*,video/webm" style="max-width:280px"><button type="button" id="recordVoiceBtn" class="miniBtn">🎙️ Gravar amostra</button><button type="button" id="uploadVoiceBtn" class="miniBtn">Carregar áudio</button></div><div id="voiceStatus" class="assetStatus" style="margin-top:8px">Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.</div><audio id="voicePreview" controls class="hidden" style="width:100%;margin-top:10px"></audio><label class="consent" style="margin-top:10px"><input id="voiceConsent" type="checkbox"><span>Confirmo que esta voz é minha ou que tenho autorização explícita para a utilizar e clonar neste agente.</span></label></div></div>
             <div class="field full"><label>OBJETIVO</label><input id="agentObjective" placeholder="Qualificar lead e apresentar a solução"></div>
@@ -290,6 +290,74 @@ $('uploadAvatarBtn').onclick=async()=>{
 };
 $('agentAvatarFile').addEventListener('change',()=>{if($('agentAvatarFile').files?.[0])$('uploadAvatarBtn').click()});
 
+let avatarPollTimer=null;
+async function renderAvatarPreview(){
+  if(!token){$('loginOverlay').classList.remove('hidden');return}
+  const avatarPath=$('agentAvatarPath').value.trim();
+  const voicePath=$('agentVoiceAssetPath').value.trim();
+  if(!avatarPath){$('avatarRenderStatus').textContent='Carrega primeiro uma fotografia.';return}
+  if(!$('avatarConsent').checked){$('avatarRenderStatus').textContent='Confirma que tens autorização para usar a fotografia.';return}
+  if(!voicePath){$('avatarRenderStatus').textContent='Para gerar o vídeo, grava ou carrega primeiro uma amostra em “A minha voz”.';return}
+  if(!$('voiceConsent').checked){$('avatarRenderStatus').textContent='Confirma também a autorização da voz.';return}
+
+  $('renderAvatarBtn').disabled=true;
+  $('avatarRenderStatus').textContent='A preparar fotografia e voz…';
+  $('avatarVideoPreview').classList.add('hidden');
+  try{
+    const [imageUrl,audioUrl]=await Promise.all([signAsset(avatarPath),signAsset(voicePath)]);
+    const create=await fetch(API+'/api/platform/avatar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({imageUrl,audioUrl,preprocess:'crop',still:true,size:512})
+    });
+    const job=await create.json();
+    if(create.status===401){token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');throw new Error('Sessão expirada. Entra novamente.')}
+    if(!create.ok)throw new Error(job.detail||job.error||'Não foi possível iniciar o avatar.');
+    $('avatarRenderStatus').textContent='Avatar em criação… podes continuar a editar o agente.';
+    const jobId=job.id;
+    let checks=0;
+    clearInterval(avatarPollTimer);
+    avatarPollTimer=setInterval(async()=>{
+      checks++;
+      try{
+        const r=await fetch(API+'/api/platform/avatar/'+jobId,{headers:{'Authorization':'Bearer '+token}});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d.detail||'Falha ao consultar avatar');
+        const labels={queued:'Na fila…',downloading:'A carregar ficheiros…',preparing:'A preparar rosto e áudio…',rendering:'A animar rosto e sincronizar a fala…'};
+        $('avatarRenderStatus').textContent=labels[d.status]||('Avatar: '+d.status);
+        if(d.status==='ready'){
+          clearInterval(avatarPollTimer);
+          const vr=await fetch(API+'/api/platform/avatar/'+jobId+'/video',{headers:{'Authorization':'Bearer '+token}});
+          if(!vr.ok)throw new Error('O vídeo ficou pronto mas não foi possível abri-lo.');
+          const blob=await vr.blob();
+          const url=URL.createObjectURL(blob);
+          const video=$('avatarVideoPreview');
+          if(video.dataset.objectUrl)URL.revokeObjectURL(video.dataset.objectUrl);
+          video.dataset.objectUrl=url;video.src=url;video.classList.remove('hidden');
+          $('avatarRenderStatus').textContent='Avatar falante pronto.';
+          $('renderAvatarBtn').disabled=false;
+        }else if(d.status==='failed'){
+          clearInterval(avatarPollTimer);
+          $('avatarRenderStatus').textContent='Falha no avatar: '+(d.error||'erro desconhecido');
+          $('renderAvatarBtn').disabled=false;
+        }else if(checks>240){
+          clearInterval(avatarPollTimer);
+          $('avatarRenderStatus').textContent='A criação está a demorar demasiado. Tenta novamente.';
+          $('renderAvatarBtn').disabled=false;
+        }
+      }catch(e){
+        clearInterval(avatarPollTimer);
+        $('avatarRenderStatus').textContent=e.message;
+        $('renderAvatarBtn').disabled=false;
+      }
+    },3000);
+  }catch(e){
+    $('avatarRenderStatus').textContent=e.message;
+    $('renderAvatarBtn').disabled=false;
+  }
+}
+$('renderAvatarBtn').onclick=renderAvatarPreview;
+
 $('uploadVoiceBtn').onclick=async()=>{
   const file=$('agentVoiceFile').files?.[0];
   if(!file){$('agentVoiceFile').click();return}
@@ -415,14 +483,14 @@ function renderAgents(){
 }
 async function editAgent(id){
   const a=getAgents().find(x=>x.id===id);if(!a)return;
-  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;$('agentVoice').value=a.voice||'natural';$('agentDescription').value=a.description||'';$('agentAvatarPath').value=a.avatarPath||'';$('agentVoiceAssetPath').value=a.voiceAssetPath||'';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('voiceConsent').checked=Boolean(a.voiceCloneConsent);$('editorTitle').textContent='Editar '+a.name;updateVoiceEditor();
+  $('agentId').value=a.id;$('agentName').value=a.name;$('agentCompany').value=a.company;$('agentVoice').value=a.voice||'natural';$('agentDescription').value=a.description||'';$('agentAvatarPath').value=a.avatarPath||'';$('agentVoiceAssetPath').value=a.voiceAssetPath||'';$('agentObjective').value=a.objective;$('agentOpening').value=a.opening||'';$('agentProduct').value=a.product||'';$('agentOffer').value=a.offer||'';$('agentObjections').value=a.objections||'';$('agentNotes').value=a.notes||'';$('agentTone').value=a.tone||'';$('voiceConsent').checked=Boolean(a.voiceCloneConsent);$('avatarConsent').checked=Boolean(a.avatarConsent);$('editorTitle').textContent='Editar '+a.name;updateVoiceEditor();
   setAvatarPreview('');
   $('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');
   if(a.avatarPath)signAsset(a.avatarPath).then(setAvatarPreview).catch(()=>{});
   if(a.voiceAssetPath)signAsset(a.voiceAssetPath).then(url=>{if(url){$('voicePreview').src=url;$('voicePreview').classList.remove('hidden');$('voiceStatus').textContent='Amostra de voz guardada.'}}).catch(()=>{});
 }
 function clearEditor(){
-  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';updateVoiceEditor();$('editorTitle').textContent='Novo agente';
+  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('avatarConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';$('avatarRenderStatus').textContent='Usa a fotografia e a amostra de voz do agente.';$('avatarVideoPreview').classList.add('hidden');$('avatarVideoPreview').removeAttribute('src');updateVoiceEditor();$('editorTitle').textContent='Novo agente';
 }
 function duplicateAgent(id){const a=getAgents().find(x=>x.id===id);if(!a)return;const n={...a,id:'agent-'+Date.now(),name:a.name+' cópia'};const all=getAgents();all.unshift(n);saveAgents(all);toast('Agente duplicado')}
 $('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
@@ -431,7 +499,8 @@ $('agentForm').onsubmit=e=>{
   const voice=$('agentVoice').value||'natural';
   if(voice==='custom'&&!$('agentVoiceAssetPath').value){toast('Grava ou carrega uma amostra da tua voz.');return}
   if(voice==='custom'&&!$('voiceConsent').checked){toast('Confirma que tens autorização para usar essa voz.');return}
-  const a={id,name:$('agentName').value.trim()||'Novo Agente',company:$('agentCompany').value.trim()||'Minha Empresa',description:$('agentDescription').value.trim(),avatarPath:$('agentAvatarPath').value.trim(),voice,voiceEngine:voiceEngineFor(voice),voiceSource:voiceSourceFor(voice),voiceAssetPath:$('agentVoiceAssetPath').value.trim(),voiceCloneConsent:voice==='custom'?Boolean($('voiceConsent').checked):false,objective:$('agentObjective').value.trim()||'Conversar e qualificar o contacto',opening:$('agentOpening').value.trim(),product:$('agentProduct').value.trim(),offer:$('agentOffer').value.trim(),objections:$('agentObjections').value.trim(),notes:$('agentNotes').value.trim(),tone:$('agentTone').value.trim()||'Natural, profissional e direto'};
+  if($('agentAvatarPath').value.trim()&&!$('avatarConsent').checked){toast('Confirma que tens autorização para usar essa fotografia.');return}
+  const a={id,name:$('agentName').value.trim()||'Novo Agente',company:$('agentCompany').value.trim()||'Minha Empresa',description:$('agentDescription').value.trim(),avatarPath:$('agentAvatarPath').value.trim(),avatarConsent:Boolean($('avatarConsent').checked),voice,voiceEngine:voiceEngineFor(voice),voiceSource:voiceSourceFor(voice),voiceAssetPath:$('agentVoiceAssetPath').value.trim(),voiceCloneConsent:voice==='custom'?Boolean($('voiceConsent').checked):false,objective:$('agentObjective').value.trim()||'Conversar e qualificar o contacto',opening:$('agentOpening').value.trim(),product:$('agentProduct').value.trim(),offer:$('agentOffer').value.trim(),objections:$('agentObjections').value.trim(),notes:$('agentNotes').value.trim(),tone:$('agentTone').value.trim()||'Natural, profissional e direto'};
   const all=getAgents(),i=all.findIndex(x=>x.id===id);if(i>=0)all[i]=a;else all.unshift(a);saveAgents(all);$('callAgent').value=id;updateSummary();clearEditor();toast('Agente guardado');
 };
 
