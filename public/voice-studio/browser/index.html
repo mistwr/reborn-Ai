@@ -170,10 +170,11 @@ button{appearance:none;border:0;min-height:56px;border-radius:999px;font:inherit
   }
   async function showAvatarSource(url,knownMouth=null){
     if(!url)return;
-    if(faceBase.dataset.objectUrl){
+    if(faceBase.dataset.objectUrl&&faceBase.dataset.objectUrl!==url){
       URL.revokeObjectURL(faceBase.dataset.objectUrl);
       delete faceBase.dataset.objectUrl;
     }
+    if(String(url).startsWith('blob:'))faceBase.dataset.objectUrl=url;
     faceBase.onload=()=>{
       if(knownMouth)applyKnownMouth(knownMouth);
       else calibrateFaceMouth().catch(()=>{});
