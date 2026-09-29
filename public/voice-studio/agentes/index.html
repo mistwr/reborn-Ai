@@ -108,7 +108,7 @@ button{cursor:pointer}
             <input id="agentId" type="hidden">
             <div class="field"><label>NOME DO AGENTE</label><input id="agentName" placeholder="Lumin Comercial"></div>
             <div class="field"><label>EMPRESA / MARCA</label><input id="agentCompany" placeholder="LUMIN AI"></div>
-            <div class="field"><label>VOZ</label><select id="agentVoice"><option value="natural">Lumin PT · Natural · Piper local</option><option value="clear">Lumin PT · Clara · Piper local</option><option value="commercial">Lumin PT · Comercial · Piper local</option><option value="neural">Lumin PT · Neural · Chatterbox open-source</option><option value="custom">A minha voz · clonagem Chatterbox</option></select></div>
+            <div class="field"><label>VOZ</label><select id="agentVoice"><option value="natural">Lumin PT · Natural · Piper local</option><option value="clear">Lumin PT · Clara · Piper local</option><option value="commercial">Lumin PT · Comercial · Piper local</option><option value="kokoro">Lumin PT · Kokoro PT-PT · open-source</option><option value="neural">Lumin PT · Neural · Chatterbox open-source</option><option value="custom">A minha voz · clonagem Chatterbox</option></select></div>
             <div class="field"><label>AVATAR</label><input id="agentAvatarFile" type="file" accept="image/jpeg,image/png,image/webp"></div>
             <input id="agentAvatarPath" type="hidden">
             <input id="agentVoiceAssetPath" type="hidden">
@@ -233,11 +233,13 @@ const VOICE_LABELS={
   natural:'Lumin PT Natural · Piper local',
   clear:'Lumin PT Clara · Piper local',
   commercial:'Lumin PT Comercial · Piper local',
+  kokoro:'Lumin PT Kokoro · open-source',
   neural:'Lumin PT Neural · Chatterbox',
   custom:'Minha voz · Chatterbox'
 };
 
 function voiceEngineFor(voice){
+  if(voice==='kokoro')return 'kokoro';
   return voice==='neural'||voice==='custom'?'chatterbox':'piper';
 }
 function voiceSourceFor(voice){
@@ -336,7 +338,7 @@ function getAgents(){
   if(!agents.length)agents=[...BUILTIN_AGENTS];
 
   let changed=false;
-  const allowedVoices=new Set(['natural','clear','commercial','neural','custom']);
+  const allowedVoices=new Set(['natural','clear','commercial','kokoro','neural','custom']);
   agents=agents.map(a=>{
     if(a.id===DEFAULT_AGENT.id && (a.builtinVersion||0)<DEFAULT_AGENT.builtinVersion){
       changed=true;
