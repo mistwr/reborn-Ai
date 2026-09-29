@@ -108,7 +108,7 @@ button{cursor:pointer}
             <input id="agentId" type="hidden">
             <div class="field"><label>NOME DO AGENTE</label><input id="agentName" placeholder="Lumin Comercial"></div>
             <div class="field"><label>EMPRESA / MARCA</label><input id="agentCompany" placeholder="LUMIN AI"></div>
-            <div class="field"><label>VOZ</label><select id="agentVoice"><option value="natural">Lumin PT · Natural · Piper local</option><option value="clear">Lumin PT · Clara · Piper local</option><option value="commercial">Lumin PT · Comercial · Piper local</option><option value="kokoro">Lumin PT · Kokoro PT-PT · open-source</option><option value="neural">Lumin PT · Neural · Chatterbox open-source</option><option value="custom">A minha voz · clonagem Chatterbox</option></select></div>
+            <div class="field"><label>VOZ</label><select id="agentVoice"><option value="natural">Lumin PT · Natural · Piper local</option><option value="clear">Lumin PT · Clara · Piper local</option><option value="commercial">Lumin PT · Comercial · Piper local</option><option value="kokoro">Lumin PT · Kokoro PT-PT · open-source</option><option value="neural">Lumin PT · Neural · Chatterbox open-source</option><option value="custom">A minha voz · clonagem OpenVoice</option></select></div>
             <div class="field"><label>AVATAR</label><input id="agentAvatarFile" type="file" accept="image/jpeg,image/png,image/webp"></div>
             <input id="agentAvatarPath" type="hidden">
             <input id="agentVoiceAssetPath" type="hidden">
@@ -235,12 +235,12 @@ const VOICE_LABELS={
   commercial:'Lumin PT Comercial · Piper local',
   kokoro:'Lumin PT Kokoro · open-source',
   neural:'Lumin PT Neural · Chatterbox',
-  custom:'Minha voz · Chatterbox'
+  custom:'Minha voz · OpenVoice'
 };
 
 function voiceEngineFor(voice){
   if(voice==='kokoro')return 'kokoro';
-  return voice==='neural'||voice==='custom'?'chatterbox':'piper';
+  return voice==='neural'?'chatterbox':voice==='custom'?'openvoice':'piper';
 }
 function voiceSourceFor(voice){
   return voice==='custom'?'custom':'system';
