@@ -109,6 +109,8 @@ button{cursor:pointer}
             <div class="field"><label>NOME DO AGENTE</label><input id="agentName" placeholder="Lumin Comercial"></div>
             <div class="field"><label>EMPRESA / MARCA</label><input id="agentCompany" placeholder="LUMIN AI"></div>
             <div class="field"><label>VOZ</label><select id="agentVoice"><option value="natural">Lumin PT · Natural · Piper local</option><option value="clear">Lumin PT · Clara · Piper local</option><option value="commercial">Lumin PT · Comercial · Piper local</option><option value="kokoro">Lumin PT · Kokoro PT-PT · open-source</option><option value="neural">Lumin PT · Neural · Chatterbox open-source</option><option value="custom">A minha voz · clonagem OpenVoice</option></select></div>
+            <div class="field"><label>TESTAR VOZ</label><button type="button" id="testVoiceBtn" class="miniBtn">▶ Ouvir voz</button></div>
+            <div class="field full"><audio id="agentVoiceTest" controls class="hidden" style="width:100%"></audio><div id="testVoiceStatus" class="assetStatus"></div></div>
             <div class="field"><label>AVATAR</label><input id="agentAvatarFile" type="file" accept="image/jpeg,image/png,image/webp"></div>
             <input id="agentAvatarPath" type="hidden">
             <input id="agentVoiceAssetPath" type="hidden">
@@ -276,6 +278,46 @@ function updateVoiceEditor(){
 }
 
 $('agentVoice').addEventListener('change',updateVoiceEditor);
+
+async function testSelectedVoice(){
+  if(!token){$('loginOverlay').classList.remove('hidden');return}
+  const voice=$('agentVoice').value||'natural';
+  let voiceSampleUrl='';
+  if(voice==='custom'){
+    const path=$('agentVoiceAssetPath').value.trim();
+    if(!path){$('testVoiceStatus').textContent='Grava ou carrega primeiro a tua voz.';return}
+    if(!$('voiceConsent').checked){$('testVoiceStatus').textContent='Confirma primeiro a autorização da voz.';return}
+    try{voiceSampleUrl=await signAsset(path)}catch(e){$('testVoiceStatus').textContent=e.message;return}
+  }
+  $('testVoiceBtn').disabled=true;
+  $('testVoiceBtn').textContent='A gerar…';
+  $('testVoiceStatus').textContent=voice==='custom'?'A criar uma amostra com a tua voz…':'A preparar a voz…';
+  try{
+    const r=await fetch(API+'/api/platform/voice-preview',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({
+        voice,
+        text:'Olá. Sou o teu agente Lumin. Esta é a voz que escolheste.',
+        voiceSampleUrl
+      })
+    });
+    if(r.status===401){token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');throw new Error('Sessão expirada. Entra novamente.')}
+    if(!r.ok){
+      const d=await r.json().catch(()=>({}));
+      throw new Error(d.detail||d.error||'Não foi possível gerar a voz.');
+    }
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const audio=$('agentVoiceTest');
+    if(audio.dataset.objectUrl)URL.revokeObjectURL(audio.dataset.objectUrl);
+    audio.dataset.objectUrl=url;audio.src=url;audio.classList.remove('hidden');
+    $('testVoiceStatus').textContent='Voz pronta para ouvir.';
+    audio.play().catch(()=>{});
+  }catch(e){$('testVoiceStatus').textContent=e.message}
+  finally{$('testVoiceBtn').disabled=false;$('testVoiceBtn').textContent='▶ Ouvir voz'}
+}
+$('testVoiceBtn').onclick=testSelectedVoice;
 
 $('uploadAvatarBtn').onclick=async()=>{
   const file=$('agentAvatarFile').files?.[0];
@@ -490,7 +532,7 @@ async function editAgent(id){
   if(a.voiceAssetPath)signAsset(a.voiceAssetPath).then(url=>{if(url){$('voicePreview').src=url;$('voicePreview').classList.remove('hidden');$('voiceStatus').textContent='Amostra de voz guardada.'}}).catch(()=>{});
 }
 function clearEditor(){
-  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('avatarConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';$('avatarRenderStatus').textContent='Usa a fotografia e a amostra de voz do agente.';$('avatarVideoPreview').classList.add('hidden');$('avatarVideoPreview').removeAttribute('src');updateVoiceEditor();$('editorTitle').textContent='Novo agente';
+  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('avatarConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';$('avatarRenderStatus').textContent='Usa a fotografia e a amostra de voz do agente.';$('testVoiceStatus').textContent='';$('agentVoiceTest').classList.add('hidden');$('agentVoiceTest').removeAttribute('src');$('avatarVideoPreview').classList.add('hidden');$('avatarVideoPreview').removeAttribute('src');updateVoiceEditor();$('editorTitle').textContent='Novo agente';
 }
 function duplicateAgent(id){const a=getAgents().find(x=>x.id===id);if(!a)return;const n={...a,id:'agent-'+Date.now(),name:a.name+' cópia'};const all=getAgents();all.unshift(n);saveAgents(all);toast('Agente duplicado')}
 $('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
