@@ -70,7 +70,7 @@ button{cursor:pointer}
   <main class="main">
     <div class="topbar">
       <div><div class="eyebrow">LUMIN AI · VOICE</div><div class="title" id="pageTitle">Fazer chamada</div><div class="sub" id="pageSub">Escolhe o agente, introduz o contacto e o Lumin liga.</div></div>
-      <div class="toolbar"><span class="pill"><i class="dot"></i> Sistema operacional</span><a class="secondary" href="/voz/" style="text-decoration:none;font-size:12px">Testar no browser</a></div>
+      <div class="toolbar"><span class="pill"><i class="dot"></i> Sistema operacional</span><a id="browserTestLink" class="secondary" href="/voz/" style="text-decoration:none;font-size:12px">⚡ Avatar Live</a></div>
     </div>
 
     <section id="view-call" class="view active">
@@ -114,7 +114,7 @@ button{cursor:pointer}
             <div class="field"><label>AVATAR</label><input id="agentAvatarFile" type="file" accept="image/jpeg,image/png,image/webp"></div>
             <input id="agentAvatarPath" type="hidden">
             <input id="agentVoiceAssetPath" type="hidden">
-            <div class="field full"><label>AVATAR DO AGENTE</label><div class="assetBox"><div class="assetRow"><div id="agentAvatarPreview" class="assetPreview">AI</div><div><button type="button" id="uploadAvatarBtn" class="miniBtn">Carregar fotografia</button><div id="avatarStatus" class="assetStatus">JPG, PNG ou WebP · até 4 MB</div></div></div><label class="consent" style="margin-top:10px"><input id="avatarConsent" type="checkbox"><span>Confirmo que esta fotografia é minha ou que tenho autorização explícita para criar e animar este avatar.</span></label><div class="assetRow" style="margin-top:12px"><button type="button" id="renderAvatarBtn" class="miniBtn">✨ Criar avatar falante</button><span id="avatarRenderStatus" class="assetStatus">Usa a fotografia e a amostra de voz do agente.</span></div><video id="avatarVideoPreview" controls playsinline class="hidden" style="width:100%;max-height:380px;margin-top:12px;border-radius:14px;background:#000"></video></div></div>
+            <div class="field full"><label>AVATAR DO AGENTE</label><div class="assetBox"><div class="assetRow"><div id="agentAvatarPreview" class="assetPreview">AI</div><div><button type="button" id="uploadAvatarBtn" class="miniBtn">Carregar fotografia</button><div id="avatarStatus" class="assetStatus">JPG, PNG ou WebP · até 4 MB</div></div></div><label class="consent" style="margin-top:10px"><input id="avatarConsent" type="checkbox"><span>Confirmo que esta fotografia é minha ou que tenho autorização explícita para criar e animar este avatar.</span></label><div class="assetRow" style="margin-top:12px"><button type="button" id="liveAvatarBtn" class="miniBtn">⚡ Testar avatar LIVE</button><button type="button" id="renderAvatarBtn" class="miniBtn">🎬 Render de alta qualidade</button><span id="avatarRenderStatus" class="assetStatus">LIVE reage à voz em tempo real; o render cria um vídeo de maior qualidade.</span></div><video id="avatarVideoPreview" controls playsinline class="hidden" style="width:100%;max-height:380px;margin-top:12px;border-radius:14px;background:#000"></video></div></div>
             <div class="field full"><label>DESCRIÇÃO / PERSONALIDADE</label><textarea id="agentDescription" placeholder="Ex.: Assistente comercial direto, simpático, faz uma pergunta de cada vez e procura perceber a necessidade antes de apresentar a solução."></textarea></div>
             <div id="customVoiceBox" class="field full hidden"><label>MINHA VOZ</label><div class="assetBox"><div class="assetRow"><input id="agentVoiceFile" type="file" accept="audio/*,video/webm" style="max-width:280px"><button type="button" id="recordVoiceBtn" class="miniBtn">🎙️ Gravar amostra</button><button type="button" id="uploadVoiceBtn" class="miniBtn">Carregar áudio</button></div><div id="voiceStatus" class="assetStatus" style="margin-top:8px">Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.</div><audio id="voicePreview" controls class="hidden" style="width:100%;margin-top:10px"></audio><label class="consent" style="margin-top:10px"><input id="voiceConsent" type="checkbox"><span>Confirmo que esta voz é minha ou que tenho autorização explícita para a utilizar e clonar neste agente.</span></label></div></div>
             <div class="field full"><label>OBJETIVO</label><input id="agentObjective" placeholder="Qualificar lead e apresentar a solução"></div>
@@ -509,6 +509,8 @@ function updateSummary(){
   const a=getAgents().find(x=>x.id===$('callAgent').value)||getAgents()[0];if(!a)return;
   const voiceLabel=VOICE_LABELS[a.voice||'natural']||VOICE_LABELS.natural;
   $('agentSummary').innerHTML='<b>'+esc(a.name)+'</b> <span class="badge">'+esc(a.company)+'</span> <span class="badge">'+esc(voiceLabel)+'</span><div style="color:#8d8982;font-size:12px;margin-top:7px">'+esc(a.objective)+'</div>';
+  localStorage.setItem('lumin_voice_preview_agent',a.id);
+  if($('browserTestLink'))$('browserTestLink').href='/voz/?agent='+encodeURIComponent(a.id);
 }
 $('callAgent').onchange=updateSummary;
 
@@ -532,9 +534,45 @@ async function editAgent(id){
   if(a.voiceAssetPath)signAsset(a.voiceAssetPath).then(url=>{if(url){$('voicePreview').src=url;$('voicePreview').classList.remove('hidden');$('voiceStatus').textContent='Amostra de voz guardada.'}}).catch(()=>{});
 }
 function clearEditor(){
-  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('avatarConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';$('avatarRenderStatus').textContent='Usa a fotografia e a amostra de voz do agente.';$('testVoiceStatus').textContent='';$('agentVoiceTest').classList.add('hidden');$('agentVoiceTest').removeAttribute('src');$('avatarVideoPreview').classList.add('hidden');$('avatarVideoPreview').removeAttribute('src');updateVoiceEditor();$('editorTitle').textContent='Novo agente';
+  ['agentId','agentName','agentCompany','agentDescription','agentAvatarPath','agentVoiceAssetPath','agentObjective','agentOpening','agentProduct','agentOffer','agentObjections','agentNotes','agentTone'].forEach(id=>$(id).value='');$('agentVoice').value='natural';$('agentTone').value='Natural, profissional e direto';$('voiceConsent').checked=false;$('avatarConsent').checked=false;$('agentAvatarFile').value='';$('agentVoiceFile').value='';setAvatarPreview('');$('voicePreview').classList.add('hidden');$('voicePreview').removeAttribute('src');$('voiceStatus').textContent='Usa 10–30 segundos de voz limpa, sem música nem outras pessoas.';$('avatarStatus').textContent='JPG, PNG ou WebP · até 4 MB';$('avatarRenderStatus').textContent='LIVE reage à voz em tempo real; o render cria um vídeo de maior qualidade.';$('testVoiceStatus').textContent='';$('agentVoiceTest').classList.add('hidden');$('agentVoiceTest').removeAttribute('src');$('avatarVideoPreview').classList.add('hidden');$('avatarVideoPreview').removeAttribute('src');updateVoiceEditor();$('editorTitle').textContent='Novo agente';
 }
 function duplicateAgent(id){const a=getAgents().find(x=>x.id===id);if(!a)return;const n={...a,id:'agent-'+Date.now(),name:a.name+' cópia'};const all=getAgents();all.unshift(n);saveAgents(all);toast('Agente duplicado')}
+
+function draftAgentForLive(){
+  const voice=$('agentVoice').value||'natural';
+  return {
+    id:$('agentId').value||'preview-'+Date.now(),
+    name:$('agentName').value.trim()||'Novo Agente',
+    company:$('agentCompany').value.trim()||'Minha Empresa',
+    description:$('agentDescription').value.trim(),
+    avatarPath:$('agentAvatarPath').value.trim(),
+    avatarConsent:Boolean($('avatarConsent').checked),
+    voice,
+    voiceEngine:voiceEngineFor(voice),
+    voiceSource:voiceSourceFor(voice),
+    voiceAssetPath:$('agentVoiceAssetPath').value.trim(),
+    voiceCloneConsent:voice==='custom'?Boolean($('voiceConsent').checked):false,
+    objective:$('agentObjective').value.trim()||'Conversar e qualificar o contacto',
+    opening:$('agentOpening').value.trim(),
+    product:$('agentProduct').value.trim(),
+    offer:$('agentOffer').value.trim(),
+    objections:$('agentObjections').value.trim(),
+    notes:$('agentNotes').value.trim(),
+    tone:$('agentTone').value.trim()||'Natural, profissional e direto'
+  };
+}
+
+$('liveAvatarBtn').onclick=()=>{
+  const a=draftAgentForLive();
+  if(!a.avatarPath){toast('Carrega primeiro uma fotografia para o avatar LIVE.');return}
+  if(!a.avatarConsent){toast('Confirma que tens autorização para usar esta fotografia.');return}
+  if(a.voice==='custom'&&!a.voiceAssetPath){toast('Grava ou carrega a tua voz primeiro.');return}
+  if(a.voice==='custom'&&!a.voiceCloneConsent){toast('Confirma que tens autorização para usar essa voz.');return}
+  localStorage.setItem('lumin_voice_preview_draft',JSON.stringify(a));
+  localStorage.setItem('lumin_voice_preview_agent','__draft__');
+  window.open('/voz/?agent=__draft__','_blank','noopener');
+};
+
 $('newAgentBtn').onclick=clearEditor;$('cancelEdit').onclick=clearEditor;
 $('agentForm').onsubmit=e=>{
   e.preventDefault();const id=$('agentId').value||('agent-'+Date.now());
