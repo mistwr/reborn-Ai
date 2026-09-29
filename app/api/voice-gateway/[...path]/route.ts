@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
+export const maxDuration = 60
+
 const DEFAULT_GATEWAY = "https://lumin-voice-gateway-production.up.railway.app"
 
 function isAllowedPath(path: string) {
