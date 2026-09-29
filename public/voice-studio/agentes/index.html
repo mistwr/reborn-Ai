@@ -81,7 +81,7 @@ button{cursor:pointer}
             <div class="field full"><label>AGENTE</label><select id="callAgent"></select></div>
             <div class="field"><label>NOME DO CONTACTO</label><input id="callName" placeholder="Ex.: António"></div>
             <div class="field"><label>NÚMERO</label><input id="callPhone" inputmode="tel" placeholder="+351 9XX XXX XXX"></div>
-            <div class="field full"><label>RESUMO DO AGENTE</label><div id="agentSummary" class="agentRow" style="display:block"></div></div>
+            <div class="field full"><label>RESUMO DO AGENTE</label><div id="agentSummary" class="agentRow" style="display:block"></div><div class="assetRow" style="margin-top:8px"><button type="button" id="callVoicePreviewBtn" class="miniBtn">▶ Ouvir voz antes de ligar</button><span id="callVoicePreviewStatus" class="assetStatus"></span><audio id="callVoicePreviewAudio" class="hidden" controls style="width:100%;margin-top:7px"></audio></div></div>
           </div>
         </div>
 
@@ -448,6 +448,36 @@ $('voiceCatalogLoadBtn').onclick=loadVoiceCatalog;
 $('voiceCatalogSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();loadVoiceCatalog()}});
 $('voiceCatalogLanguage').addEventListener('change',loadVoiceCatalog);
 
+async function previewVoiceValue(voice,text,voiceAssetPath='',play=true){
+  if(!token)throw new Error('Sessão do Voice Studio em falta.');
+  let voiceSampleUrl='';
+  if(voice==='custom'){
+    if(!voiceAssetPath)throw new Error('Amostra da voz personalizada em falta.');
+    voiceSampleUrl=await signAsset(voiceAssetPath);
+  }
+  const r=await fetch(API+'/api/platform/voice-preview',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({voice,text,voiceSampleUrl})
+  });
+  if(r.status===401){
+    token='';sessionStorage.removeItem('lumin_voice_session');$('loginOverlay').classList.remove('hidden');
+    throw new Error('Sessão expirada. Entra novamente.');
+  }
+  if(!r.ok){
+    const d=await r.json().catch(()=>({}));
+    throw new Error(d.detail||d.error||'Não foi possível preparar esta voz.');
+  }
+  const blob=await r.blob();
+  return blob;
+}
+
+async function warmVoiceForCall(agent){
+  const voice=agent?.voice||'natural';
+  if(!String(voice).startsWith('piper:'))return;
+  await previewVoiceValue(voice,'Olá.',agent?.voiceAssetPath||'',false);
+}
+
 async function testSelectedVoice(){
   if(!token){$('loginOverlay').classList.remove('hidden');return}
   const voice=$('agentVoice').value||'natural';
@@ -689,6 +719,22 @@ function updateSummary(){
   if($('browserTestLink'))$('browserTestLink').href='/voz/?agent='+encodeURIComponent(a.id);
 }
 $('callAgent').onchange=updateSummary;
+$('callVoicePreviewBtn').onclick=async()=>{
+  if(!token){$('loginOverlay').classList.remove('hidden');return}
+  const agent=getAgents().find(x=>x.id===$('callAgent').value)||getAgents()[0];
+  if(!agent)return;
+  const btn=$('callVoicePreviewBtn'),status=$('callVoicePreviewStatus'),audio=$('callVoicePreviewAudio');
+  btn.disabled=true;btn.textContent='A preparar…';status.textContent='A testar '+voiceLabelFor(agent.voice||'natural')+'…';
+  try{
+    const blob=await previewVoiceValue(agent.voice||'natural','Olá. Sou o teu agente Lumin e esta é a voz que vai falar na chamada.',agent.voiceAssetPath||'',true);
+    const url=URL.createObjectURL(blob);
+    if(audio.dataset.objectUrl)URL.revokeObjectURL(audio.dataset.objectUrl);
+    audio.dataset.objectUrl=url;audio.src=url;audio.classList.remove('hidden');
+    status.textContent='Voz pronta.';
+    audio.play().catch(()=>{});
+  }catch(e){status.textContent=e.message}
+  finally{btn.disabled=false;btn.textContent='▶ Ouvir voz antes de ligar'}
+};
 
 function renderAgents(){
   const root=$('agentList'),agents=getAgents();root.innerHTML='';
@@ -777,6 +823,10 @@ async function makeCall(){
   if(!/^\+[1-9]\d{7,14}$/.test(phone)){toast('Usa o formato +3519XXXXXXXX');return}
   $('callBtn').disabled=true;$('callBtn').textContent='A iniciar…';setState('A preparar chamada…','',0);
   try{
+    if(String(agent?.voice||'').startsWith('piper:')){
+      setState('A preparar a voz escolhida…','',1);
+      await warmVoiceForCall(agent);
+    }
     const wireAgent={...agent,tone:'[VOICE:'+(agent?.voice||'natural')+'] '+(agent?.tone||'Natural, profissional e direto')};
     if(agent?.voice==='custom'&&agent?.voiceAssetPath){
       try{wireAgent.voiceSampleUrl=await signAsset(agent.voiceAssetPath)}catch(e){throw new Error('Não consegui preparar a amostra da voz. Inicia sessão no Lumin e tenta novamente.')}
