@@ -7,12 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader, Trash2, Download } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, Loader, Trash2 } from 'lucide-react'
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16'] as const
 const STYLES = ['Fotorealista', 'Anime', 'Digital Art', 'Illustration', '3D'] as const
 
 export const ImageGeneratorProTab: React.FC = () => {
+  const [error, setError] = useState<string | null>(null)
+  const [lastQuality, setLastQuality] = useState<{ confidence?: number; matched?: boolean; retried?: boolean; note?: string } | null>(null)
   const {
     images,
     isGenerating,
@@ -31,6 +33,8 @@ export const ImageGeneratorProTab: React.FC = () => {
     if (!prompt.trim()) return
 
     setIsGenerating(true)
+    setError(null)
+    setLastQuality(null)
     try {
       // Call the image generation API
       const response = await fetch('/api/pro/generate-image', {
@@ -43,9 +47,16 @@ export const ImageGeneratorProTab: React.FC = () => {
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to generate image')
-
       const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Failed to generate image')
+
+      setLastQuality({
+        confidence: data?.qualityControl?.confidence,
+        matched: data?.qualityControl?.matched,
+        retried: data?.retried,
+        note: data?.note,
+      })
+
       addImage({
         id: Date.now().toString(),
         prompt,
@@ -54,8 +65,9 @@ export const ImageGeneratorProTab: React.FC = () => {
         imageUrl: data.imageUrl,
         timestamp: new Date(),
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Generation error:', error)
+      setError(error?.message || 'Não foi possível gerar a imagem.')
     } finally {
       setIsGenerating(false)
     }
@@ -71,9 +83,25 @@ export const ImageGeneratorProTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold mb-2">Image Generator Pro</h2>
-        <p className="text-gray-600">Generate stunning AI images with advanced customization</p>
+        <h2 className="text-2xl font-bold mb-2">LUMIN Images Pro</h2>
+        <p className="text-gray-600">Geração de imagem com validação de contexto e melhoria automática</p>
       </div>
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {lastQuality && (
+        <div className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm">
+          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-500" />
+          <span className="text-muted-foreground">
+            {typeof lastQuality.confidence === "number" ? `Contexto: ${lastQuality.confidence}/100. ` : ""}
+            {lastQuality.retried ? "O LUMIN regenerou automaticamente para melhorar a fidelidade. " : ""}
+            {lastQuality.note || ""}
+          </span>
+        </div>
+      )}
 
       {/* Control Panel */}
       <Card className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
