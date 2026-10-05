@@ -169,6 +169,8 @@ export function LiveChat({
   const speakingRef = useRef(false)
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastTranscriptRef = useRef("")
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ttsObjectUrlRef = useRef<string | null>(null)
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalStopRef = useRef(false)
   const isActiveRef = useRef(isActive)
@@ -225,6 +227,12 @@ export function LiveChat({
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
       mediaStreamRef.current = null
       window.speechSynthesis?.cancel()
+      try { ttsAudioRef.current?.pause() } catch {}
+      ttsAudioRef.current = null
+      if (ttsObjectUrlRef.current) {
+        URL.revokeObjectURL(ttsObjectUrlRef.current)
+        ttsObjectUrlRef.current = null
+      }
       intentionalStopRef.current = true
       stopVoice()
       abortRef.current?.abort()
@@ -247,56 +255,121 @@ export function LiveChat({
     }
   }, [voicePersonality, voicePitch, voiceSpeed])
 
-  // ── TTS with echo prevention ──────────────────────────────────────────────
-  const speak = useCallback((text: string) => {
-    if (!text || !window.speechSynthesis || !voiceEnabled) return
-    
-    // Stop listening while speaking to prevent echo
+  // ── TTS with neural audio + browser fallback ────────────────────────────────
+  const speak = useCallback(async (text: string) => {
+    if (!text || !voiceEnabled) return
+
     stopVoice()
     speakingRef.current = true
     setIsSpeaking(true)
-    
-    window.speechSynthesis.cancel()
-    
-    // Clean text for speech
+
+    window.speechSynthesis?.cancel()
+    if (ttsAudioRef.current) {
+      try { ttsAudioRef.current.pause() } catch {}
+      ttsAudioRef.current = null
+    }
+    if (ttsObjectUrlRef.current) {
+      URL.revokeObjectURL(ttsObjectUrlRef.current)
+      ttsObjectUrlRef.current = null
+    }
+
     const cleanText = text
-      .replace(/```[\s\S]*?```/g, " codigo ") // Replace code blocks
-      .replace(/[*_#`]/g, "") // Remove markdown
-      .replace(/https?:\/\/\S+/g, " link ") // Replace URLs
-      .slice(0, 800) // Limit length
-    
-    const utterance = new SpeechSynthesisUtterance(cleanText)
-    utterance.lang = "pt-PT"
-    
-    const settings = getVoiceSettings()
-    utterance.rate = settings.rate
-    utterance.pitch = settings.pitch
-    
-    // Select Portuguese voice if available
-    const voices = window.speechSynthesis.getVoices()
-    const ptVoice = voices.find(v => v.lang.startsWith("pt")) || voices[0]
-    if (ptVoice) utterance.voice = ptVoice
-    
-    utterance.onend = () => {
+      .replace(/\`\`\`[\s\S]*?\`\`\`/g, " codigo ")
+      .replace(/[*_#\`]/g, "")
+      .replace(/https?:\/\/\S+/g, " link ")
+      .slice(0, 1000)
+
+    const finishSpeech = () => {
       speakingRef.current = false
       setIsSpeaking(false)
-      // Resume listening after speech ends (with delay to prevent echo)
-      if (autoListen && isMicOn && isActive) {
-        setTimeout(() => {
-          if (!speakingRef.current) {
+      if (
+        autoListenRef.current &&
+        isMicOnRef.current &&
+        isActiveRef.current &&
+        !isStreamingRef.current
+      ) {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+        restartTimerRef.current = setTimeout(() => {
+          restartTimerRef.current = null
+          if (
+            autoListenRef.current &&
+            isMicOnRef.current &&
+            isActiveRef.current &&
+            !isStreamingRef.current &&
+            !speakingRef.current
+          ) {
             startVoice()
           }
-        }, 500)
+        }, 550)
       }
     }
-    
-    utterance.onerror = () => {
-      speakingRef.current = false
-      setIsSpeaking(false)
+
+    const speakWithBrowser = () => {
+      if (!window.speechSynthesis) {
+        finishSpeech()
+        return
+      }
+
+      const utterance = new SpeechSynthesisUtterance(cleanText)
+      utterance.lang = "pt-PT"
+      const settings = getVoiceSettings()
+      utterance.rate = settings.rate
+      utterance.pitch = settings.pitch
+
+      const voices = window.speechSynthesis.getVoices()
+      const ptPtVoice =
+        voices.find((voice) => voice.lang.toLowerCase() === "pt-pt") ||
+        voices.find((voice) => voice.lang.toLowerCase().startsWith("pt")) ||
+        voices[0]
+      if (ptPtVoice) utterance.voice = ptPtVoice
+
+      utterance.onend = finishSpeech
+      utterance.onerror = finishSpeech
+      window.speechSynthesis.speak(utterance)
     }
-    
-    window.speechSynthesis.speak(utterance)
-  }, [voiceEnabled, getVoiceSettings, autoListen, isMicOn, isActive])
+
+    try {
+      const settings = getVoiceSettings()
+      const response = await fetch("/api/live-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText, speed: settings.rate }),
+        cache: "no-store",
+      })
+
+      if (!response.ok || !(response.headers.get("content-type") || "").startsWith("audio/")) {
+        speakWithBrowser()
+        return
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      ttsObjectUrlRef.current = objectUrl
+      const audio = new Audio(objectUrl)
+      ttsAudioRef.current = audio
+
+      audio.onended = () => {
+        if (ttsObjectUrlRef.current === objectUrl) {
+          URL.revokeObjectURL(objectUrl)
+          ttsObjectUrlRef.current = null
+        }
+        ttsAudioRef.current = null
+        finishSpeech()
+      }
+      audio.onerror = () => {
+        if (ttsObjectUrlRef.current === objectUrl) {
+          URL.revokeObjectURL(objectUrl)
+          ttsObjectUrlRef.current = null
+        }
+        ttsAudioRef.current = null
+        speakWithBrowser()
+      }
+
+      await audio.play()
+    } catch {
+      speakWithBrowser()
+    }
+  }, [voiceEnabled, getVoiceSettings])
 
   // ── Stop Voice Recognition ────────────────────────────────────────────────
   const stopVoice = useCallback(() => {
