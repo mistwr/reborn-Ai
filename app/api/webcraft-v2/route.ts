@@ -2,7 +2,7 @@ import { generateText } from "ai"
 import { withModelFallback } from "@/lib/ai-fallback"
 import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 type Mode = "website" | "app"
 
