@@ -67,6 +67,7 @@ export function WebCraftStudioV2() {
   const [fullStackProject, setFullStackProject] = useState<FullStackProject | null>(null)
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [visualStats, setVisualStats] = useState<{ count: number; mode: string; model: string } | null>(null)
 
   const previewWidth = useMemo(() => {
     if (viewMode === "mobile") return "390px"
@@ -192,6 +193,12 @@ export function WebCraftStudioV2() {
         throw new Error(data?.error || "Não foi possível gerar o projeto")
       }
 
+      setVisualStats({
+        count: Math.max(0, Number(response.headers.get("X-Lumin-Context-Images") || 0)),
+        mode: response.headers.get("X-Lumin-AI-Mode") || "full",
+        model: response.headers.get("X-Lumin-AI-Model") || "LUMIN",
+      })
+
       if (!response.body) throw new Error("Resposta vazia")
 
       const reader = response.body.getReader()
@@ -225,6 +232,7 @@ export function WebCraftStudioV2() {
     setEditCode(false)
     setFullStackProject(null)
     setPublishedUrl(null)
+    setVisualStats(null)
     await streamProject({
       prompt,
       mode,
@@ -373,7 +381,7 @@ export function WebCraftStudioV2() {
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Descreve. Cria. Publica.</h2>
                 <p className="mt-2 text-sm text-muted-foreground md:text-base">
-                  Cria websites e aplicações por conversa, vê o preview, transforma em Full-Stack e publica quando estiver pronto.
+                  Cria websites e aplicações por conversa. O Visual Director interpreta cada secção, gera imagens no contexto e mantém o preview fiel até à publicação.
                 </p>
               </div>
             </div>
@@ -496,6 +504,12 @@ export function WebCraftStudioV2() {
           <Badge variant="secondary">Lumin AI Studio</Badge>
           <Badge variant="outline">{mode === "app" ? "App Web" : "Website"}</Badge>
           {(referenceImages.length + uploadedImages.length) > 0 && <Badge variant="outline">{referenceImages.length + uploadedImages.length} refs</Badge>}
+          {visualStats && (
+            <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="h-3 w-3" />
+              Visual Director · {visualStats.count} imagens
+            </Badge>
+          )}
           {fullStackProject && <Badge variant="outline">{fullStackProject.files.length} ficheiros · {fullStackProject.framework}</Badge>}
         </div>
 
