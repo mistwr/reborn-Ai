@@ -36,7 +36,7 @@ import {
 const SLIDES = [
   {
     tag: "Chat com IA",
-    title: "Reborn AI",
+    title: "LUMIN AI",
     subtitle: "Conversa inteligente com respostas instantaneas e contexto total.",
     icon: MessageSquare,
     h1: 220,
@@ -151,6 +151,7 @@ export function LiveChat({
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
   
   // ── Personalization State ──
   const [voicePersonality, setVoicePersonality] = useState("friendly")
@@ -168,10 +169,25 @@ export function LiveChat({
   const speakingRef = useRef(false)
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastTranscriptRef = useRef("")
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ttsObjectUrlRef = useRef<string | null>(null)
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intentionalStopRef = useRef(false)
+  const isActiveRef = useRef(isActive)
+  const isMicOnRef = useRef(isMicOn)
+  const autoListenRef = useRef(autoListen)
+  const isStreamingRef = useRef(isStreaming)
 
   const hasMessages = messages.length > 0 || !!streamingText
   const slide = SLIDES[slideIndex]
   const SlideIcon = slide.icon
+
+  useEffect(() => {
+    isActiveRef.current = isActive
+    isMicOnRef.current = isMicOn
+    autoListenRef.current = autoListen
+    isStreamingRef.current = isStreaming
+  }, [isActive, isMicOn, autoListen, isStreaming])
 
   // ── Slideshow ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -211,9 +227,17 @@ export function LiveChat({
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
       mediaStreamRef.current = null
       window.speechSynthesis?.cancel()
+      try { ttsAudioRef.current?.pause() } catch {}
+      ttsAudioRef.current = null
+      if (ttsObjectUrlRef.current) {
+        URL.revokeObjectURL(ttsObjectUrlRef.current)
+        ttsObjectUrlRef.current = null
+      }
+      intentionalStopRef.current = true
       stopVoice()
       abortRef.current?.abort()
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
     }
   }, [])
 
@@ -231,65 +255,137 @@ export function LiveChat({
     }
   }, [voicePersonality, voicePitch, voiceSpeed])
 
-  // ── TTS with echo prevention ──────────────────────────────────────────────
-  const speak = useCallback((text: string) => {
-    if (!text || !window.speechSynthesis || !voiceEnabled) return
-    
-    // Stop listening while speaking to prevent echo
+  // ── TTS with neural audio + browser fallback ────────────────────────────────
+  const speak = useCallback(async (text: string) => {
+    if (!text || !voiceEnabled) return
+
     stopVoice()
     speakingRef.current = true
     setIsSpeaking(true)
-    
-    window.speechSynthesis.cancel()
-    
-    // Clean text for speech
+
+    window.speechSynthesis?.cancel()
+    if (ttsAudioRef.current) {
+      try { ttsAudioRef.current.pause() } catch {}
+      ttsAudioRef.current = null
+    }
+    if (ttsObjectUrlRef.current) {
+      URL.revokeObjectURL(ttsObjectUrlRef.current)
+      ttsObjectUrlRef.current = null
+    }
+
     const cleanText = text
-      .replace(/```[\s\S]*?```/g, " codigo ") // Replace code blocks
-      .replace(/[*_#`]/g, "") // Remove markdown
-      .replace(/https?:\/\/\S+/g, " link ") // Replace URLs
-      .slice(0, 800) // Limit length
-    
-    const utterance = new SpeechSynthesisUtterance(cleanText)
-    utterance.lang = "pt-PT"
-    
-    const settings = getVoiceSettings()
-    utterance.rate = settings.rate
-    utterance.pitch = settings.pitch
-    
-    // Select Portuguese voice if available
-    const voices = window.speechSynthesis.getVoices()
-    const ptVoice = voices.find(v => v.lang.startsWith("pt")) || voices[0]
-    if (ptVoice) utterance.voice = ptVoice
-    
-    utterance.onend = () => {
+      .replace(/\`\`\`[\s\S]*?\`\`\`/g, " codigo ")
+      .replace(/[*_#\`]/g, "")
+      .replace(/https?:\/\/\S+/g, " link ")
+      .slice(0, 1000)
+
+    const finishSpeech = () => {
       speakingRef.current = false
       setIsSpeaking(false)
-      // Resume listening after speech ends (with delay to prevent echo)
-      if (autoListen && isMicOn && isActive) {
-        setTimeout(() => {
-          if (!speakingRef.current) {
+      if (
+        autoListenRef.current &&
+        isMicOnRef.current &&
+        isActiveRef.current &&
+        !isStreamingRef.current
+      ) {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+        restartTimerRef.current = setTimeout(() => {
+          restartTimerRef.current = null
+          if (
+            autoListenRef.current &&
+            isMicOnRef.current &&
+            isActiveRef.current &&
+            !isStreamingRef.current &&
+            !speakingRef.current
+          ) {
             startVoice()
           }
-        }, 500)
+        }, 550)
       }
     }
-    
-    utterance.onerror = () => {
-      speakingRef.current = false
-      setIsSpeaking(false)
+
+    const speakWithBrowser = () => {
+      if (!window.speechSynthesis) {
+        finishSpeech()
+        return
+      }
+
+      const utterance = new SpeechSynthesisUtterance(cleanText)
+      utterance.lang = "pt-PT"
+      const settings = getVoiceSettings()
+      utterance.rate = settings.rate
+      utterance.pitch = settings.pitch
+
+      const voices = window.speechSynthesis.getVoices()
+      const ptPtVoice =
+        voices.find((voice) => voice.lang.toLowerCase() === "pt-pt") ||
+        voices.find((voice) => voice.lang.toLowerCase().startsWith("pt")) ||
+        voices[0]
+      if (ptPtVoice) utterance.voice = ptPtVoice
+
+      utterance.onend = finishSpeech
+      utterance.onerror = finishSpeech
+      window.speechSynthesis.speak(utterance)
     }
-    
-    window.speechSynthesis.speak(utterance)
-  }, [voiceEnabled, getVoiceSettings, autoListen, isMicOn, isActive])
+
+    try {
+      const settings = getVoiceSettings()
+      const response = await fetch("/api/live-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText, speed: settings.rate }),
+        cache: "no-store",
+      })
+
+      if (!response.ok || !(response.headers.get("content-type") || "").startsWith("audio/")) {
+        speakWithBrowser()
+        return
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      ttsObjectUrlRef.current = objectUrl
+      const audio = new Audio(objectUrl)
+      ttsAudioRef.current = audio
+
+      audio.onended = () => {
+        if (ttsObjectUrlRef.current === objectUrl) {
+          URL.revokeObjectURL(objectUrl)
+          ttsObjectUrlRef.current = null
+        }
+        ttsAudioRef.current = null
+        finishSpeech()
+      }
+      audio.onerror = () => {
+        if (ttsObjectUrlRef.current === objectUrl) {
+          URL.revokeObjectURL(objectUrl)
+          ttsObjectUrlRef.current = null
+        }
+        ttsAudioRef.current = null
+        speakWithBrowser()
+      }
+
+      await audio.play()
+    } catch {
+      speakWithBrowser()
+    }
+  }, [voiceEnabled, getVoiceSettings])
 
   // ── Stop Voice Recognition ────────────────────────────────────────────────
   const stopVoice = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
     if (recognitionRef.current) {
+      intentionalStopRef.current = true
       const r = recognitionRef.current
       recognitionRef.current = null
       try {
-        r.stop()
-      } catch {}
+        r.abort()
+      } catch {
+        try { r.stop() } catch {}
+      }
     }
     setIsListening(false)
     setTranscript("")
@@ -298,6 +394,26 @@ export function LiveChat({
       silenceTimerRef.current = null
     }
   }, [])
+
+  const captureCameraFrame = useCallback(() => {
+    if (!isCameraOn) return undefined
+    const video = videoRef.current
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return undefined
+
+    try {
+      const maxWidth = 960
+      const scale = Math.min(1, maxWidth / video.videoWidth)
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return undefined
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      return canvas.toDataURL("image/jpeg", 0.72)
+    } catch {
+      return undefined
+    }
+  }, [isCameraOn])
 
   // ── Send to AI ────────────────────────────────────────────────────────────
   const sendToAI = useCallback(
@@ -315,6 +431,7 @@ export function LiveChat({
       }
       setMessages((prev) => [...prev, msg])
       setIsStreaming(true)
+      isStreamingRef.current = true
       setStreamingText("")
 
       const history = [...messages, msg].map((m) => ({ role: m.role, content: m.content }))
@@ -326,9 +443,11 @@ export function LiveChat({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: userText.trim(),
-            conversationHistory: history.slice(-10), // Limit history
+            conversationHistory: history.slice(-10),
             mode: isCameraOn ? "both" : "voice",
             userName: userName || undefined,
+            imageDataUrl: isCameraOn ? captureCameraFrame() : undefined,
+            cameraFrameCapturedAt: isCameraOn ? new Date().toISOString() : undefined,
           }),
           signal: abortRef.current.signal,
         })
@@ -370,19 +489,23 @@ export function LiveChat({
           setStreamingText("")
         }
       } finally {
+        isStreamingRef.current = false
         setIsStreaming(false)
         abortRef.current = null
       }
     },
-    [isStreaming, messages, isCameraOn, speak, stopVoice, userName],
+    [isStreaming, messages, isCameraOn, speak, stopVoice, userName, captureCameraFrame],
   )
 
   // ── Start Voice Recognition with silence detection ────────────────────────
   const startVoice = useCallback(() => {
     // Don't start if AI is speaking (prevents echo)
-    if (speakingRef.current || isSpeaking) return
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) return
-    if (recognitionRef.current) return
+    if (speakingRef.current || isSpeaking || isStreamingRef.current) return
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      setVoiceError("Este navegador não disponibiliza reconhecimento de voz. Podes continuar pelo chat escrito.")
+      return
+    }
+    if (!isActiveRef.current || !isMicOnRef.current || recognitionRef.current) return
     
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     const r = new SR()
@@ -424,34 +547,61 @@ export function LiveChat({
     }
     
     r.onerror = (e: any) => {
-      if (e.error !== "no-speech" && e.error !== "aborted") {
-        console.error("[v0] Speech error:", e.error)
+      const code = String(e?.error || "")
+      if (code === "not-allowed" || code === "service-not-allowed") {
+        setVoiceError("Permissão do microfone bloqueada. Ativa o microfone no navegador e tenta novamente.")
+        intentionalStopRef.current = true
+      } else if (code !== "no-speech" && code !== "aborted") {
+        console.warn("[LUMIN Live] reconhecimento de voz:", code)
+        setVoiceError("A voz perdeu ligação por instantes. O LUMIN vai tentar retomar automaticamente.")
       }
       setIsListening(false)
-      recognitionRef.current = null
     }
     
     r.onend = () => {
       recognitionRef.current = null
       setIsListening(false)
-      
-      // Auto-restart if conditions are met
-      if (autoListen && isMicOn && isActive && !speakingRef.current && !isStreaming) {
-        setTimeout(() => {
-          if (!speakingRef.current && !isStreaming) {
+
+      if (intentionalStopRef.current) {
+        intentionalStopRef.current = false
+        return
+      }
+
+      if (
+        autoListenRef.current &&
+        isMicOnRef.current &&
+        isActiveRef.current &&
+        !speakingRef.current &&
+        !isStreamingRef.current
+      ) {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+        restartTimerRef.current = setTimeout(() => {
+          restartTimerRef.current = null
+          if (
+            autoListenRef.current &&
+            isMicOnRef.current &&
+            isActiveRef.current &&
+            !speakingRef.current &&
+            !isStreamingRef.current
+          ) {
             startVoice()
           }
-        }, 300)
+        }, 450)
       }
     }
     
     try {
+      intentionalStopRef.current = false
+      setVoiceError(null)
       r.start()
       recognitionRef.current = r
       setIsListening(true)
       lastTranscriptRef.current = ""
     } catch (err) {
-      console.error("[v0] Failed to start recognition:", err)
+      recognitionRef.current = null
+      setIsListening(false)
+      setVoiceError("Não foi possível iniciar o microfone. Toca novamente no botão de voz.")
+      console.warn("[LUMIN Live] Failed to start recognition:", err)
     }
   }, [isSpeaking, autoListen, isMicOn, isActive, isStreaming, sendToAI])
 
@@ -474,7 +624,7 @@ export function LiveChat({
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [isActive, isMicOn, autoListen, isListening, isStreaming, startVoice])
+  }, [isActive, isMicOn, autoListen, isListening, isStreaming, isSpeaking, startVoice])
 
   // ── Handle text submit ────────────────────────────────────────────────────
   const handleTextSubmit = (e?: React.FormEvent) => {
@@ -490,7 +640,7 @@ export function LiveChat({
   }
 
   return (
-    <div className="relative w-full h-full flex flex-col overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-black">
+    <div className="relative w-full h-full min-h-[620px] flex flex-col overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-black rounded-none lg:rounded-2xl">
       {/* ── Animated Background ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div
@@ -615,6 +765,12 @@ export function LiveChat({
         </div>
       )}
 
+      {voiceError && (
+        <div className="relative z-20 mx-3 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          {voiceError}
+        </div>
+      )}
+
       {/* ── Main Content ── */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
         {/* ── Left: Video/Slideshow ── */}
@@ -657,7 +813,7 @@ export function LiveChat({
                 {isSpeaking ? (
                   <>
                     <Volume2 className="h-4 w-4 text-violet-400 animate-pulse" />
-                    <span className="text-xs text-violet-300">Reborn AI a falar...</span>
+                    <span className="text-xs text-violet-300">LUMIN a falar...</span>
                   </>
                 ) : isListening ? (
                   <>

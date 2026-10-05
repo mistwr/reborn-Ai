@@ -2,7 +2,7 @@ import { generateText } from "ai"
 import { withModelFallback } from "@/lib/ai-fallback"
 import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 type Mode = "website" | "app"
 
@@ -37,8 +37,8 @@ type EmbeddedContextAsset = {
   dataUrl: string
 }
 
-const MAX_CONTEXT_IMAGE_BYTES = 950_000
-const MAX_CONTEXT_TOTAL_BYTES = 4_200_000
+const MAX_CONTEXT_IMAGE_BYTES = 1_800_000
+const MAX_CONTEXT_TOTAL_BYTES = 5_400_000
 
 function imageMimeType(value: string | null, url: string) {
   const type = String(value || "").split(";")[0].trim().toLowerCase()
@@ -51,6 +51,17 @@ function imageMimeType(value: string | null, url: string) {
 }
 
 async function fetchContextImageDataUrl(url: string, thumbnail?: string) {
+  if (/^data:image\/(?:png|jpe?g|webp);base64,/i.test(url)) {
+    try {
+      const base64 = url.slice(url.indexOf(",") + 1).replace(/\s+/g, "")
+      const bytes = Buffer.byteLength(base64, "base64")
+      if (!bytes || bytes > MAX_CONTEXT_IMAGE_BYTES) return null
+      return { dataUrl: url, bytes }
+    } catch {
+      return null
+    }
+  }
+
   const candidates = [url, thumbnail].filter(
     (value, index, values): value is string =>
       typeof value === "string" &&
@@ -652,6 +663,7 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 41. Se o HTML atual já tiver um poster/screenshot atrás de texto, não preserves essa composição: move o upload para um bloco autónomo e coloca headline, parágrafo e CTAs num bloco separado acima ou abaixo. A regra de não sobreposição tem prioridade sobre a preservação do layout anterior.
 42. Quando o Visual Director fornecer IMAGE URL no formato __LUMIN_CONTEXT_IMAGE_N__, usa esse token exatamente em src ou background-image. Não inventes, encurtes nem substituas o token; o servidor incorpora a fotografia real no HTML final.
 43. Em WEBSITE, usa JavaScript apenas quando necessário. Executa inicialização depois de DOMContentLoaded, verifica se cada elemento existe antes de o usar e não assumes IDs/seletores que não estejam presentes no HTML.
+44. As imagens geradas pelo LUMIN Visual Director já foram criadas especificamente para cada secção. Respeita rigorosamente SECTION, PURPOSE e MUST SHOW; nunca troques uma imagem de quartos por spa, hero por restaurante, ou qualquer outro contexto.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.

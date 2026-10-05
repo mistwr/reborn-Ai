@@ -23,9 +23,9 @@ import {
 } from "lucide-react"
 
 const MODELS = [
-  { id: "flux", label: "Reborn HD", desc: "Alta qualidade + controlo Vision" },
-  { id: "turbo", label: "Reborn Fast", desc: "Rapido, criativo" },
-  { id: "default", label: "Reborn Std", desc: "Equilibrado" },
+  { id: "flux", label: "LUMIN HD", desc: "Alta qualidade + controlo Vision" },
+  { id: "turbo", label: "LUMIN Fast", desc: "Rapido, criativo" },
+  { id: "default", label: "LUMIN Standard", desc: "Equilibrado" },
 ]
 
 const SIZES = [
@@ -84,6 +84,8 @@ interface GeneratedImg {
   qualityControl?: QualityControl
   retried?: boolean
   promptUsed?: string
+  generationMode?: "generated" | "fallback"
+  note?: string
 }
 
 function qualityLabel(qc?: QualityControl) {
@@ -157,6 +159,8 @@ export function ImageGenerator() {
             qualityControl: data.qualityControl,
             retried: data.retried,
             promptUsed: data.promptUsed,
+            generationMode: data.generationMode,
+            note: data.note,
           })
         }
       } catch (e: any) {
@@ -181,7 +185,7 @@ export function ImageGenerator() {
   const downloadImage = (img: GeneratedImg) => {
     const a = document.createElement("a")
     a.href = img.url
-    a.download = `reborn-ai-${img.model}-${Date.now()}.jpg`
+    a.download = `lumin-ai-${img.model}-${Date.now()}.jpg`
     a.target = "_blank"
     a.click()
   }
@@ -190,15 +194,15 @@ export function ImageGenerator() {
   const lowScore = Boolean(qc?.checked && (!qc.matched || qc.confidence < 75))
 
   return (
-    <div className="flex flex-col lg:flex-row h-full gap-4 p-4 overflow-y-auto">
-      <div className="lg:w-80 shrink-0 space-y-4">
+    <div className="flex flex-col xl:flex-row h-full gap-4 p-3 sm:p-4 overflow-y-auto bg-gradient-to-b from-background via-background to-muted/10">
+      <div className="xl:w-[360px] shrink-0 space-y-4">
         <Card className="p-4 space-y-4">
           <div>
             <h3 className="font-semibold flex items-center gap-2 text-foreground">
               <Wand2 className="h-4 w-4 text-primary" />
               Gerador de Imagens IA
             </h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">O Reborn melhora o prompt, deteta a intencao e no modo HD valida o resultado com Vision.</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">O LUMIN interpreta o contexto, melhora o prompt e no modo HD valida semanticamente o resultado com Vision.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -315,7 +319,12 @@ export function ImageGenerator() {
 
               <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/30 text-primary">Reborn AI</Badge>
+                  <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/30 text-primary">LUMIN AI</Badge>
+                  {selected.generationMode === "fallback" && (
+                    <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500">
+                      <AlertTriangle className="h-3 w-3 mr-1" />Fallback visual
+                    </Badge>
+                  )}
                   {selected.intentDetected && <Badge variant="outline" className="text-[10px]"><Target className="h-3 w-3 mr-1" />{selected.intentDetected.replaceAll("_", " ")}</Badge>}
                   {qc?.checked ? (
                     <Badge variant="outline" className={`text-[10px] ${lowScore ? "border-amber-500/40 text-amber-500" : "border-emerald-500/40 text-emerald-500"}`}>
@@ -326,6 +335,7 @@ export function ImageGenerator() {
                   {selected.retried && <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Auto-retry aplicado</Badge>}
                 </div>
                 {qc?.checked && qc.reason && <p className="text-[11px] text-muted-foreground">{qc.reason}</p>}
+                {selected.note && <p className="text-[11px] text-amber-500/90">{selected.note}</p>}
                 {lowScore && (
                   <Button size="sm" className="w-full" onClick={() => generate(1, true)} disabled={isGenerating}>
                     <Wand2 className="h-3.5 w-3.5 mr-1.5" />Regenerar melhor

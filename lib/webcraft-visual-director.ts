@@ -1,4 +1,4 @@
-import { generateText } from "ai"
+import { generateImage, generateText } from "ai"
 import { withModelFallback } from "@/lib/ai-fallback"
 
 type Orientation = "landscape" | "portrait" | "square"
@@ -27,7 +27,7 @@ export type VisualContextImage = {
   thumbnail?: string
   title?: string
   creator?: string
-  source: "unsplash" | "openverse"
+  source: "generated" | "unsplash" | "openverse"
   license?: string
   licenseUrl?: string
   query: string
@@ -418,6 +418,92 @@ function imageIdentity(image: VisualContextImage) {
   }
 }
 
+function imageResultToDataUrl(image: any): string | null {
+  if (!image) return null
+
+  if (typeof image.base64 === "string" && image.base64) {
+    const mediaType = image.mediaType || image.mimeType || "image/png"
+    return `data:${mediaType};base64,${image.base64}`
+  }
+
+  const bytes = image.uint8Array || image.data
+  if (bytes) {
+    try {
+      const mediaType = image.mediaType || image.mimeType || "image/png"
+      return `data:${mediaType};base64,${Buffer.from(bytes).toString("base64")}`
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof image.url === "string" && image.url) return image.url
+  return null
+}
+
+function visualGenerationPrompt(slot: VisualSlot, plan: VisualPlan) {
+  const location = plan.location ? ` Location/context: ${plan.location}.` : ""
+  const avoid = plan.avoid.length ? ` Avoid: ${plan.avoid.join(", ")}.` : ""
+
+  return [
+    `Premium website photography for a ${plan.businessType}.`,
+    `Section: ${slot.section}.`,
+    `The image MUST visibly show: ${slot.subject}.`,
+    `Purpose: ${slot.purpose}.`,
+    location,
+    `Visual style: ${plan.style}.`,
+    `Mood: ${plan.mood}.`,
+    slot.orientation === "landscape"
+      ? "Landscape composition with intentional copy-safe negative space and a clear focal subject."
+      : slot.orientation === "portrait"
+        ? "Portrait composition, editorial framing, clear subject, natural depth."
+        : "Square composition, balanced editorial framing, clear subject.",
+    "Photorealistic, commercially credible, natural light, premium detail, no text, no logos, no watermark, no UI, no random unrelated people.",
+    avoid,
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise<VisualContextImage | null> {
+  const models = [
+    "google/imagen-4.0-fast-generate-001",
+    "openai/gpt-image-2",
+  ]
+  const aspectRatio = slot.orientation === "portrait" ? "9:16" : slot.orientation === "square" ? "1:1" : "16:9"
+  const prompt = visualGenerationPrompt(slot, plan)
+
+  for (const model of models) {
+    try {
+      const result: any = await generateImage({
+        model: model as any,
+        prompt,
+        aspectRatio: aspectRatio as any,
+      } as any)
+      const url = imageResultToDataUrl(result?.image || result?.images?.[0])
+      if (!url) continue
+
+      return {
+        url,
+        title: `LUMIN generated visual for ${slot.section}`,
+        source: "generated",
+        query: slot.query,
+        section: slot.section,
+        purpose: slot.purpose,
+        subject: slot.subject,
+        orientation: slot.orientation,
+        score: 100,
+      }
+    } catch (error) {
+      console.warn(
+        `[LUMIN Visual Director] image model ${model} unavailable for ${slot.id}`,
+        error instanceof Error ? error.message : error,
+      )
+    }
+  }
+
+  return null
+}
+
 async function chooseImageForSlot(slot: VisualSlot, used: Set<string>) {
   const [unsplash, openverse] = await Promise.all([searchUnsplash(slot), searchOpenverse(slot)])
   const candidates = [...unsplash, ...openverse].sort((a, b) => b.score - a.score)
@@ -437,11 +523,21 @@ export async function resolveVisualContext(input: {
   language?: string
   economy?: boolean
 }): Promise<VisualContext> {
-  const plan = await createVisualPlan(input.prompt, input.businessName, input.language, Boolean(input.economy))
+  const economy = Boolean(input.economy)
+  const plan = await createVisualPlan(input.prompt, input.businessName, input.language, economy)
   const used = new Set<string>()
+  const generatedLimit = economy ? 2 : 3
 
   const selected = await Promise.all(
-    plan.slots.map(async (slot) => ({ slot, image: await chooseImageForSlot(slot, used) })),
+    plan.slots.map(async (slot, index) => {
+      // Generate the most important visuals from the semantic plan so the site
+      // reflects the actual business/context instead of generic stock.
+      const generated = index < generatedLimit ? await generateImageForSlot(slot, plan) : null
+      if (generated) return { slot, image: generated }
+
+      // Resilient fallback: curated photography if image generation is unavailable.
+      return { slot, image: await chooseImageForSlot(slot, used) }
+    }),
   )
 
   const images = selected
@@ -479,7 +575,7 @@ ${brief}
 SECTION IMAGE PLAN:
 ${planLines}
 
-No sufficiently strong stock image was resolved. Keep this visual direction. Use a precise thematic fallback only where an image materially helps, and never insert unrelated generic stock.`
+No sufficiently strong generated or curated image was resolved. Keep this visual direction and use CSS/typography instead of inserting unrelated generic imagery.`
   }
 
   const imageLines = images
@@ -505,14 +601,14 @@ ${brief}
 SECTION IMAGE PLAN:
 ${planLines}
 
-CURATED HIGH-RELEVANCE IMAGES:
+CONTEXTUAL HIGH-RELEVANCE IMAGES:
 ${imageLines}
 
 Rules:
 - Match each curated image to the named section and purpose; do not place it in an unrelated block.
 - Do not repeat the same image in multiple sections.
 - Keep the full page visually coherent with the Visual Director style and mood.
-- Prefer the exact high-resolution IMAGE URL, never the thumbnail.
+- Use each exact IMAGE URL/token as supplied. Generated visuals are authoritative for their named section; curated photos are fallbacks.
 - For the hero, preserve copy-safe space and use a subtle overlay only when needed for text contrast.
 - Use object-fit: cover with intentional object-position; do not stretch or distort photography.
 - If a curated image is clearly unsuitable for the generated copy, omit it rather than forcing it.
