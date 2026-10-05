@@ -245,9 +245,42 @@ export async function POST(req: Request) {
     }
 
     let qualityControl = { checked: false, matched: true, confidence: 0, reason: "qc-disabled" }
+    let retried = false
+    let promptUsed = enhancedPrompt
+
     if (shouldValidate && generated.quality === "ai-generated") {
       try {
         qualityControl = await checkImageSemanticQuality(generated.url, prompt)
+
+        // One semantic repair pass: if Vision says the image does not really
+        // represent the request, regenerate with the actual failure reason.
+        if (!qualityControl.matched || qualityControl.confidence < 72) {
+          const repairPrompt = [
+            enhancedPrompt,
+            "STRICT SEMANTIC REPAIR.",
+            `The previous result did not match the user's request well enough: ${qualityControl.reason || "semantic mismatch"}.`,
+            `Original request that MUST be visually obvious: ${prompt.trim()}.`,
+            "Make the requested subject unmistakable, correctly framed and central to the composition.",
+            "Do not replace it with a generic futuristic person, generic AI imagery, unrelated stock-like scenery, text or logos.",
+          ].join(" ")
+
+          let repaired = await generateWithGateway(repairPrompt, w, h, quality)
+          if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1)
+
+          if (repaired?.quality === "ai-generated") {
+            const repairedQc = await checkImageSemanticQuality(repaired.url, prompt)
+            const repairedWins =
+              (repairedQc.matched && !qualityControl.matched) ||
+              repairedQc.confidence >= qualityControl.confidence + 5
+
+            if (repairedWins) {
+              generated = repaired
+              qualityControl = repairedQc
+              promptUsed = repairPrompt
+              retried = true
+            }
+          }
+        }
       } catch (error) {
         console.warn("[Lumin Images] quality check skipped", error instanceof Error ? error.message : error)
       }
@@ -261,12 +294,13 @@ export async function POST(req: Request) {
       success: true,
       isBase64: generated.isBase64,
       quality: generated.quality,
+      generationMode: generated.quality === "stock" ? "fallback" : "generated",
       note: generated.note,
       intentDetected: built.intent,
-      promptUsed: enhancedPrompt,
+      promptUsed,
       negativePrompt: built.negativePrompt,
       qualityControl,
-      retried: false,
+      retried,
     })
   } catch (error: any) {
     console.error("[Lumin Images] generation error", error)
