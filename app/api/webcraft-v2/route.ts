@@ -142,6 +142,125 @@ function restoreContextImagesInHtml(html: string, assets: EmbeddedContextAsset[]
   return output
 }
 
+function fallbackImageDataUrl(label = "LUMIN") {
+  const safeLabel = label.replace(/[<>&"']/g, "").slice(0, 28) || "LUMIN"
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.52" stop-color="#172554"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" rx="32" fill="url(#g)"/>
+  <circle cx="600" cy="330" r="88" fill="none" stroke="#67e8f9" stroke-width="8" opacity=".85"/>
+  <path d="M556 330h88M600 286v88" stroke="#c084fc" stroke-width="10" stroke-linecap="round"/>
+  <text x="600" y="470" text-anchor="middle" fill="#e2e8f0" font-family="Arial,Helvetica,sans-serif" font-size="44" font-weight="700">${safeLabel}</text>
+</svg>`
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+function extractImageSrc(tag: string) {
+  const match = tag.match(/\ssrc\s*=\s*(["'])(.*?)\1/i)
+  return match?.[2]?.trim() || ""
+}
+
+function extractImageAlt(tag: string) {
+  const match = tag.match(/\salt\s*=\s*(["'])(.*?)\1/i)
+  return match?.[2]?.trim() || ""
+}
+
+function isStableImageSource(src: string) {
+  return /^data:image\//i.test(src) || /^__LUMIN_(?:UPLOAD|CONTEXT)_IMAGE_\d+__$/.test(src)
+}
+
+async function stabilizeGeneratedImagesInHtml(html: string) {
+  const imgTags = Array.from(html.matchAll(/<img\b[^>]*>/gi)).map((match) => match[0])
+  const cssUrls = Array.from(html.matchAll(/url\(\s*(["']?)(https?:\/\/[^)"']+)\1\s*\)/gi)).map(
+    (match) => match[2],
+  )
+
+  const remoteSources = Array.from(
+    new Set([
+      ...imgTags.map(extractImageSrc).filter((src) => /^https?:\/\//i.test(src)),
+      ...cssUrls,
+    ]),
+  ).slice(0, 12)
+
+  const resolved = new Map<string, string | null>()
+  await Promise.all(
+    remoteSources.map(async (src) => {
+      const materialized = await fetchContextImageDataUrl(src)
+      resolved.set(src, materialized?.dataUrl || null)
+    }),
+  )
+
+  let repairs = 0
+  let output = html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const src = extractImageSrc(tag)
+    const alt = extractImageAlt(tag)
+    let nextSrc = src
+
+    if (!src || /^(?:null|undefined|none|nan|about:blank)$/i.test(src)) {
+      nextSrc = fallbackImageDataUrl(alt || "LUMIN")
+      repairs += 1
+    } else if (/^https?:\/\//i.test(src)) {
+      const embedded = resolved.get(src)
+      if (embedded) {
+        nextSrc = embedded
+        repairs += 1
+      } else {
+        nextSrc = fallbackImageDataUrl(alt || "LUMIN")
+        repairs += 1
+      }
+    } else if (!isStableImageSource(src) && !/^(?:#|mailto:|tel:)/i.test(src)) {
+      // Relative/invented paths such as /images/hero.jpg do not exist in the
+      // single-file Website preview or static deploy.
+      nextSrc = fallbackImageDataUrl(alt || "LUMIN")
+      repairs += 1
+    }
+
+    let nextTag = tag
+      .replace(/\ssrcset\s*=\s*(["']).*?\1/gi, "")
+      .replace(/\ssizes\s*=\s*(["']).*?\1/gi, "")
+
+    if (/\ssrc\s*=\s*(["']).*?\1/i.test(nextTag)) {
+      nextTag = nextTag.replace(/\ssrc\s*=\s*(["']).*?\1/i, ` src="${nextSrc}"`)
+    } else {
+      nextTag = nextTag.replace(/^<img/i, `<img src="${nextSrc}"`)
+    }
+
+    if (!/\sonerror\s*=/i.test(nextTag)) {
+      const fallback = fallbackImageDataUrl(alt || "LUMIN")
+      nextTag = nextTag.replace(
+        /\s*\/?\s*>$/,
+        ` onerror="this.onerror=null;this.removeAttribute('srcset');this.src='${fallback}';">`,
+      )
+    }
+
+    return nextTag
+  })
+
+  output = output.replace(
+    /url\(\s*(["']?)(https?:\/\/[^)"']+)\1\s*\)/gi,
+    (_match, _quote, src: string) => {
+      const embedded = resolved.get(src)
+      if (embedded) {
+        repairs += 1
+        return `url("${embedded}")`
+      }
+      repairs += 1
+      return "linear-gradient(135deg,#0f172a,#312e81)"
+    },
+  )
+
+  // Do not allow model-invented image sources in picture/source elements to
+  // override the repaired <img> fallback selected by the browser.
+  output = output.replace(/<source\b[^>]*\btype\s*=\s*(["'])image\/[^"']+\1[^>]*>/gi, "")
+
+  return { html: output, repairs }
+}
+
 const STOP_WORDS = new Set([
   "para", "com", "uma", "um", "uns", "umas", "de", "do", "da", "dos", "das", "e", "ou", "o", "a", "os", "as",
   "que", "cria", "criar", "faz", "fazer", "site", "website", "pagina", "landing", "page", "app", "aplicacao", "aplicação",
@@ -636,11 +755,11 @@ REGRAS DE SAÍDA:
 
 IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 16. Antes de desenhar, infere do pedido entre 3 e 8 conceitos visuais concretos.
-17. Nunca uses imagens sem relação com o tema, placeholders cinzentos, gradientes a fingir fotografias ou URLs vazias quando o pedido pede um website visual/comercial.
-18. Se receberes IMAGENS CONTEXTUAIS PESQUISADAS AUTOMATICAMENTE PELO LUMIN, usa-as prioritariamente e associa cada uma a uma secção coerente com o respetivo tema pesquisado.
-19. Só quando não houver imagens fornecidas nem imagens pesquisadas disponíveis, usa fallback temático através de https://loremflickr.com/LARGURA/ALTURA/PALAVRA1,PALAVRA2?lock=NUMERO.
-20. Hero, secções editoriais, cartões de produto/serviço, testemunhos com fotografia e galerias devem ter imagens coerentes quando visualmente apropriado.
-21. Usa sempre alt text descritivo e object-fit: cover. Garante contraste de texto sobre imagens com overlay quando necessário.
+17. Nunca uses imagens sem relação com o tema, URLs vazias, caminhos inventados como /images/hero.jpg, /assets/photo.png, placeholder.com, picsum, loremflickr ou qualquer URL de imagem que não tenha sido fornecida pelo LUMIN ou pelo utilizador.
+18. Se receberes imagens/tokens do LUMIN Visual Director, usa APENAS esses assets para fotografia e associa cada um exclusivamente à respetiva SECTION/PURPOSE.
+19. Se uma secção não tiver um asset real fornecido, NÃO inventes um <img>. Usa tipografia, cor, CSS, ícones/SVG inline ou layout editorial até existir uma imagem real.
+20. Hero, secções editoriais, cartões de produto/serviço e galerias só devem ter fotografia quando existir um asset válido do Visual Director ou upload do utilizador.
+21. Todo <img> tem de usar um SRC real recebido no prompt: data:image/... ou token __LUMIN_UPLOAD_IMAGE_N__/__LUMIN_CONTEXT_IMAGE_N__. Usa alt text descritivo, dimensões responsivas e object-fit adequado.
 22. Se existirem IMAGENS DE REFERÊNCIA fornecidas pelo utilizador, dá-lhes prioridade absoluta e reutiliza-as fielmente.
 23. Não uses imagens de celebridades, marcas protegidas ou pessoas identificáveis como se fossem o cliente, salvo se o utilizador tiver fornecido essas imagens.
 24. Quando uma imagem pesquisada trouxer crédito/licença, mantém atribuição discreta e legível no HTML.
@@ -664,6 +783,8 @@ IMAGENS E CONTEXTO VISUAL — OBRIGATÓRIO:
 42. Quando o Visual Director fornecer IMAGE URL no formato __LUMIN_CONTEXT_IMAGE_N__, usa esse token exatamente em src ou background-image. Não inventes, encurtes nem substituas o token; o servidor incorpora a fotografia real no HTML final.
 43. Em WEBSITE, usa JavaScript apenas quando necessário. Executa inicialização depois de DOMContentLoaded, verifica se cada elemento existe antes de o usar e não assumes IDs/seletores que não estejam presentes no HTML.
 44. As imagens geradas pelo LUMIN Visual Director já foram criadas especificamente para cada secção. Respeita rigorosamente SECTION, PURPOSE e MUST SHOW; nunca troques uma imagem de quartos por spa, hero por restaurante, ou qualquer outro contexto.
+45. PROIBIDO inventar src de imagens. Antes de devolver o HTML, verifica mentalmente cada <img>: se o src não veio de um upload/token/asset do LUMIN, remove esse <img> e mantém o layout elegante sem fotografia.
+46. Nunca dependas de hotlinks externos para o WEBSITE final. O servidor do LUMIN materializa os assets válidos; qualquer imagem externa inventada será substituída por fallback.
 
 PRESERVAÇÃO:
 - Em refinamentos, parte obrigatoriamente do HTML atual.
@@ -692,11 +813,14 @@ PRESERVAÇÃO:
     )
     const restoredUploadsHtml = restoreUploadedImagesInHtml(presentationFixedHtml, uploadedImages)
     const restoredHtml = restoreContextImagesInHtml(restoredUploadsHtml, contextAssets)
-    return new Response(restoredHtml, {
+    const stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml)
+
+    return new Response(stabilized.html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "X-Lumin-Context-Images": String(contextImages.length),
         "X-Lumin-Uploaded-Images": String(uploadedImages.length),
+        "X-Lumin-Image-Repairs": String(stabilized.repairs),
         "X-Lumin-AI-Mode": economyMode ? "fallback" : "full",
         "X-Lumin-AI-Model": usedModel,
         "X-Lumin-AI-Attempts": String(modelAttempts),
