@@ -155,7 +155,6 @@ async function stockFallback(prompt: string, width: number, height: number, seed
 
   const candidates = [
     `https://loremflickr.com/${width}/${height}/${encodeURIComponent(keywords || "creative")}`,
-    `https://picsum.photos/seed/${seed}/${width}/${height}`,
   ]
 
   for (const url of candidates) {
@@ -177,7 +176,7 @@ async function stockFallback(prompt: string, width: number, height: number, seed
         providerSource: "stock-fallback",
         quality: "stock",
         isBase64: true,
-        note: "A geração IA estava temporariamente indisponível; foi usada uma imagem visual de recurso.",
+        note: "A geração IA estava temporariamente indisponível; foi usado apenas um fallback visual relacionado com o pedido.",
       }
     } catch {
       continue
