@@ -60,10 +60,10 @@ async function generateWithGateway(
 ): Promise<GeneratedImageResult | null> {
   // Match the requested quality tier first, then use dependable fallbacks.
   const models = quality === "fast"
-    ? ["google/imagen-4.0-fast-generate-001"]
+    ? ["google/imagen-4.0-fast-generate"]
     : quality === "hd"
       ? ["bfl/flux-2-pro", "openai/gpt-image-2"]
-      : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2"]
+      : ["google/imagen-4.0-fast-generate", "openai/gpt-image-2"]
 
   const boundedModels = models.slice(0, maxAttempts ?? models.length)
   const modelTimeoutMs = maxModelTimeoutMs ?? (quality === "fast" ? 12_000 : quality === "hd" ? 12_000 : 11_000)
