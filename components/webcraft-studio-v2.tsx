@@ -608,7 +608,7 @@ export function WebCraftStudioV2() {
                   <h3 className="text-lg font-semibold">Os meus projetos</h3>
                 </div>
                 <p className="mt-1 text-sm text-foreground/70">
-                  Reabre um website ou aplicação para continuar, transferir o HTML ou publicar.
+                  Reabre um website ou aplicação para continuar, refinar ou transferir o resultado.
                 </p>
               </div>
               {savedProjects.length > 0 && <Badge variant="outline">{savedProjects.length} guardado{savedProjects.length === 1 ? "" : "s"}</Badge>}
