@@ -5,8 +5,8 @@ import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 
 export const maxDuration = 90
 
-const INITIAL_GENERATION_BUDGET_MS = 50_000
-const IMAGE_REPAIR_BUDGET_MS = 8_000
+const INITIAL_GENERATION_BUDGET_MS = 49_000
+const IMAGE_REPAIR_BUDGET_MS = 12_000
 
 function timeoutSignal(deadlineAt: number, maxMs: number): AbortSignal | null {
   const remaining = deadlineAt - Date.now()
@@ -49,16 +49,27 @@ function imageToDataUrl(image: any): string | null {
   return null
 }
 
-async function generateWithGateway(prompt: string, width: number, height: number, quality: string, deadlineAt: number): Promise<GeneratedImageResult | null> {
+async function generateWithGateway(
+  prompt: string,
+  width: number,
+  height: number,
+  quality: string,
+  deadlineAt: number,
+  maxAttempts?: number,
+  maxModelTimeoutMs?: number,
+): Promise<GeneratedImageResult | null> {
   // Match the requested quality tier first, then use dependable fallbacks.
   const models = quality === "fast"
     ? ["google/imagen-4.0-fast-generate-001"]
     : quality === "hd"
-      ? ["bfl/flux-2-pro", "openai/gpt-image-2", "google/imagen-4.0-fast-generate-001"]
-      : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2", "bfl/flux-2-pro"]
+      ? ["bfl/flux-2-pro", "openai/gpt-image-2"]
+      : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2"]
 
-  for (const model of models) {
-    const abortSignal = timeoutSignal(deadlineAt, quality === "fast" ? 12_000 : 16_000)
+  const boundedModels = models.slice(0, maxAttempts ?? models.length)
+  const modelTimeoutMs = maxModelTimeoutMs ?? (quality === "fast" ? 12_000 : quality === "hd" ? 12_000 : 11_000)
+
+  for (const model of boundedModels) {
+    const abortSignal = timeoutSignal(deadlineAt, modelTimeoutMs)
     if (!abortSignal) break
 
     try {
@@ -88,7 +99,7 @@ async function generateWithGateway(prompt: string, width: number, height: number
 }
 
 async function generateWithPollinations(prompt: string, width: number, height: number, seed: number, deadlineAt: number): Promise<GeneratedImageResult | null> {
-  const abortSignal = timeoutSignal(deadlineAt, 20_000)
+  const abortSignal = timeoutSignal(deadlineAt, 15_000)
   if (!abortSignal) return null
 
   try {
@@ -133,7 +144,7 @@ async function generateWithPollinations(prompt: string, width: number, height: n
 }
 
 async function generateWithCraiyon(prompt: string, negativePrompt: string, deadlineAt: number): Promise<GeneratedImageResult | null> {
-  const abortSignal = timeoutSignal(deadlineAt, 8_000)
+  const abortSignal = timeoutSignal(deadlineAt, 5_000)
   if (!abortSignal) return null
 
   try {
@@ -178,7 +189,7 @@ async function stockFallback(prompt: string, width: number, height: number, seed
   ]
 
   for (const url of candidates) {
-    const abortSignal = timeoutSignal(deadlineAt, 5_000)
+    const abortSignal = timeoutSignal(deadlineAt, 3_000)
     if (!abortSignal) break
 
     try {
@@ -295,8 +306,8 @@ export async function POST(req: Request) {
             "Do not replace it with a generic futuristic person, generic AI imagery, unrelated stock-like scenery, text or logos.",
           ].join(" ")
 
-          const repairDeadlineAt = Math.min(Date.now() + IMAGE_REPAIR_BUDGET_MS, requestStartedAt + 80_000)
-          let repaired = await generateWithGateway(repairPrompt, w, h, effectiveQuality, repairDeadlineAt)
+          const repairDeadlineAt = Math.min(Date.now() + IMAGE_REPAIR_BUDGET_MS, requestStartedAt + 76_000)
+          let repaired = await generateWithGateway(repairPrompt, w, h, effectiveQuality, repairDeadlineAt, 1, 7_000)
           if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1, repairDeadlineAt)
 
           if (repaired?.quality === "ai-generated") {
