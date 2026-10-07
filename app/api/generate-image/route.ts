@@ -5,6 +5,14 @@ import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 
 export const maxDuration = 90
 
+const INITIAL_GENERATION_BUDGET_MS = 50_000
+const IMAGE_REPAIR_BUDGET_MS = 8_000
+
+function timeoutSignal(deadlineAt: number, maxMs: number): AbortSignal | null {
+  const remaining = deadlineAt - Date.now()
+  return remaining > 0 ? AbortSignal.timeout(Math.min(remaining, maxMs)) : null
+}
+
 type GeneratedImageResult = {
   url: string
   providerSource: string
@@ -41,19 +49,24 @@ function imageToDataUrl(image: any): string | null {
   return null
 }
 
-async function generateWithGateway(prompt: string, width: number, height: number, quality: string): Promise<GeneratedImageResult | null> {
+async function generateWithGateway(prompt: string, width: number, height: number, quality: string, deadlineAt: number): Promise<GeneratedImageResult | null> {
   // Keep the cheap/fast option first. If a model is unavailable or the account is
   // rate-limited, move on instead of making image generation look broken.
   const models = quality === "fast"
-    ? ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2"]
+    ? ["google/imagen-4.0-fast-generate-001"]
     : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2", "bfl/flux-2-pro"]
 
   for (const model of models) {
+    const abortSignal = timeoutSignal(deadlineAt, quality === "fast" ? 12_000 : 16_000)
+    if (!abortSignal) break
+
     try {
       const result: any = await generateImage({
         model: model as any,
         prompt,
         aspectRatio: aspectRatioFor(width, height) as any,
+        abortSignal,
+        maxRetries: 0,
       } as any)
 
       const url = imageToDataUrl(result?.image || result?.images?.[0])
@@ -73,7 +86,10 @@ async function generateWithGateway(prompt: string, width: number, height: number
   return null
 }
 
-async function generateWithPollinations(prompt: string, width: number, height: number, seed: number): Promise<GeneratedImageResult | null> {
+async function generateWithPollinations(prompt: string, width: number, height: number, seed: number, deadlineAt: number): Promise<GeneratedImageResult | null> {
+  const abortSignal = timeoutSignal(deadlineAt, 20_000)
+  if (!abortSignal) return null
+
   try {
     const url = new URL(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}`)
     url.searchParams.set("model", "flux")
@@ -89,7 +105,7 @@ async function generateWithPollinations(prompt: string, width: number, height: n
     const response = await fetch(url, {
       headers,
       cache: "no-store",
-      signal: AbortSignal.timeout(45000),
+      signal: abortSignal,
     })
 
     if (!response.ok) {
@@ -115,7 +131,10 @@ async function generateWithPollinations(prompt: string, width: number, height: n
   }
 }
 
-async function generateWithCraiyon(prompt: string, negativePrompt: string): Promise<GeneratedImageResult | null> {
+async function generateWithCraiyon(prompt: string, negativePrompt: string, deadlineAt: number): Promise<GeneratedImageResult | null> {
+  const abortSignal = timeoutSignal(deadlineAt, 8_000)
+  if (!abortSignal) return null
+
   try {
     const response = await fetch("https://api.craiyon.com/v3", {
       method: "POST",
@@ -127,7 +146,7 @@ async function generateWithCraiyon(prompt: string, negativePrompt: string): Prom
         negative_prompt: negativePrompt,
         version: "c4ue22fb7kb6wlac",
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: abortSignal,
     })
 
     if (!response.ok) return null
@@ -145,7 +164,7 @@ async function generateWithCraiyon(prompt: string, negativePrompt: string): Prom
   }
 }
 
-async function stockFallback(prompt: string, width: number, height: number, seed: number): Promise<GeneratedImageResult | null> {
+async function stockFallback(prompt: string, width: number, height: number, seed: number, deadlineAt: number): Promise<GeneratedImageResult | null> {
   const keywords = prompt
     .replace(/[^a-zA-Z0-9À-ÿ\s-]/g, " ")
     .trim()
@@ -158,12 +177,15 @@ async function stockFallback(prompt: string, width: number, height: number, seed
   ]
 
   for (const url of candidates) {
+    const abortSignal = timeoutSignal(deadlineAt, 5_000)
+    if (!abortSignal) break
+
     try {
       const response = await fetch(url, {
         method: "GET",
         redirect: "follow",
         cache: "no-store",
-        signal: AbortSignal.timeout(10000),
+        signal: abortSignal,
       })
       if (!response.ok) continue
       const contentType = response.headers.get("content-type") || "image/jpeg"
@@ -212,6 +234,8 @@ export async function POST(req: Request) {
       return Response.json({ error: "Prompt não fornecido" }, { status: 400 })
     }
 
+    const requestStartedAt = Date.now()
+    const generationDeadlineAt = requestStartedAt + INITIAL_GENERATION_BUDGET_MS
     const seed = Math.floor(Math.random() * 9_999_999)
     const w = Math.min(Math.max(Number(width) || 1024, 256), 1536)
     const h = Math.min(Math.max(Number(height) || 1024, 256), 1536)
@@ -219,18 +243,18 @@ export async function POST(req: Request) {
     const enhancedPrompt = built.prompt
     const shouldValidate = validate ?? quality === "hd"
 
-    let generated = await generateWithGateway(enhancedPrompt, w, h, quality)
+    let generated = await generateWithGateway(enhancedPrompt, w, h, quality, generationDeadlineAt)
 
     if (!generated) {
-      generated = await generateWithPollinations(enhancedPrompt, w, h, seed)
+      generated = await generateWithPollinations(enhancedPrompt, w, h, seed, generationDeadlineAt)
     }
 
     if (!generated && quality !== "fast") {
-      generated = await generateWithCraiyon(enhancedPrompt, built.negativePrompt)
+      generated = await generateWithCraiyon(enhancedPrompt, built.negativePrompt, generationDeadlineAt)
     }
 
     if (!generated) {
-      generated = await stockFallback(prompt, Math.min(w, 1280), Math.min(h, 1280), seed)
+      generated = await stockFallback(prompt, Math.min(w, 1280), Math.min(h, 1280), seed, generationDeadlineAt)
     }
 
     if (!generated) {
@@ -263,8 +287,9 @@ export async function POST(req: Request) {
             "Do not replace it with a generic futuristic person, generic AI imagery, unrelated stock-like scenery, text or logos.",
           ].join(" ")
 
-          let repaired = await generateWithGateway(repairPrompt, w, h, quality)
-          if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1)
+          const repairDeadlineAt = Math.min(Date.now() + IMAGE_REPAIR_BUDGET_MS, requestStartedAt + 80_000)
+          let repaired = await generateWithGateway(repairPrompt, w, h, quality, repairDeadlineAt)
+          if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1, repairDeadlineAt)
 
           if (repaired?.quality === "ai-generated") {
             const repairedQc = await checkImageSemanticQuality(repaired.url, prompt)
