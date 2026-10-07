@@ -469,7 +469,7 @@ function visualGenerationPrompt(slot: VisualSlot, plan: VisualPlan) {
 
 async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise<VisualContextImage | null> {
   const models = [
-    "google/imagen-4.0-fast-generate-001",
+    "google/imagen-4.0-fast-generate",
     "openai/gpt-image-2",
   ]
   const aspectRatio = slot.orientation === "portrait" ? "9:16" : slot.orientation === "square" ? "1:1" : "16:9"
