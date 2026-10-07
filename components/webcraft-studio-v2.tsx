@@ -137,7 +137,7 @@ export function WebCraftStudioV2() {
     const projectName =
       businessName.trim() ||
       existing?.name ||
-      prompt.trim().replace(/\\s+/g, " ").slice(0, 72) ||
+      prompt.trim().replace(/\s+/g, " ").slice(0, 72) ||
       "Projeto WebCraft"
     const project: SavedWebProject = {
       id,
