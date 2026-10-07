@@ -100,7 +100,7 @@ export function WebCraftStudioV2() {
   const [fullStackProject, setFullStackProject] = useState<FullStackProject | null>(null)
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [visualStats, setVisualStats] = useState<{ count: number; mode: string; model: string } | null>(null)
+  const [visualStats, setVisualStats] = useState<{ count: number; generated: number; curated: number; dropped: number; mode: string; model: string } | null>(null)
   const [savedProjects, setSavedProjects] = useState<SavedWebProject[]>([])
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
 
@@ -291,6 +291,9 @@ export function WebCraftStudioV2() {
 
       setVisualStats({
         count: Math.max(0, Number(response.headers.get("X-Lumin-Context-Images") || 0)),
+        generated: Math.max(0, Number(response.headers.get("X-Lumin-Generated-Images") || 0)),
+        curated: Math.max(0, Number(response.headers.get("X-Lumin-Curated-Images") || 0)),
+        dropped: Math.max(0, Number(response.headers.get("X-Lumin-Image-Size-Drops") || 0)),
         mode: response.headers.get("X-Lumin-AI-Mode") || "full",
         model: response.headers.get("X-Lumin-AI-Model") || "LUMIN",
       })
@@ -680,7 +683,8 @@ export function WebCraftStudioV2() {
           {visualStats && (
             <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
               <Sparkles className="h-3 w-3" />
-              Visual Director · {visualStats.count} imagens
+              Visual Director · {visualStats.generated} geradas · {visualStats.curated} curadas
+              {visualStats.dropped > 0 && <span className="text-muted-foreground"> · {visualStats.dropped} omitidas por tamanho</span>}
             </Badge>
           )}
           {fullStackProject && <Badge variant="outline">{fullStackProject.files.length} ficheiros · {fullStackProject.framework}</Badge>}

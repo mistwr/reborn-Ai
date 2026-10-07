@@ -20,7 +20,7 @@ export async function checkImageSemanticQuality(
   try {
     const remote = await fetch(imageUrl, {
       redirect: "follow",
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(6_000),
     })
 
     if (!remote.ok) {
@@ -57,6 +57,8 @@ export async function checkImageSemanticQuality(
         },
       ],
       maxTokens: 120,
+      abortSignal: AbortSignal.timeout(6_000),
+      maxRetries: 0,
     })
 
     const text = result.text.trim()
