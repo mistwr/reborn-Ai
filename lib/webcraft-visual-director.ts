@@ -1,5 +1,6 @@
 import { generateImage, generateText } from "ai"
 import { withModelFallback } from "@/lib/ai-fallback"
+import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 
 type Orientation = "landscape" | "portrait" | "square"
 
@@ -173,6 +174,8 @@ async function createVisualPlan(prompt: string, businessName?: string, language?
       (model) =>
         generateText({
           model,
+          abortSignal: AbortSignal.timeout(10_000),
+          maxRetries: 0,
           system: `You are LUMIN Visual Director for premium web design.
 Return ONLY valid compact JSON, no markdown.
 Your job is to understand the business and design a coherent photographic direction before any images are searched.
@@ -473,14 +476,30 @@ async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise
   const prompt = visualGenerationPrompt(slot, plan)
 
   for (const model of models) {
+    const abortSignal = AbortSignal.timeout(18_000)
+
     try {
       const result: any = await generateImage({
         model: model as any,
         prompt,
         aspectRatio: aspectRatio as any,
+        abortSignal,
+        maxRetries: 0,
       } as any)
       const url = imageResultToDataUrl(result?.image || result?.images?.[0])
       if (!url) continue
+
+      const quality = await checkImageSemanticQuality(
+        url,
+        `${plan.businessType}. ${slot.section}: ${slot.purpose}. The image must clearly show ${slot.subject}.`,
+      )
+      if (quality.checked && (!quality.matched || quality.confidence < 58)) {
+        console.warn(
+          `[LUMIN Visual Director] generated image failed semantic check for ${slot.id}`,
+          quality.reason,
+        )
+        continue
+      }
 
       return {
         url,
@@ -491,7 +510,7 @@ async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise
         purpose: slot.purpose,
         subject: slot.subject,
         orientation: slot.orientation,
-        score: 100,
+        score: quality.checked ? quality.confidence : 85,
       }
     } catch (error) {
       console.warn(
