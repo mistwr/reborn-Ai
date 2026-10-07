@@ -50,11 +50,12 @@ function imageToDataUrl(image: any): string | null {
 }
 
 async function generateWithGateway(prompt: string, width: number, height: number, quality: string, deadlineAt: number): Promise<GeneratedImageResult | null> {
-  // Keep the cheap/fast option first. If a model is unavailable or the account is
-  // rate-limited, move on instead of making image generation look broken.
+  // Match the requested quality tier first, then use dependable fallbacks.
   const models = quality === "fast"
     ? ["google/imagen-4.0-fast-generate-001"]
-    : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2", "bfl/flux-2-pro"]
+    : quality === "hd"
+      ? ["bfl/flux-2-pro", "openai/gpt-image-2", "google/imagen-4.0-fast-generate-001"]
+      : ["google/imagen-4.0-fast-generate-001", "openai/gpt-image-2", "bfl/flux-2-pro"]
 
   for (const model of models) {
     const abortSignal = timeoutSignal(deadlineAt, quality === "fast" ? 12_000 : 16_000)
@@ -214,6 +215,7 @@ export async function POST(req: Request) {
       prompt,
       width = 1024,
       height = 1024,
+      model: requestedModel,
       quality = "standard",
       style = "",
       intent = "image",
@@ -223,6 +225,7 @@ export async function POST(req: Request) {
       prompt?: string
       width?: number
       height?: number
+      model?: string
       quality?: string
       style?: string
       intent?: string
@@ -236,20 +239,25 @@ export async function POST(req: Request) {
 
     const requestStartedAt = Date.now()
     const generationDeadlineAt = requestStartedAt + INITIAL_GENERATION_BUDGET_MS
+    const effectiveQuality = requestedModel === "flux"
+      ? "hd"
+      : requestedModel === "turbo"
+        ? "fast"
+        : quality
     const seed = Math.floor(Math.random() * 9_999_999)
     const w = Math.min(Math.max(Number(width) || 1024, 256), 1536)
     const h = Math.min(Math.max(Number(height) || 1024, 256), 1536)
-    const built = buildAdvancedImagePrompt({ prompt, style, quality, width: w, height: h, intent, brief })
+    const built = buildAdvancedImagePrompt({ prompt, style, quality: effectiveQuality, width: w, height: h, intent, brief })
     const enhancedPrompt = built.prompt
-    const shouldValidate = validate ?? quality === "hd"
+    const shouldValidate = validate ?? effectiveQuality === "hd"
 
-    let generated = await generateWithGateway(enhancedPrompt, w, h, quality, generationDeadlineAt)
+    let generated = await generateWithGateway(enhancedPrompt, w, h, effectiveQuality, generationDeadlineAt)
 
     if (!generated) {
       generated = await generateWithPollinations(enhancedPrompt, w, h, seed, generationDeadlineAt)
     }
 
-    if (!generated && quality !== "fast") {
+    if (!generated && effectiveQuality !== "fast") {
       generated = await generateWithCraiyon(enhancedPrompt, built.negativePrompt, generationDeadlineAt)
     }
 
@@ -288,7 +296,7 @@ export async function POST(req: Request) {
           ].join(" ")
 
           const repairDeadlineAt = Math.min(Date.now() + IMAGE_REPAIR_BUDGET_MS, requestStartedAt + 80_000)
-          let repaired = await generateWithGateway(repairPrompt, w, h, quality, repairDeadlineAt)
+          let repaired = await generateWithGateway(repairPrompt, w, h, effectiveQuality, repairDeadlineAt)
           if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1, repairDeadlineAt)
 
           if (repaired?.quality === "ai-generated") {
