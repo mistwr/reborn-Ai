@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ChangeEvent } from "react"
+import { useEffect, useMemo, useState, type ChangeEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -13,6 +13,7 @@ import {
   Database,
   Download,
   ExternalLink,
+  FolderOpen,
   Globe2,
   ImagePlus,
   Loader2,
@@ -24,6 +25,7 @@ import {
   Smartphone,
   Sparkles,
   Tablet,
+  Trash2,
   X,
 } from "lucide-react"
 
@@ -36,6 +38,37 @@ type FullStackProject = {
   name: string
   framework: string
   files: ProjectFile[]
+}
+
+type SavedWebProject = {
+  id: string
+  name: string
+  prompt: string
+  mode: Mode
+  html: string
+  updatedAt: string
+  publishedUrl: string | null
+}
+
+const SAVED_PROJECTS_STORAGE_KEY = "lumin-webcraft-projects-v1"
+const MAX_SAVED_PROJECTS = 5
+
+function isSavedWebProject(value: unknown): value is SavedWebProject {
+  if (!value || typeof value !== "object") return false
+  const project = value as Partial<SavedWebProject>
+  return (
+    typeof project.id === "string" &&
+    typeof project.name === "string" &&
+    typeof project.prompt === "string" &&
+    (project.mode === "website" || project.mode === "app") &&
+    typeof project.html === "string" &&
+    typeof project.updatedAt === "string" &&
+    (typeof project.publishedUrl === "string" || project.publishedUrl === null)
+  )
+}
+
+function createProjectId() {
+  return `webcraft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
 const EXAMPLES = [
@@ -68,6 +101,8 @@ export function WebCraftStudioV2() {
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [visualStats, setVisualStats] = useState<{ count: number; mode: string; model: string } | null>(null)
+  const [savedProjects, setSavedProjects] = useState<SavedWebProject[]>([])
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
 
   const previewWidth = useMemo(() => {
     if (viewMode === "mobile") return "390px"
@@ -84,6 +119,67 @@ export function WebCraftStudioV2() {
         .slice(0, 12),
     [referenceImagesText],
   )
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SAVED_PROJECTS_STORAGE_KEY)
+      const stored: unknown = raw ? JSON.parse(raw) : []
+      if (Array.isArray(stored)) {
+        setSavedProjects(stored.filter(isSavedWebProject).slice(0, MAX_SAVED_PROJECTS))
+      }
+    } catch {
+      setSavedProjects([])
+    }
+  }, [])
+
+  function saveProject(htmlContent: string, id: string, url: string | null = publishedUrl) {
+    const existing = savedProjects.find((project) => project.id === id)
+    const projectName =
+      businessName.trim() ||
+      existing?.name ||
+      prompt.trim().replace(/\s+/g, " ").slice(0, 72) ||
+      "Projeto WebCraft"
+    const project: SavedWebProject = {
+      id,
+      name: projectName,
+      prompt: prompt.trim() || existing?.prompt || "",
+      mode,
+      html: htmlContent,
+      updatedAt: new Date().toISOString(),
+      publishedUrl: url,
+    }
+    const nextProjects = [project, ...savedProjects.filter((item) => item.id !== id)].slice(0, MAX_SAVED_PROJECTS)
+    setSavedProjects(nextProjects)
+    setCurrentProjectId(id)
+    try {
+      window.localStorage.setItem(SAVED_PROJECTS_STORAGE_KEY, JSON.stringify(nextProjects))
+    } catch {
+      setError("O projeto foi criado, mas o armazenamento deste dispositivo está cheio. Transfere o HTML para o guardar.")
+    }
+  }
+
+  function openSavedProject(project: SavedWebProject) {
+    setCurrentProjectId(project.id)
+    setBusinessName(project.name)
+    setPrompt(project.prompt)
+    setMode(project.mode)
+    setHtml(project.html)
+    setEditableHtml(project.html)
+    setPublishedUrl(project.publishedUrl)
+    setFullStackProject(null)
+    setEditCode(false)
+    setError(null)
+  }
+
+  function deleteSavedProject(id: string) {
+    const nextProjects = savedProjects.filter((project) => project.id !== id)
+    setSavedProjects(nextProjects)
+    try {
+      window.localStorage.setItem(SAVED_PROJECTS_STORAGE_KEY, JSON.stringify(nextProjects))
+    } catch {
+      setError("Não foi possível atualizar os projetos guardados neste dispositivo.")
+    }
+  }
 
   function loadImage(url: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -233,7 +329,7 @@ export function WebCraftStudioV2() {
     setFullStackProject(null)
     setPublishedUrl(null)
     setVisualStats(null)
-    await streamProject({
+    const generatedHtml = await streamProject({
       prompt,
       mode,
       businessName,
@@ -242,6 +338,7 @@ export function WebCraftStudioV2() {
       uploadedImages: uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
       language: "Português de Portugal (PT-PT)",
     })
+    if (generatedHtml) saveProject(generatedHtml, createProjectId(), null)
   }
 
   async function refine() {
@@ -249,7 +346,7 @@ export function WebCraftStudioV2() {
     const current = html
     const instruction = refinement
     setRefinement("")
-    await streamProject({
+    const refinedHtml = await streamProject({
       mode,
       currentHtml: current,
       refinement: instruction,
@@ -257,6 +354,7 @@ export function WebCraftStudioV2() {
       uploadedImages: uploadedImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
       language: "Português de Portugal (PT-PT)",
     })
+    if (refinedHtml) saveProject(refinedHtml, currentProjectId ?? createProjectId(), null)
   }
 
   function downloadHtml() {
@@ -349,7 +447,9 @@ export function WebCraftStudioV2() {
         const setup = data?.setup ? ` ${data.setup}` : ""
         throw new Error(`${data?.error || "Não foi possível publicar."}${setup}`)
       }
-      setPublishedUrl(data?.url || null)
+      const url = data?.url || null
+      setPublishedUrl(url)
+      if (html) saveProject(html, currentProjectId ?? createProjectId(), url)
     } catch (err: any) {
       setError(err?.message || "Erro ao publicar o projeto")
     } finally {
@@ -402,11 +502,15 @@ export function WebCraftStudioV2() {
             </div>
 
             <Textarea
+              aria-label={mode === "app" ? "Descrição da aplicação web" : "Descrição do website"}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={mode === "app" ? "Ex.: CRM para uma empresa de energia com login, leads, clientes, pipeline, dashboard e follow-ups..." : "Ex.: Website premium para um stand automóvel com viaturas, financiamento, contactos e formulário de leads..."}
               className="min-h-40 rounded-2xl text-base"
             />
+            <p id="webcraft-prompt-help" className="mt-2 text-sm font-medium text-foreground/75">
+              {prompt.trim() ? "Pedido pronto. Podes gerar quando quiseres." : "Descreve o website ou a app para ativar a geração."}
+            </p>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Nome do projeto/negócio (opcional)" />
@@ -472,7 +576,13 @@ export function WebCraftStudioV2() {
               </details>
             </div>
 
-            <Button onClick={generate} disabled={loading || !prompt.trim()} size="lg" className="mt-5 h-12 w-full gap-2 rounded-xl">
+            <Button
+              onClick={generate}
+              disabled={loading || !prompt.trim()}
+              aria-describedby="webcraft-prompt-help"
+              size="lg"
+              className="mt-5 h-12 w-full gap-2 rounded-xl disabled:cursor-not-allowed disabled:opacity-40"
+            >
               {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> A construir...</> : <><Rocket className="h-5 w-5" /> Gerar {mode === "app" ? "App" : "Website"}</>}
             </Button>
 
@@ -489,6 +599,58 @@ export function WebCraftStudioV2() {
               ))}
             </div>
           </div>
+
+          <section className="rounded-3xl border bg-card p-5 shadow-sm md:p-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Os meus projetos</h3>
+                </div>
+                <p className="mt-1 text-sm text-foreground/70">
+                  Reabre um website ou aplicação para continuar, refinar ou transferir o resultado.
+                </p>
+              </div>
+              {savedProjects.length > 0 && <Badge variant="outline">{savedProjects.length} guardado{savedProjects.length === 1 ? "" : "s"}</Badge>}
+            </div>
+
+            {savedProjects.length > 0 ? (
+              <div className="space-y-2">
+                {savedProjects.map((project) => (
+                  <div key={project.id} className="flex items-center gap-2 rounded-2xl border p-2">
+                    <button
+                      type="button"
+                      onClick={() => openSavedProject(project)}
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-2 text-left transition hover:bg-muted"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <FolderOpen className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{project.name}</span>
+                        <span className="block truncate text-xs text-foreground/65">
+                          {project.mode === "app" ? "App Web" : "Website"} · Atualizado {new Date(project.updatedAt).toLocaleDateString("pt-PT")}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteSavedProject(project.id)}
+                      aria-label={`Apagar ${project.name}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-dashed p-5 text-sm text-foreground/70">
+                Ainda não guardaste nenhum projeto. Quando criares o primeiro, aparece aqui.
+              </p>
+            )}
+            <p className="mt-3 text-xs text-foreground/65">Os projetos são guardados neste dispositivo.</p>
+          </section>
         </div>
       </div>
     )
@@ -498,7 +660,18 @@ export function WebCraftStudioV2() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-card px-3 py-2 md:px-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setHtml(null); setPrompt(""); setEditCode(false); setFullStackProject(null); setPublishedUrl(null); setUploadedImages([]); setReferenceImagesText("") }} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+              setHtml(null)
+              setPrompt("")
+              setBusinessName("")
+              setCurrentProjectId(null)
+              setEditCode(false)
+              setFullStackProject(null)
+              setPublishedUrl(null)
+              setUploadedImages([])
+              setReferenceImagesText("")
+              setError(null)
+            }} className="gap-2">
             <RefreshCw className="h-4 w-4" /> Novo
           </Button>
           <Badge variant="secondary">Lumin AI Studio</Badge>
@@ -520,7 +693,21 @@ export function WebCraftStudioV2() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant={editCode ? "default" : "outline"} size="sm" onClick={() => { if (editCode) setHtml(editableHtml); else setEditableHtml(html); setEditCode(!editCode) }} className="gap-2">
+          <Button
+            variant={editCode ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              if (editCode) {
+                setHtml(editableHtml)
+                setFullStackProject(null)
+                saveProject(editableHtml, currentProjectId ?? createProjectId())
+              } else {
+                setEditableHtml(html)
+              }
+              setEditCode(!editCode)
+            }}
+            className="gap-2"
+          >
             {editCode ? <><Check className="h-4 w-4" /> Guardar</> : <><Code2 className="h-4 w-4" /> Código</>}
           </Button>
           <Button variant="outline" size="sm" onClick={downloadHtml} className="gap-2"><Download className="h-4 w-4" /> HTML</Button>

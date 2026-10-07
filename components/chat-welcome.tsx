@@ -20,7 +20,7 @@ const primaryTools = [
   { icon: MessageSquare, title: "Escrever", description: "Textos, emails e ideias", tab: "chat" },
   { icon: ImagePlus, title: "Gerar Imagens", description: "Cria imagens incríveis", tab: "images" },
   { icon: FileText, title: "Analisar", description: "PDFs, documentos e imagens", tab: "vision" },
-  { icon: Grid2X2, title: "Mais Ferramentas", description: "Explora todo o potencial", tab: "webcraft" },
+  { icon: Grid2X2, title: "Explorar ferramentas", description: "Vê tudo o que podes fazer", tab: "tools" },
 ]
 
 const suggestions = [

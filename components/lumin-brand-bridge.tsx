@@ -87,21 +87,21 @@ function applyLuminVisualIdentity() {
 }
 
 function retireLegacyShellChrome() {
-  // Enquanto o app/page.tsx histórico é dividido, eliminamos da experiência
-  // elementos que já foram substituídos pela nova shell Lumin.
-  const candidates = Array.from(document.querySelectorAll<HTMLElement>("p, span, div"))
+  // Keep the legacy theme controls out of the Lumin experience without hiding
+  // their parent sidebar.
+  const sidebar = document.querySelector<HTMLElement>('[data-lumin-sidebar="true"]')
+  if (!sidebar) return
 
-  for (const element of candidates) {
-    const text = element.textContent?.trim()
-    if (!text) continue
+  const labels = Array.from(sidebar.querySelectorAll<HTMLElement>("p, span"))
+  for (const label of labels) {
+    if (label.textContent?.trim() !== "Tema") continue
 
-    if (text === "Tema") {
-      const section = element.parentElement
-      if (section && section.querySelectorAll("button").length >= 3) {
-        section.style.display = "none"
-        section.dataset.luminRetired = "legacy-theme-picker"
-      }
-    }
+    const section = label.parentElement
+    const buttonCount = section?.querySelectorAll("button").length ?? 0
+    if (!(section instanceof HTMLElement) || buttonCount < 3 || buttonCount > 8) continue
+
+    section.style.display = "none"
+    section.dataset.luminRetired = "legacy-theme-picker"
   }
 }
 
