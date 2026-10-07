@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ChangeEvent } from "react"
+import { useEffect, useMemo, useState, type ChangeEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
