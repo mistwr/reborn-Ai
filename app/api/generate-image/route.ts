@@ -1,4 +1,4 @@
-import { generateImage } from "ai"
+import { experimental_generateImage as generateImage } from "ai"
 import type { ProjectBrief } from "@/lib/content-brief"
 import { buildAdvancedImagePrompt } from "@/lib/image/prompt-builder"
 import { checkImageSemanticQuality } from "@/lib/image/quality-check"
