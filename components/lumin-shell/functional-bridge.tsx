@@ -133,8 +133,6 @@ export function LuminShellFunctionalBridge() {
       const sidebar = currentSidebar
       if (!sidebar) return
 
-      const classes = String(sidebar.className)
-
       const buttons = Array.from(sidebar.querySelectorAll("button"))
       for (const definition of NAV_DEFINITIONS) {
         const match = buttons.find((button) => {
