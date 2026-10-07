@@ -699,6 +699,7 @@ export function WebCraftStudioV2() {
             onClick={() => {
               if (editCode) {
                 setHtml(editableHtml)
+                setFullStackProject(null)
                 saveProject(editableHtml, currentProjectId ?? createProjectId())
               } else {
                 setEditableHtml(html)
