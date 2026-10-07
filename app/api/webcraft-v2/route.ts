@@ -39,7 +39,8 @@ type EmbeddedContextAsset = {
 }
 
 const MAX_CONTEXT_IMAGE_BYTES = 1_800_000
-const MAX_CONTEXT_TOTAL_BYTES = 5_400_000\nconst MAX_WEBCRAFT_RESPONSE_BYTES = 4_200_000
+const MAX_CONTEXT_TOTAL_BYTES = 5_400_000
+const MAX_WEBCRAFT_RESPONSE_BYTES = 4_200_000
 
 function imageMimeType(value: string | null, url: string) {
   const type = String(value || "").split(";")[0].trim().toLowerCase()
@@ -145,7 +146,7 @@ function restoreContextImagesInHtml(html: string, assets: EmbeddedContextAsset[]
 
 function removeContextImageTokenFromHtml(html: string, token: string) {
   let output = html
-  const imageTags = Array.from(output.matchAll(/<img\\b[^>]*>/gi)).map((match) => match[0])
+  const imageTags = Array.from(output.matchAll(/<img\b[^>]*>/gi)).map((match) => match[0])
   for (const tag of imageTags) {
     if (tag.includes(token)) output = output.replace(tag, "")
   }
@@ -164,7 +165,7 @@ function removeNonUserImageDataUntilWithinLimit(
   const userImageData = new Set(uploadedImages.map((image) => image.dataUrl))
   const candidates = Array.from(
     new Set(
-      Array.from(html.matchAll(/data:image\\/(?:png|jpe?g|webp);base64,[a-z0-9+/=]+/gi)).map((match) => match[0]),
+      Array.from(html.matchAll(/data:image\/(?:png|jpe?g|webp);base64,[a-z0-9+/=]+/gi)).map((match) => match[0]),
     ),
   )
     .filter((dataUrl) => !userImageData.has(dataUrl))
@@ -176,7 +177,7 @@ function removeNonUserImageDataUntilWithinLimit(
   for (const dataUrl of candidates) {
     if (Buffer.byteLength(output, "utf8") <= maxBytes) break
 
-    const imageTags = Array.from(output.matchAll(/<img\\b[^>]*>/gi)).map((match) => match[0])
+    const imageTags = Array.from(output.matchAll(/<img\b[^>]*>/gi)).map((match) => match[0])
     for (const tag of imageTags) {
       if (tag.includes(dataUrl)) output = output.replace(tag, "")
     }
