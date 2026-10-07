@@ -35,10 +35,11 @@ type ContextImage = {
 type EmbeddedContextAsset = {
   token: string
   dataUrl: string
+  source?: string
 }
 
 const MAX_CONTEXT_IMAGE_BYTES = 1_800_000
-const MAX_CONTEXT_TOTAL_BYTES = 5_400_000
+const MAX_CONTEXT_TOTAL_BYTES = 5_400_000\nconst MAX_WEBCRAFT_RESPONSE_BYTES = 4_200_000
 
 function imageMimeType(value: string | null, url: string) {
   const type = String(value || "").split(";")[0].trim().toLowerCase()
@@ -124,7 +125,7 @@ async function materializeContextImages<T extends { images: any[] }>(context: T,
 
     const token = `__LUMIN_CONTEXT_IMAGE_${assets.length + 1}__`
     totalBytes += result.bytes
-    assets.push({ token, dataUrl: result.dataUrl })
+    assets.push({ token, dataUrl: result.dataUrl, source: image.source })
     images.push({ ...image, url: token })
   })
 
@@ -140,6 +141,55 @@ function restoreContextImagesInHtml(html: string, assets: EmbeddedContextAsset[]
     output = output.split(asset.token).join(asset.dataUrl)
   }
   return output
+}
+
+function removeContextImageTokenFromHtml(html: string, token: string) {
+  let output = html
+  const imageTags = Array.from(output.matchAll(/<img\\b[^>]*>/gi)).map((match) => match[0])
+  for (const tag of imageTags) {
+    if (tag.includes(token)) output = output.replace(tag, "")
+  }
+  output = output
+    .split(`url(${token})`).join("none")
+    .split(`url("${token}")`).join("none")
+    .split(`url('${token}')`).join("none")
+  return output.split(token).join("")
+}
+
+function removeNonUserImageDataUntilWithinLimit(
+  html: string,
+  uploadedImages: UploadedReferenceImage[],
+  maxBytes: number,
+) {
+  const userImageData = new Set(uploadedImages.map((image) => image.dataUrl))
+  const candidates = Array.from(
+    new Set(
+      Array.from(html.matchAll(/data:image\\/(?:png|jpe?g|webp);base64,[a-z0-9+/=]+/gi)).map((match) => match[0]),
+    ),
+  )
+    .filter((dataUrl) => !userImageData.has(dataUrl))
+    .sort((a, b) => b.length - a.length)
+
+  let output = html
+  let dropped = 0
+
+  for (const dataUrl of candidates) {
+    if (Buffer.byteLength(output, "utf8") <= maxBytes) break
+
+    const imageTags = Array.from(output.matchAll(/<img\\b[^>]*>/gi)).map((match) => match[0])
+    for (const tag of imageTags) {
+      if (tag.includes(dataUrl)) output = output.replace(tag, "")
+    }
+
+    output = output
+      .split(`url(${dataUrl})`).join("none")
+      .split(`url("${dataUrl}")`).join("none")
+      .split(`url('${dataUrl}')`).join("none")
+      .split(dataUrl).join("")
+    dropped += 1
+  }
+
+  return { html: output, dropped }
 }
 
 function fallbackImageDataUrl(label = "LUMIN") {
@@ -812,13 +862,53 @@ PRESERVAÇÃO:
       uploadVisualAnalysis,
     )
     const restoredUploadsHtml = restoreUploadedImagesInHtml(presentationFixedHtml, uploadedImages)
-    const restoredHtml = restoreContextImagesInHtml(restoredUploadsHtml, contextAssets)
-    const stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml)
+    let restoredHtml = restoredUploadsHtml
+    let imageSizeDrops = 0
+    const includedContextTokens = new Set<string>()
+
+    for (const asset of contextAssets) {
+      if (!restoredHtml.includes(asset.token)) continue
+      const withAsset = restoredHtml.split(asset.token).join(asset.dataUrl)
+      if (Buffer.byteLength(withAsset, "utf8") <= MAX_WEBCRAFT_RESPONSE_BYTES) {
+        restoredHtml = withAsset
+        includedContextTokens.add(asset.token)
+      } else {
+        restoredHtml = removeContextImageTokenFromHtml(restoredHtml, asset.token)
+        imageSizeDrops += 1
+      }
+    }
+
+    let stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml)
+    if (Buffer.byteLength(stabilized.html, "utf8") > MAX_WEBCRAFT_RESPONSE_BYTES) {
+      const reduced = removeNonUserImageDataUntilWithinLimit(
+        stabilized.html,
+        uploadedImages,
+        MAX_WEBCRAFT_RESPONSE_BYTES,
+      )
+      stabilized = { ...stabilized, html: reduced.html }
+      imageSizeDrops += reduced.dropped
+    }
+
+    if (Buffer.byteLength(stabilized.html, "utf8") > MAX_WEBCRAFT_RESPONSE_BYTES) {
+      return Response.json(
+        { error: "O projeto excede o limite de tamanho do preview. Reduz o número ou o tamanho das imagens carregadas e tenta novamente." },
+        { status: 413 },
+      )
+    }
+
+    const retainedContextAssets = contextAssets.filter(
+      (asset) => includedContextTokens.has(asset.token) && stabilized.html.includes(asset.dataUrl),
+    )
+    const generatedImageCount = retainedContextAssets.filter((asset) => asset.source === "generated").length
+    const curatedImageCount = retainedContextAssets.filter((asset) => asset.source !== "generated").length
 
     return new Response(stabilized.html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "X-Lumin-Context-Images": String(contextImages.length),
+        "X-Lumin-Context-Images": String(generatedImageCount + curatedImageCount),
+        "X-Lumin-Generated-Images": String(generatedImageCount),
+        "X-Lumin-Curated-Images": String(curatedImageCount),
+        "X-Lumin-Image-Size-Drops": String(imageSizeDrops),
         "X-Lumin-Uploaded-Images": String(uploadedImages.length),
         "X-Lumin-Image-Repairs": String(stabilized.repairs),
         "X-Lumin-AI-Mode": economyMode ? "fallback" : "full",
