@@ -165,7 +165,7 @@ function removeNonUserImageDataUntilWithinLimit(
   const userImageData = new Set(uploadedImages.map((image) => image.dataUrl))
   const candidates = Array.from(
     new Set(
-      Array.from(html.matchAll(/data:image\/(?:png|jpe?g|webp);base64,[a-z0-9+/=]+/gi)).map((match) => match[0]),
+      Array.from(html.matchAll(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi)).map((match) => match[0]),
     ),
   )
     .filter((dataUrl) => !userImageData.has(dataUrl))
