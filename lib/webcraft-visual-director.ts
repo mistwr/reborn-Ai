@@ -28,7 +28,9 @@ export type VisualContextImage = {
   thumbnail?: string
   title?: string
   creator?: string
-  source: "generated" | "unsplash" | "openverse"
+  creatorUrl?: string
+  sourceUrl?: string
+  source: "generated" | "unsplash" | "openverse" | "pexels" | "pixabay"
   license?: string
   licenseUrl?: string
   query: string
@@ -320,9 +322,152 @@ async function searchUnsplash(slot: VisualSlot): Promise<VisualContextImage[]> {
           thumbnail: typeof item?.urls?.small === "string" ? item.urls.small : undefined,
           title: typeof item?.alt_description === "string" ? item.alt_description : undefined,
           creator: typeof item?.user?.name === "string" ? item.user.name : undefined,
+          creatorUrl: typeof item?.user?.links?.html === "string" ? item.user.links.html : undefined,
+          sourceUrl: typeof item?.links?.html === "string" ? item.links.html : undefined,
           source: "unsplash",
           license: "Unsplash License",
           licenseUrl: "https://unsplash.com/license",
+          query: slot.query,
+          section: slot.section,
+          purpose: slot.purpose,
+          subject: slot.subject,
+          orientation: slot.orientation,
+          width,
+          height,
+          score,
+        }
+      })
+      .filter((item: VisualContextImage | null): item is VisualContextImage => Boolean(item))
+      .sort((a: VisualContextImage, b: VisualContextImage) => b.score - a.score)
+  } catch {
+    return []
+  }
+}
+
+async function searchPexels(slot: VisualSlot): Promise<VisualContextImage[]> {
+  const apiKey = process.env.PEXELS_API_KEY?.trim()
+  if (!apiKey) return []
+
+  try {
+    const url = new URL("https://api.pexels.com/v1/search")
+    url.searchParams.set("query", slot.query)
+    url.searchParams.set("per_page", String(SEARCH_RESULTS_PER_SLOT))
+    url.searchParams.set("orientation", slot.orientation)
+    url.searchParams.set("locale", "en-US")
+
+    const response = await fetch(url, {
+      headers: { Authorization: apiKey },
+      cache: "force-cache",
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(4500),
+    })
+    if (!response.ok) return []
+
+    const data = await response.json().catch(() => null)
+    const results = Array.isArray(data?.photos) ? data.photos : []
+
+    return results
+      .map((item: any): VisualContextImage | null => {
+        const sources = item?.src || {}
+        const imageUrl =
+          slot.orientation === "portrait"
+            ? sources.portrait || sources.large2x || sources.large || sources.original
+            : slot.orientation === "square"
+              ? sources.large2x || sources.original || sources.landscape
+              : sources.landscape || sources.large2x || sources.large || sources.original
+        if (typeof imageUrl !== "string" || !/^https:\/\//i.test(imageUrl)) return null
+
+        const width = Number(item?.width || 0)
+        const height = Number(item?.height || 0)
+        const metadata = [item?.alt, item?.photographer].filter(Boolean).join(" ")
+        const score =
+          42 +
+          orientationScore(width, height, slot.orientation) +
+          resolutionScore(width, height) +
+          semanticScore(slot.query, metadata)
+
+        return {
+          url: imageUrl,
+          thumbnail: typeof sources.medium === "string" ? sources.medium : undefined,
+          title: typeof item?.alt === "string" ? item.alt : undefined,
+          creator: typeof item?.photographer === "string" ? item.photographer : undefined,
+          creatorUrl: typeof item?.photographer_url === "string" ? item.photographer_url : undefined,
+          sourceUrl: typeof item?.url === "string" ? item.url : undefined,
+          source: "pexels",
+          license: "Pexels License",
+          licenseUrl: "https://www.pexels.com/license/",
+          query: slot.query,
+          section: slot.section,
+          purpose: slot.purpose,
+          subject: slot.subject,
+          orientation: slot.orientation,
+          width,
+          height,
+          score,
+        }
+      })
+      .filter((item: VisualContextImage | null): item is VisualContextImage => Boolean(item))
+      .sort((a: VisualContextImage, b: VisualContextImage) => b.score - a.score)
+  } catch {
+    return []
+  }
+}
+
+async function searchPixabay(slot: VisualSlot): Promise<VisualContextImage[]> {
+  const apiKey = process.env.PIXABAY_API_KEY?.trim()
+  if (!apiKey) return []
+
+  try {
+    const url = new URL("https://pixabay.com/api/")
+    url.searchParams.set("key", apiKey)
+    url.searchParams.set("q", slot.query.slice(0, 100))
+    url.searchParams.set("lang", "en")
+    url.searchParams.set("image_type", "photo")
+    url.searchParams.set(
+      "orientation",
+      slot.orientation === "portrait" ? "vertical" : slot.orientation === "square" ? "all" : "horizontal",
+    )
+    url.searchParams.set("safesearch", "true")
+    url.searchParams.set("per_page", String(SEARCH_RESULTS_PER_SLOT))
+
+    const response = await fetch(url, {
+      cache: "force-cache",
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(4500),
+    })
+    if (!response.ok) return []
+
+    const data = await response.json().catch(() => null)
+    const results = Array.isArray(data?.hits) ? data.hits : []
+
+    return results
+      .map((item: any): VisualContextImage | null => {
+        const imageUrl =
+          typeof item?.largeImageURL === "string"
+            ? item.largeImageURL
+            : typeof item?.webformatURL === "string"
+              ? item.webformatURL
+              : ""
+        if (!imageUrl || !/^https:\/\//i.test(imageUrl)) return null
+
+        const width = Number(item?.imageWidth || 0)
+        const height = Number(item?.imageHeight || 0)
+        const metadata = [item?.tags, item?.user].filter(Boolean).join(" ")
+        const score =
+          40 +
+          orientationScore(width, height, slot.orientation) +
+          resolutionScore(width, height) +
+          semanticScore(slot.query, metadata)
+
+        return {
+          url: imageUrl,
+          thumbnail: typeof item?.previewURL === "string" ? item.previewURL : undefined,
+          title: typeof item?.tags === "string" ? item.tags : undefined,
+          creator: typeof item?.user === "string" ? item.user : undefined,
+          sourceUrl: typeof item?.pageURL === "string" ? item.pageURL : undefined,
+          source: "pixabay",
+          license: "Pixabay Content License",
+          licenseUrl: "https://pixabay.com/service/license-summary/",
           query: slot.query,
           section: slot.section,
           purpose: slot.purpose,
@@ -386,6 +531,8 @@ async function searchOpenverse(slot: VisualSlot): Promise<VisualContextImage[]> 
           thumbnail: thumbnail || undefined,
           title: typeof item?.title === "string" ? item.title : undefined,
           creator: typeof item?.creator === "string" ? item.creator : undefined,
+          creatorUrl: typeof item?.creator_url === "string" ? item.creator_url : undefined,
+          sourceUrl: typeof item?.foreign_landing_url === "string" ? item.foreign_landing_url : undefined,
           source: "openverse",
           license: typeof item?.license === "string" ? item.license : undefined,
           licenseUrl: typeof item?.license_url === "string" ? item.license_url : undefined,
@@ -468,10 +615,12 @@ function visualGenerationPrompt(slot: VisualSlot, plan: VisualPlan) {
 }
 
 async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise<VisualContextImage | null> {
-  const models = [
-    "google/imagen-4.0-fast-generate",
-    "openai/gpt-image-2",
-  ]
+  // Image models can incur separate usage charges. Keep generation opt-in until
+  // the project has an explicitly configured, accessible model.
+  const configuredModel = process.env.LUMIN_IMAGE_GENERATION_MODEL?.trim()
+  if (!configuredModel) return null
+
+  const models = [configuredModel]
   const aspectRatio = slot.orientation === "portrait" ? "9:16" : slot.orientation === "square" ? "1:1" : "16:9"
   const prompt = visualGenerationPrompt(slot, plan)
 
@@ -524,15 +673,18 @@ async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise
 }
 
 async function chooseImageForSlot(slot: VisualSlot, used: Set<string>) {
-  const [unsplash, openverse] = await Promise.all([searchUnsplash(slot), searchOpenverse(slot)])
-  const candidates = [...unsplash, ...openverse].sort((a, b) => b.score - a.score)
+  const providers = [searchPexels, searchPixabay, searchOpenverse, searchUnsplash]
 
-  for (const candidate of candidates) {
-    const identity = imageIdentity(candidate)
-    if (used.has(identity)) continue
-    used.add(identity)
-    return candidate
+  for (const search of providers) {
+    const candidates = (await search(slot)).sort((a, b) => b.score - a.score)
+    for (const candidate of candidates) {
+      const identity = imageIdentity(candidate)
+      if (used.has(identity)) continue
+      used.add(identity)
+      return candidate
+    }
   }
+
   return null
 }
 
@@ -600,7 +752,10 @@ No sufficiently strong generated or curated image was resolved. Keep this visual
   const imageLines = images
     .map((image, index) => {
       const dimensions = image.width && image.height ? `${image.width}x${image.height}` : "unknown dimensions"
-      const attribution = [image.creator, image.license].filter(Boolean).join(" · ")
+      const attribution =
+        image.source === "pexels" && image.creator
+          ? `Photo by ${image.creator} on Pexels`
+          : [image.creator, image.license].filter(Boolean).join(" · ")
       return `${index + 1}. SECTION: ${image.section}
    PURPOSE: ${image.purpose}
    MUST SHOW: ${image.subject}
@@ -608,7 +763,9 @@ No sufficiently strong generated or curated image was resolved. Keep this visual
    IMAGE URL: ${image.url}
    SOURCE: ${image.source} · ${dimensions} · relevance score ${image.score}${image.title ? `
    DESCRIPTION: ${image.title}` : ""}${attribution ? `
-   CREDIT/LICENSE: ${attribution}` : ""}${image.licenseUrl ? `
+   CREDIT/LICENSE: ${attribution}` : ""}${image.creatorUrl ? `
+   CREATOR LINK: ${image.creatorUrl}` : ""}${image.sourceUrl ? `
+   SOURCE PAGE: ${image.sourceUrl}` : ""}${image.licenseUrl ? `
    LICENSE URL: ${image.licenseUrl}` : ""}`
     })
     .join("\n\n")
@@ -632,5 +789,6 @@ Rules:
 - Use object-fit: cover with intentional object-position; do not stretch or distort photography.
 - If a curated image is clearly unsuitable for the generated copy, omit it rather than forcing it.
 - Preserve required attribution discreetly when a source/license calls for it.
+- For Pexels photos, use “Photo by [photographer] on Pexels” linked to the SOURCE PAGE; for Pixabay, link the photo credit to its SOURCE PAGE.
 - Do not add random stock merely to fill space.`
 }
