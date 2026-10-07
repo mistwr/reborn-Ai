@@ -367,7 +367,7 @@ async function searchPexels(slot: VisualSlot): Promise<VisualContextImage[]> {
     const results = Array.isArray(data?.photos) ? data.photos : []
 
     return results
-      .map((item: any): VisualContextImage | null => {
+      .map((item: any, index: number): VisualContextImage | null => {
         const sources = item?.src || {}
         const imageUrl =
           slot.orientation === "portrait"
@@ -379,12 +379,14 @@ async function searchPexels(slot: VisualSlot): Promise<VisualContextImage[]> {
 
         const width = Number(item?.width || 0)
         const height = Number(item?.height || 0)
-        const metadata = [item?.alt, item?.photographer].filter(Boolean).join(" ")
+        const metadata = typeof item?.alt === "string" ? item.alt : ""
+        const providerRankScore = Math.max(0, SEARCH_RESULTS_PER_SLOT - index) * 2
         const score =
           42 +
+          providerRankScore +
           orientationScore(width, height, slot.orientation) +
           resolutionScore(width, height) +
-          semanticScore(slot.query, metadata)
+          semanticScore(`${slot.query} ${slot.subject}`, metadata)
 
         return {
           url: imageUrl,
@@ -441,7 +443,7 @@ async function searchPixabay(slot: VisualSlot): Promise<VisualContextImage[]> {
     const results = Array.isArray(data?.hits) ? data.hits : []
 
     return results
-      .map((item: any): VisualContextImage | null => {
+      .map((item: any, index: number): VisualContextImage | null => {
         const imageUrl =
           typeof item?.largeImageURL === "string"
             ? item.largeImageURL
@@ -452,12 +454,14 @@ async function searchPixabay(slot: VisualSlot): Promise<VisualContextImage[]> {
 
         const width = Number(item?.imageWidth || 0)
         const height = Number(item?.imageHeight || 0)
-        const metadata = [item?.tags, item?.user].filter(Boolean).join(" ")
+        const metadata = typeof item?.tags === "string" ? item.tags : ""
+        const providerRankScore = Math.max(0, SEARCH_RESULTS_PER_SLOT - index) * 1.25
         const score =
           40 +
+          providerRankScore +
           orientationScore(width, height, slot.orientation) +
           resolutionScore(width, height) +
-          semanticScore(slot.query, metadata)
+          semanticScore(`${slot.query} ${slot.subject}`, metadata)
 
         return {
           url: imageUrl,
