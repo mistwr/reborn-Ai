@@ -97,6 +97,7 @@ import { LiveChat } from "@/components/live-chat"
 import { VisionTab } from "@/components/vision-tab"
 import { FacebookAutoPost } from "@/components/facebook-auto-post"
 import { ChatWelcome } from "@/components/chat-welcome"
+import { LuminToolsHub } from "@/components/lumin-tools-hub"
 import { ImageGenerator } from "@/components/image-generator"
 import { MarketingStudio } from "@/components/marketing-studio"
 import { CreatorIntelligence } from "@/components/creator-intelligence"
@@ -359,7 +360,7 @@ export default function RebornAI() {
       const requestedTab = params.get("tab")
       const allowedTabs = new Set([
         "chat", "live", "images", "imagebank", "imageenhancer", "vision",
-        "webcraft", "presentations", "ebooks", "clipper", "pro", "marketing",
+        "tools", "webcraft", "presentations", "ebooks", "clipper", "pro", "marketing",
         "sms", "whatsapp-web", "facebook-app", "facebook-autopost",
         "instagram-app", "youtube-app",
       ])
@@ -2294,6 +2295,11 @@ The way the world will live`
             {/* Image Enhancer Tab */}
             <TabsContent value="imageenhancer" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
               <ImageEnhancer />
+            </TabsContent>
+
+            {/* Tools catalog */}
+            <TabsContent value="tools" className="flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <LuminToolsHub onSelect={setActiveTab} />
             </TabsContent>
 
             {/* WebCraft Tab */}
