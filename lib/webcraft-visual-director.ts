@@ -1,4 +1,4 @@
-import { generateImage, generateText } from "ai"
+import { experimental_generateImage as generateImage, generateText } from "ai"
 import { withModelFallback } from "@/lib/ai-fallback"
 import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 
