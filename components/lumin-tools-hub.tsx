@@ -35,7 +35,7 @@ const categories = ["Todas", "Criar", "Analisar", "Comunicar", "Descobrir"] as c
 const tools: ToolItem[] = [
   {
     title: "Os meus projetos",
-    description: "Reabre sites e aplicações para continuar, transferir ou publicar.",
+    description: "Reabre as tuas criações para continuar, refinar ou exportar.",
     category: "Criar",
     tab: "webcraft",
     icon: FolderOpen,
