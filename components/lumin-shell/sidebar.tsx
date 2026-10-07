@@ -30,12 +30,12 @@ export function LuminShellSidebar({ open, onClose, items, activeId, onSelect, fo
           type="button"
           aria-label="Fechar menu"
           onClick={onClose}
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm lg:hidden"
         />
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[#d6a84b]/10 bg-[#050504] transition-transform duration-300 ease-out ${
+        className={`fixed inset-y-0 left-0 z-[120] flex w-72 flex-col border-r border-[#d6a84b]/10 bg-[#050504] transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
