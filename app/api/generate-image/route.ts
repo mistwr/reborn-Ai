@@ -98,13 +98,13 @@ async function generateWithGateway(
   return null
 }
 
-async function generateWithPollinations(prompt: string, width: number, height: number, seed: number, deadlineAt: number): Promise<GeneratedImageResult | null> {
+async function generateWithPollinations(prompt: string, width: number, height: number, seed: number, deadlineAt: number, quality: string): Promise<GeneratedImageResult | null> {
   const abortSignal = timeoutSignal(deadlineAt, 15_000)
   if (!abortSignal) return null
 
   try {
     const url = new URL(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}`)
-    url.searchParams.set("model", "flux")
+    url.searchParams.set("model", quality === "fast" ? "turbo" : "flux")
     url.searchParams.set("width", String(width))
     url.searchParams.set("height", String(height))
     url.searchParams.set("seed", String(seed))
@@ -265,7 +265,7 @@ export async function POST(req: Request) {
     let generated = await generateWithGateway(enhancedPrompt, w, h, effectiveQuality, generationDeadlineAt)
 
     if (!generated) {
-      generated = await generateWithPollinations(enhancedPrompt, w, h, seed, generationDeadlineAt)
+      generated = await generateWithPollinations(enhancedPrompt, w, h, seed, generationDeadlineAt, effectiveQuality)
     }
 
     if (!generated && effectiveQuality !== "fast") {
@@ -296,7 +296,7 @@ export async function POST(req: Request) {
 
         // One semantic repair pass: if Vision says the image does not really
         // represent the request, regenerate with the actual failure reason.
-        if (!qualityControl.matched || qualityControl.confidence < 72) {
+        if (qualityControl.checked && (!qualityControl.matched || qualityControl.confidence < 72)) {
           const repairPrompt = [
             enhancedPrompt,
             "STRICT SEMANTIC REPAIR.",
@@ -308,7 +308,7 @@ export async function POST(req: Request) {
 
           const repairDeadlineAt = Math.min(Date.now() + IMAGE_REPAIR_BUDGET_MS, requestStartedAt + 76_000)
           let repaired = await generateWithGateway(repairPrompt, w, h, effectiveQuality, repairDeadlineAt, 1, 7_000)
-          if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1, repairDeadlineAt)
+          if (!repaired) repaired = await generateWithPollinations(repairPrompt, w, h, seed + 1, repairDeadlineAt, effectiveQuality)
 
           if (repaired?.quality === "ai-generated") {
             const repairedQc = await checkImageSemanticQuality(repaired.url, prompt)
