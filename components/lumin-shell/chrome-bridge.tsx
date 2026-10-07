@@ -91,6 +91,10 @@ export function LuminShellChromeBridge() {
   const actions = useMemo(() => {
     if (!legacyHeader) return null
 
+    const menuButton = findLegacyButton(legacyHeader, (button) =>
+      /menu/i.test(button.getAttribute("aria-label") ?? "") || Boolean(button.querySelector("svg.lucide-menu")),
+    )
+
     const musicButton = findLegacyButton(legacyHeader, (button) =>
       /música|musica/i.test(button.getAttribute("aria-label") ?? "") || Boolean(button.querySelector("svg.lucide-music2")),
     )
@@ -106,7 +110,7 @@ export function LuminShellChromeBridge() {
     return {
       tokenCount: creditState?.used ?? (Number.isFinite(legacyCount) ? legacyCount : 0),
       tokenLimit: creditState?.limit ?? (Number.isFinite(legacyLimit) ? legacyLimit : 15000),
-      onOpenMenu: () => window.dispatchEvent(new Event("lumin:menu-toggle")),
+      onOpenMenu: () => menuButton?.click(),
       onToggleMusic: musicButton ? () => musicButton.click() : undefined,
     }
   }, [legacyHeader, creditState])
