@@ -36,6 +36,11 @@ type EmbeddedContextAsset = {
   token: string
   dataUrl: string
   source?: string
+  title?: string
+  section?: string
+  purpose?: string
+  subject?: string
+  query?: string
 }
 
 const MAX_CONTEXT_IMAGE_BYTES = 1_800_000
@@ -126,7 +131,16 @@ async function materializeContextImages<T extends { images: any[] }>(context: T,
 
     const token = `__LUMIN_CONTEXT_IMAGE_${assets.length + 1}__`
     totalBytes += result.bytes
-    assets.push({ token, dataUrl: result.dataUrl, source: image.source })
+    assets.push({
+      token,
+      dataUrl: result.dataUrl,
+      source: image.source,
+      title: typeof image.title === "string" ? image.title : undefined,
+      section: typeof image.section === "string" ? image.section : undefined,
+      purpose: typeof image.purpose === "string" ? image.purpose : undefined,
+      subject: typeof image.subject === "string" ? image.subject : undefined,
+      query: typeof image.query === "string" ? image.query : undefined,
+    })
     images.push({ ...image, url: token })
   })
 
@@ -194,19 +208,24 @@ function removeNonUserImageDataUntilWithinLimit(
 }
 
 function fallbackImageDataUrl(label = "LUMIN") {
-  const safeLabel = label.replace(/[<>&"']/g, "").slice(0, 28) || "LUMIN"
+  const safeLabel = label.replace(/[<>&]/g, "").slice(0, 28) || "LUMIN"
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0f172a"/>
-      <stop offset="0.52" stop-color="#172554"/>
-      <stop offset="1" stop-color="#312e81"/>
+      <stop offset="0" stop-color="#0c1018"/>
+      <stop offset="0.52" stop-color="#17243b"/>
+      <stop offset="1" stop-color="#29233d"/>
     </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#d7b77a" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#d7b77a" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="1200" height="760" rx="32" fill="url(#g)"/>
-  <circle cx="600" cy="330" r="88" fill="none" stroke="#67e8f9" stroke-width="8" opacity=".85"/>
-  <path d="M556 330h88M600 286v88" stroke="#c084fc" stroke-width="10" stroke-linecap="round"/>
-  <text x="600" y="470" text-anchor="middle" fill="#e2e8f0" font-family="Arial,Helvetica,sans-serif" font-size="44" font-weight="700">${safeLabel}</text>
+  <circle cx="1000" cy="110" r="420" fill="url(#glow)"/>
+  <circle cx="120" cy="720" r="360" fill="url(#glow)" opacity=".65"/>
+  <path d="M0 590C240 480 400 710 660 610s360-130 540-40v190H0Z" fill="#fff" opacity=".025"/>
+  <title>${safeLabel}</title>
 </svg>`
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
@@ -225,7 +244,107 @@ function isStableImageSource(src: string) {
   return /^data:image\//i.test(src) || /^__LUMIN_(?:UPLOAD|CONTEXT)_IMAGE_\d+__$/.test(src)
 }
 
-async function stabilizeGeneratedImagesInHtml(html: string) {
+const IMAGE_MATCH_STOP_WORDS = new Set([
+  "the", "and", "with", "from", "into", "for", "this", "that", "image", "photo", "picture", "visual", "asset",
+  "para", "com", "uma", "um", "uns", "umas", "de", "do", "da", "dos", "das", "e", "ou", "que", "num", "numa",
+  "nos", "nas", "sobre", "imagem", "fotografia", "foto", "produto", "produtos",
+])
+
+const IMAGE_WORD_ALIASES: Record<string, string> = {
+  cafe: "coffee",
+  coffees: "coffee",
+  grao: "bean",
+  graos: "bean",
+  beans: "bean",
+  sacos: "bag",
+  saco: "bag",
+  embalagem: "package",
+  embalagens: "package",
+  pacote: "package",
+  pacotes: "package",
+  loja: "shop",
+  lojas: "shop",
+  clinica: "clinic",
+  medico: "doctor",
+  medica: "doctor",
+  dentista: "dentist",
+  restaurante: "restaurant",
+  comida: "food",
+  alimento: "food",
+  alimentos: "food",
+  casa: "home",
+  cozinha: "kitchen",
+  carro: "car",
+  carros: "car",
+  roupa: "clothing",
+  roupas: "clothing",
+  sapato: "shoe",
+  sapatos: "shoe",
+  viagem: "travel",
+  viagens: "travel",
+  praia: "beach",
+  pessoas: "person",
+  pessoa: "person",
+  equipa: "team",
+  escritorio: "office",
+  natureza: "nature",
+  flor: "flower",
+  flores: "flower",
+}
+
+function imageMatchWords(value: string) {
+  const normalized = value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+
+  return new Set(
+    normalized
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length > 2 && !IMAGE_MATCH_STOP_WORDS.has(word))
+      .map((word) => IMAGE_WORD_ALIASES[word] || word),
+  )
+}
+
+const NON_PHOTOGRAPHIC_ALT_WORDS = new Set([
+  "logo", "icon", "avatar", "profile", "qr", "screenshot", "dashboard", "chart", "map", "diagram",
+  "interface", "mockup", "poster", "illustration", "wireframe",
+])
+
+function scoreContextImageForAlt(alt: string, asset: EmbeddedContextAsset) {
+  const altWords = imageMatchWords(alt)
+  if (!altWords.size || [...altWords].some((word) => NON_PHOTOGRAPHIC_ALT_WORDS.has(word))) return 0
+
+  const visualWords = imageMatchWords(
+    [asset.title, asset.section, asset.purpose, asset.subject, asset.query].filter(Boolean).join(" "),
+  )
+  let matches = 0
+  for (const word of altWords) {
+    if (visualWords.has(word)) matches += 1
+  }
+
+  return matches * 100 + matches / altWords.size
+}
+
+function chooseContextImageForAlt(
+  alt: string,
+  contextAssets: EmbeddedContextAsset[],
+  usedImages: Set<string>,
+) {
+  const candidates = contextAssets
+    .filter((asset) => !usedImages.has(asset.dataUrl))
+    .map((asset, index) => ({ asset, index, score: scoreContextImageForAlt(alt, asset) }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+
+  const selected = candidates[0]?.asset
+  if (!selected) return null
+
+  usedImages.add(selected.dataUrl)
+  return selected.dataUrl
+}
+
+async function stabilizeGeneratedImagesInHtml(html: string, contextAssets: EmbeddedContextAsset[] = []) {
   const imgTags = Array.from(html.matchAll(/<img\b[^>]*>/gi)).map((match) => match[0])
   const cssUrls = Array.from(html.matchAll(/url\(\s*(["']?)(https?:\/\/[^)"']+)\1\s*\)/gi)).map(
     (match) => match[2],
@@ -246,6 +365,11 @@ async function stabilizeGeneratedImagesInHtml(html: string) {
     }),
   )
 
+  const usedContextImages = new Set(
+    contextAssets.filter((asset) => html.includes(asset.dataUrl)).map((asset) => asset.dataUrl),
+  )
+  const useContextImage = (alt: string) => chooseContextImageForAlt(alt, contextAssets, usedContextImages)
+
   let repairs = 0
   let output = html.replace(/<img\b[^>]*>/gi, (tag) => {
     const src = extractImageSrc(tag)
@@ -253,7 +377,7 @@ async function stabilizeGeneratedImagesInHtml(html: string) {
     let nextSrc = src
 
     if (!src || /^(?:null|undefined|none|nan|about:blank)$/i.test(src)) {
-      nextSrc = fallbackImageDataUrl(alt || "LUMIN")
+      nextSrc = useContextImage(alt) || fallbackImageDataUrl(alt || "LUMIN")
       repairs += 1
     } else if (/^https?:\/\//i.test(src)) {
       const embedded = resolved.get(src)
@@ -261,13 +385,13 @@ async function stabilizeGeneratedImagesInHtml(html: string) {
         nextSrc = embedded
         repairs += 1
       } else {
-        nextSrc = fallbackImageDataUrl(alt || "LUMIN")
+        nextSrc = useContextImage(alt) || fallbackImageDataUrl(alt || "LUMIN")
         repairs += 1
       }
     } else if (!isStableImageSource(src) && !/^(?:#|mailto:|tel:)/i.test(src)) {
       // Relative/invented paths such as /images/hero.jpg do not exist in the
       // single-file Website preview or static deploy.
-      nextSrc = fallbackImageDataUrl(alt || "LUMIN")
+      nextSrc = useContextImage(alt) || fallbackImageDataUrl(alt || "LUMIN")
       repairs += 1
     }
 
@@ -865,21 +989,18 @@ PRESERVAÇÃO:
     const restoredUploadsHtml = restoreUploadedImagesInHtml(presentationFixedHtml, uploadedImages)
     let restoredHtml = restoredUploadsHtml
     let imageSizeDrops = 0
-    const includedContextTokens = new Set<string>()
-
     for (const asset of contextAssets) {
       if (!restoredHtml.includes(asset.token)) continue
       const withAsset = restoredHtml.split(asset.token).join(asset.dataUrl)
       if (Buffer.byteLength(withAsset, "utf8") <= MAX_WEBCRAFT_RESPONSE_BYTES) {
         restoredHtml = withAsset
-        includedContextTokens.add(asset.token)
       } else {
         restoredHtml = removeContextImageTokenFromHtml(restoredHtml, asset.token)
         imageSizeDrops += 1
       }
     }
 
-    let stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml)
+    let stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml, contextAssets)
     if (Buffer.byteLength(stabilized.html, "utf8") > MAX_WEBCRAFT_RESPONSE_BYTES) {
       const reduced = removeNonUserImageDataUntilWithinLimit(
         stabilized.html,
@@ -897,9 +1018,7 @@ PRESERVAÇÃO:
       )
     }
 
-    const retainedContextAssets = contextAssets.filter(
-      (asset) => includedContextTokens.has(asset.token) && stabilized.html.includes(asset.dataUrl),
-    )
+    const retainedContextAssets = contextAssets.filter((asset) => stabilized.html.includes(asset.dataUrl))
     const generatedImageCount = retainedContextAssets.filter((asset) => asset.source === "generated").length
     const curatedImageCount = retainedContextAssets.filter((asset) => asset.source !== "generated").length
 
