@@ -636,7 +636,7 @@ export function WebCraftStudioV2() {
                     <button
                       type="button"
                       onClick={() => deleteSavedProject(project.id)}
-                      aria-label="Apagar projeto guardado"
+                      aria-label={`Apagar ${project.name}`}
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
