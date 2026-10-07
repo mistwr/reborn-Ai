@@ -56,7 +56,9 @@ export async function checkImageSemanticQuality(
           ],
         },
       ],
-      maxTokens: 120,\n      abortSignal: AbortSignal.timeout(6_000),\n      maxRetries: 0,
+      maxTokens: 120,
+      abortSignal: AbortSignal.timeout(6_000),
+      maxRetries: 0,
     })
 
     const text = result.text.trim()
