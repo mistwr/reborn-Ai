@@ -107,20 +107,6 @@ export function LuminShellFunctionalBridge() {
   const [version, setVersion] = useState(0)
 
   useEffect(() => {
-    const toggleSidebar = () => setSidebarOpen((open) => !open)
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSidebarOpen(false)
-    }
-
-    window.addEventListener("lumin:menu-toggle", toggleSidebar)
-    window.addEventListener("keydown", handleKeyDown)
-    return () => {
-      window.removeEventListener("lumin:menu-toggle", toggleSidebar)
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [])
-
-  useEffect(() => {
     let cancelled = false
     let retries = 0
     let sidebarObserver: MutationObserver | null = null
@@ -132,6 +118,9 @@ export function LuminShellFunctionalBridge() {
     const syncSidebar = () => {
       const sidebar = currentSidebar
       if (!sidebar) return
+
+      const classes = String(sidebar.className)
+      setSidebarOpen(classes.includes("translate-x-0") && !classes.includes("-translate-x-full"))
 
       const buttons = Array.from(sidebar.querySelectorAll("button"))
       for (const definition of NAV_DEFINITIONS) {
@@ -257,7 +246,12 @@ export function LuminShellFunctionalBridge() {
     [legacyNavigation],
   )
 
-  const closeSidebar = () => setSidebarOpen(false)
+  const closeSidebar = () => {
+    if (!legacySidebar) return
+    const close = findButtonByIcon(legacySidebar, "lucide-x")
+    if (close) close.click()
+    else if (sidebarOpen) document.querySelector<HTMLButtonElement>('button[aria-label="Abrir menu Lumin"]')?.click()
+  }
 
   const selectNavigation = (id: string) => {
     if (id === "emergency") {
