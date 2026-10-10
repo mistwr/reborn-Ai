@@ -10,7 +10,7 @@ async function gatewayTts(text: string, speed: number) {
   if (!token) return null
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 12000)
+  const timeout = setTimeout(() => controller.abort(), 5500)
 
   try {
     const response = await fetch("https://ai-gateway.vercel.sh/v4/ai/speech-model", {
@@ -61,7 +61,7 @@ async function elevenLabsTts(text: string, speed: number) {
 
   const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 12000)
+  const timeout = setTimeout(() => controller.abort(), 6500)
 
   try {
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
@@ -114,6 +114,19 @@ export async function POST(req: Request) {
       return Response.json({ available: false, error: "Texto em falta" }, { status: 400 })
     }
 
+    const preferEleven = Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID)
+    const elevenFirst = preferEleven ? await elevenLabsTts(text, speed) : null
+    if (elevenFirst) {
+      return new Response(elevenFirst.audio, {
+        status: 200,
+        headers: {
+          "Content-Type": elevenFirst.contentType,
+          "Cache-Control": "no-store",
+          "X-Reborn-TTS": elevenFirst.provider,
+        },
+      })
+    }
+
     const gateway = await gatewayTts(text, speed)
     if (gateway) {
       return new Response(gateway.audio, {
@@ -128,7 +141,7 @@ export async function POST(req: Request) {
       })
     }
 
-    const eleven = await elevenLabsTts(text, speed)
+    const eleven = !preferEleven ? await elevenLabsTts(text, speed) : null
     if (eleven) {
       return new Response(eleven.audio, {
         status: 200,
