@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       return Response.json({ available: false, error: "Texto em falta" }, { status: 400 })
     }
 
-    const preferEleven = Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID)
+    const preferEleven = process.env.REBORN_TTS_PAID_PROVIDER === "elevenlabs" && Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID)
     const elevenFirst = preferEleven ? await elevenLabsTts(text, speed) : null
     if (elevenFirst) {
       return new Response(elevenFirst.audio, {
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
       })
     }
 
-    const gateway = await gatewayTts(text, speed)
+    const gateway = process.env.REBORN_TTS_PAID_PROVIDER === "gateway" ? await gatewayTts(text, speed) : null
     if (gateway) {
       return new Response(gateway.audio, {
         status: 200,
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
       })
     }
 
-    const eleven = !preferEleven ? await elevenLabsTts(text, speed) : null
+    const eleven = null
     if (eleven) {
       return new Response(eleven.audio, {
         status: 200,
