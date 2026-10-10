@@ -28,7 +28,7 @@ function scoreVoice(voice: SpeechSynthesisVoice, requestedLang: string) {
 
   if (lang === requested) score += 100
   else if (lang.startsWith("pt-pt")) score += 92
-  else if (lang.startsWith("pt")) score += 55
+  else if (lang.startsWith("pt-br")) score -= 150\n  else if (lang.startsWith("pt")) score += 30
 
   if (/duarte|raquel|fernanda/.test(name)) score += 35
   if (/microsoft/.test(name)) score += 24
@@ -59,15 +59,28 @@ function prepareBrowserUtterance(synth: SpeechSynthesis, utterance: SpeechSynthe
     ? bestVoice?.lang || "pt-PT"
     : "pt-PT"
 
-  if (bestVoice) utterance.voice = bestVoice
+  if (bestVoice && normalizeLang(bestVoice.lang).startsWith("pt-pt")) utterance.voice = bestVoice
 
   const currentRate = Number(utterance.rate) || 1
   const currentPitch = Number(utterance.pitch) || 1
-  if (Math.abs(currentRate - 1) < 0.16) utterance.rate = 0.96
+  if (Math.abs(currentRate - 1) < 0.16) utterance.rate = 0.93
   if (Math.abs(currentPitch - 1) < 0.16) utterance.pitch = 0.98
   utterance.volume = Math.min(1, Math.max(0.2, Number(utterance.volume) || 1))
 
   return bestVoice
+}
+
+function preparePortugueseSpeech(value: string) {
+  return value
+    .replace(/\bLUMIN\s*AI\b/gi, "Lumin A I")
+    .replace(/\bCRM\b/g, "C R M")
+    .replace(/\bFTTH\b/g, "F T T H")
+    .replace(/\bSMS\b/g, "S M S")
+    .replace(/\bAPI\b/g, "A P I")
+    .replace(/(\d+(?:[.,]\d{1,2})?)\s*€\s*\/\s*m[eê]s/gi, "$1 euros por mês")
+    .replace(/(\d+(?:[.,]\d{1,2})?)\s*€/g, "$1 euros")
+    .replace(/\s{2,}/g, " ")
+    .trim()
 }
 
 export function NeuralVoiceBridge() {
@@ -177,7 +190,7 @@ export function NeuralVoiceBridge() {
 
     synth.speak = ((utterance: SpeechSynthesisUtterance) => {
       const myGeneration = ++generation
-      const text = (utterance.text || "").trim()
+      const text = preparePortugueseSpeech((utterance.text || "").trim())\n      utterance.text = text
 
       if (!text) {
         speakWithBrowser(utterance)
@@ -239,7 +252,7 @@ export function NeuralVoiceBridge() {
 
           try {
             if (audioContext?.state === "suspended") await audioContext.resume().catch(() => undefined)
-            attachAudioAnalyser(audio, text, myGeneration)
+            // Direct media playback avoids an additional AudioContext routing step that can degrade playback on some phones.
             await audio.play()
             utterance.onstart?.(new Event("start") as any)
           } catch {
