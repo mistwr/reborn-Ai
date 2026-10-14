@@ -207,7 +207,7 @@ Responde agora ao pedido do utilizador.`
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+    const baseUrl = new URL(req.url).origin
     const { enableSearch, userPreferences = {} } = body
 
     const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET }).catch(() => null)
