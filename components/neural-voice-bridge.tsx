@@ -28,7 +28,8 @@ function scoreVoice(voice: SpeechSynthesisVoice, requestedLang: string) {
 
   if (lang === requested) score += 100
   else if (lang.startsWith("pt-pt")) score += 92
-  else if (lang.startsWith("pt-br")) score -= 150\n  else if (lang.startsWith("pt")) score += 30
+  else if (lang.startsWith("pt-br")) score -= 150
+  else if (lang.startsWith("pt")) score += 30
 
   if (/duarte|raquel|fernanda/.test(name)) score += 35
   if (/microsoft/.test(name)) score += 24
@@ -190,7 +191,8 @@ export function NeuralVoiceBridge() {
 
     synth.speak = ((utterance: SpeechSynthesisUtterance) => {
       const myGeneration = ++generation
-      const text = preparePortugueseSpeech((utterance.text || "").trim())\n      utterance.text = text
+      const text = preparePortugueseSpeech((utterance.text || "").trim())
+      utterance.text = text
 
       if (!text) {
         speakWithBrowser(utterance)
