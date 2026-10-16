@@ -4,7 +4,7 @@ export const runtime = "nodejs"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_URL?.trim() || "https://yqninaripblwhcfcwwnr.supabase.co"
 const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_LUMIN_SUPABASE_PUBLISHABLE_KEY?.trim() || "sb_publishable_zlhSNpfeS3gjBDPsxOPiCQ_DYkKwgb_"
-const CANONICAL_LUMIN_URL = "https://rebornaaqi.vercel.app"
+const CANONICAL_LUMIN_URL = "https://elaborate-begonia-9d097b.netlify.app"
 
 function headers(accessToken?: string) {
   return {
