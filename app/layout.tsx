@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     title: "Lumin AI",
     startupImage: [
       {
-        url: "/icons/icon-512x512.jpg",
+        url: "/icons/icon-512x512.png",
         media: "(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)",
       },
     ],
@@ -62,10 +62,12 @@ export default function RootLayout({
     <html lang="pt-PT" suppressHydrationWarning className="bg-background" data-theme="dark" data-lumin-shell="phase-8">
       <head>
         <link rel="icon" type="image/svg+xml" href="/icons/lumin-ai-icon.svg?v=2" />
-        <link rel="apple-touch-icon" href="/icons/icon-512x512.jpg" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-512x512.png" />
         <meta name="apple-mobile-web-app-title" content="Lumin AI" />
         <meta name="application-name" content="Lumin AI" />
-        <meta name="msapplication-TileImage" content="/icons/icon-512x512.jpg" />
+        <meta name="msapplication-TileImage" content="/icons/icon-512x512.png" />
         <style>{`
           @media (max-width: 1023px) {
             html, body {
