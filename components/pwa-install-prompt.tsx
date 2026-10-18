@@ -25,7 +25,8 @@ export function PWAInstallPrompt() {
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-    const ios = /iPad|iPhone|iPod/.test(userAgent) && !(window as Window & { MSStream?: unknown }).MSStream
+    const isIPadOS = /Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1
+    const ios = (/iPad|iPhone|iPod/.test(userAgent) || isIPadOS) && !(window as Window & { MSStream?: unknown }).MSStream
     const android = /Android/i.test(userAgent)
 
     setIsStandalone(standalone)
@@ -36,6 +37,7 @@ export function PWAInstallPrompt() {
     if (standalone) return
 
     try {
+      if (localStorage.getItem("lumin-pwa-installed") === "1") return
       const dismissedAt = Number(localStorage.getItem("lumin-pwa-install-dismissed") || 0)
       if (dismissedAt && Date.now() - dismissedAt < 3 * 24 * 60 * 60 * 1000) return
     } catch {
@@ -58,6 +60,12 @@ export function PWAInstallPrompt() {
     }
 
     const handleInstalled = () => {
+      dismissedForVisit.current = true
+      try {
+        localStorage.setItem("lumin-pwa-installed", "1")
+      } catch {
+        // Do not show the prompt again during this visit if storage is unavailable.
+      }
       setShowPrompt(false)
       setDeferredPrompt(null)
       setShowInstructions(false)
@@ -83,11 +91,18 @@ export function PWAInstallPrompt() {
     const installPrompt = deferredPrompt
     setDeferredPrompt(null)
     setShowInstructions(false)
+    setShowPrompt(false)
 
     try {
       await installPrompt.prompt()
       const { outcome } = await installPrompt.userChoice
       if (outcome === "accepted") {
+        dismissedForVisit.current = true
+        try {
+          localStorage.setItem("lumin-pwa-installed", "1")
+        } catch {
+          // The app is installed even if browser storage is unavailable.
+        }
         setShowPrompt(false)
       } else {
         dismissedForVisit.current = true
@@ -99,6 +114,7 @@ export function PWAInstallPrompt() {
         setShowPrompt(false)
       }
     } catch {
+      setShowPrompt(true)
       setShowInstructions(true)
     }
   }
