@@ -1,8 +1,10 @@
 import { generateText } from "@/lib/lumin-ai-runtime"
-import { withModelFallback } from "@/lib/ai-fallback"
+import { NextResponse } from "next/server"
 import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
+import { streamWebcraft, webcraftTimeoutSignal } from "@/lib/webcraft-stream"
+import { WEBCRAFT_STREAM_TYPE } from "@/lib/webcraft-protocol"
 
-export const maxDuration = 120
+export const maxDuration = 60
 
 type Mode = "website" | "app"
 
@@ -57,7 +59,7 @@ function imageMimeType(value: string | null, url: string) {
   return ""
 }
 
-async function fetchContextImageDataUrl(url: string, thumbnail?: string) {
+async function fetchContextImageDataUrl(url: string, thumbnail?: string, signal?: AbortSignal) {
   if (/^data:image\/(?:png|jpe?g|webp);base64,/i.test(url)) {
     try {
       const base64 = url.slice(url.indexOf(",") + 1).replace(/\s+/g, "")
@@ -77,6 +79,7 @@ async function fetchContextImageDataUrl(url: string, thumbnail?: string) {
   )
 
   for (const candidate of candidates) {
+    if (signal?.aborted) break
     try {
       const response = await fetch(candidate, {
         headers: {
@@ -85,7 +88,7 @@ async function fetchContextImageDataUrl(url: string, thumbnail?: string) {
         },
         cache: "no-store",
         redirect: "follow",
-        signal: AbortSignal.timeout(7000),
+        signal: webcraftTimeoutSignal(7000, signal),
       })
       if (!response.ok) continue
 
@@ -110,14 +113,14 @@ async function fetchContextImageDataUrl(url: string, thumbnail?: string) {
   return null
 }
 
-async function materializeContextImages<T extends { images: any[] }>(context: T, maxImages: number) {
+async function materializeContextImages<T extends { images: any[] }>(context: T, maxImages: number, signal?: AbortSignal) {
   const sourceImages = Array.isArray(context.images) ? context.images.slice(0, maxImages) : []
   if (!sourceImages.length) {
     return { context, assets: [] as EmbeddedContextAsset[] }
   }
 
   const downloaded = await Promise.all(
-    sourceImages.map((image) => fetchContextImageDataUrl(image.url, image.thumbnail)),
+    sourceImages.map((image) => fetchContextImageDataUrl(image.url, image.thumbnail, signal)),
   )
 
   let totalBytes = 0
@@ -344,7 +347,7 @@ function chooseContextImageForAlt(
   return selected.dataUrl
 }
 
-async function stabilizeGeneratedImagesInHtml(html: string, contextAssets: EmbeddedContextAsset[] = []) {
+async function stabilizeGeneratedImagesInHtml(html: string, contextAssets: EmbeddedContextAsset[] = [], signal?: AbortSignal) {
   const imgTags = Array.from(html.matchAll(/<img\b[^>]*>/gi)).map((match) => match[0])
   const cssUrls = Array.from(html.matchAll(/url\(\s*(["']?)(https?:\/\/[^)"']+)\1\s*\)/gi)).map(
     (match) => match[2],
@@ -360,7 +363,7 @@ async function stabilizeGeneratedImagesInHtml(html: string, contextAssets: Embed
   const resolved = new Map<string, string | null>()
   await Promise.all(
     remoteSources.map(async (src) => {
-      const materialized = await fetchContextImageDataUrl(src)
+      const materialized = await fetchContextImageDataUrl(src, undefined, signal)
       resolved.set(src, materialized?.dataUrl || null)
     }),
   )
@@ -582,6 +585,7 @@ async function analyzeUploadedImages(
   uploadedImages: UploadedReferenceImage[],
   websiteRequest: string,
   economy = false,
+  signal?: AbortSignal,
 ): Promise<UploadedVisualAnalysis> {
   if (!uploadedImages.length) return fallbackUploadedVisualAnalysis(uploadedImages)
 
@@ -613,15 +617,11 @@ Use needsSupportingStock=true only when the uploads clearly cannot cover the sit
       content.push({ type: "image", image: image.dataUrl })
     })
 
-    const { value: result } = await withModelFallback(
-      (model) =>
-        generateText({
-          model,
-          messages: [{ role: "user", content }],
-          maxTokens: 650,
-        }),
-      { kind: "vision", economy, label: "webcraft-upload-analysis" },
-    )
+    const result = await generateText({
+      messages: [{ role: "user", content }],
+      maxTokens: 650,
+      abortSignal: webcraftTimeoutSignal(5000, signal),
+    })
 
     const parsed = JSON.parse(stripJsonFence(result.text))
     const rawAssets = Array.isArray(parsed?.assets) ? parsed.assets : []
@@ -829,11 +829,9 @@ function buildContextImageBlock(images: ContextImage[]) {
     .join("\n")}\nUsa estas imagens nas secções visualmente adequadas. Quando houver crédito/licença, preserva uma atribuição discreta no HTML (por exemplo no rodapé ou legenda) sem prejudicar o design.`
 }
 
-export async function POST(req: Request) {
+async function generateProject(body: WebCraftRequest, creditMode: string, signal: AbortSignal, progress: (message: string) => void) {
   try {
-    const creditMode = req.headers.get("x-lumin-credit-mode") || "full"
     const economyMode = creditMode === "fallback"
-    const body = (await req.json()) as WebCraftRequest
     const mode: Mode = body.mode === "app" ? "app" : "website"
     const prompt = body.prompt?.trim()
     const refinement = body.refinement?.trim()
@@ -845,14 +843,19 @@ export async function POST(req: Request) {
     const maskedCurrentHtml = currentHtml ? maskUploadedImagesInHtml(currentHtml, uploadedImages) : undefined
 
     if (!prompt && !refinement) {
-      return Response.json({ error: "Indica o que queres criar ou alterar." }, { status: 400 })
+      return NextResponse.json({ error: "Indica o que queres criar ou alterar." }, { status: 400 })
     }
 
     const isRefinement = Boolean(currentHtml && refinement)
+    // Optional visual enrichment shares one budget so it cannot consume the
+    // entire function lifetime before the actual website generation starts.
+    const visualSignal = webcraftTimeoutSignal(8000, signal)
+    progress(uploadedImages.length ? "A analisar as imagens do projeto…" : "A preparar o visual do projeto…")
     const uploadVisualAnalysis = await analyzeUploadedImages(
       uploadedImages,
       prompt || refinement || body.businessName || "website",
       economyMode,
+      visualSignal,
     )
     const shouldSearchStock =
       !isRefinement &&
@@ -866,6 +869,7 @@ export async function POST(req: Request) {
           businessName: body.businessName,
           language,
           economy: economyMode,
+          signal: visualSignal,
         })
       : {
           images: [],
@@ -883,6 +887,7 @@ export async function POST(req: Request) {
     const materializedVisuals = await materializeContextImages(
       visualContext,
       economyMode ? 4 : 6,
+      visualSignal,
     )
     const stableVisualContext = materializedVisuals.context
     const contextAssets = materializedVisuals.assets
@@ -970,15 +975,19 @@ PRESERVAÇÃO:
       ? `HTML ATUAL:\n${stripCodeFence(maskedCurrentHtml!)}\n\nALTERAÇÃO PEDIDA:\n${refinement}${referenceBlock}\n\nDevolve o HTML completo atualizado.`
       : `Cria ${mode === "app" ? "uma aplicação web" : "um website"} completo para este pedido:\n${prompt}\n\n${body.businessName ? `Nome do negócio/projeto: ${body.businessName}\n` : ""}${body.businessEmail ? `Contacto: ${body.businessEmail}\n` : ""}${referenceBlock}${contextImageBlock}\nDevolve o HTML completo.`
 
-    const { value: result, model: usedModel, attempts: modelAttempts } = await withModelFallback(
-      (model) =>
-        generateText({
-          model,
-          system,
-          prompt: userPrompt,
-        }),
-      { kind: "text", economy: economyMode, label: "webcraft-generation" },
-    )
+    signal.throwIfAborted()
+    progress(isRefinement ? "A aplicar as tuas alterações…" : "A construir as páginas e funcionalidades…")
+    // The direct runtime already falls back between configured providers.
+    // Do not restart that chain repeatedly with a fresh timeout per model.
+    const result = await generateText({
+      system,
+      prompt: userPrompt,
+      abortSignal: signal,
+    })
+    const usedModel = result.model
+    const modelAttempts = result.failures.length + 1
+    signal.throwIfAborted()
+    progress("A verificar o projeto e a preparar o preview…")
 
     const fixedHtml = validateAndFixHtml(result.text)
     const presentationFixedHtml = enforceUploadedImagePresentation(
@@ -1000,7 +1009,8 @@ PRESERVAÇÃO:
       }
     }
 
-    let stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml, contextAssets)
+    let stabilized = await stabilizeGeneratedImagesInHtml(restoredHtml, contextAssets, webcraftTimeoutSignal(1500, signal))
+    signal.throwIfAborted()
     if (Buffer.byteLength(stabilized.html, "utf8") > MAX_WEBCRAFT_RESPONSE_BYTES) {
       const reduced = removeNonUserImageDataUntilWithinLimit(
         stabilized.html,
@@ -1012,7 +1022,7 @@ PRESERVAÇÃO:
     }
 
     if (Buffer.byteLength(stabilized.html, "utf8") > MAX_WEBCRAFT_RESPONSE_BYTES) {
-      return Response.json(
+      return NextResponse.json(
         { error: "O projeto excede o limite de tamanho do preview. Reduz o número ou o tamanho das imagens carregadas e tenta novamente." },
         { status: 413 },
       )
@@ -1038,6 +1048,21 @@ PRESERVAÇÃO:
     })
   } catch (error: any) {
     console.error("[lumin-studio] generation error:", error)
-    return Response.json({ error: error?.message || "Erro ao gerar projeto" }, { status: 500 })
+    return NextResponse.json({ error: error?.message || "Erro ao gerar projeto" }, { status: 500 })
   }
+}
+
+export async function POST(req: Request) {
+  let body: WebCraftRequest
+  try { body = await req.json() } catch {
+    return NextResponse.json({ error: "O pedido do projeto é inválido." }, { status: 400 })
+  }
+  if (!body || !((typeof body.prompt === "string" && body.prompt.trim()) || (typeof body.refinement === "string" && body.refinement.trim()))) {
+    return NextResponse.json({ error: "Indica o que queres criar ou alterar." }, { status: 400 })
+  }
+  const creditMode = req.headers.get("x-lumin-credit-mode") || "full"
+  if (req.headers.get("Accept")?.includes(WEBCRAFT_STREAM_TYPE)) {
+    return streamWebcraft(req.signal, (signal, progress) => generateProject(body, creditMode, signal, progress))
+  }
+  return generateProject(body, creditMode, webcraftTimeoutSignal(54_000, req.signal), () => {})
 }

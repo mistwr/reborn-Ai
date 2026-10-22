@@ -140,3 +140,48 @@ test("WebCraft refines HTML using a direct provider", async () => {
   assert.equal(response.status, 200)
   assert.match(await response.text(), /Marque a sua consulta/)
 })
+
+// Removing the early progress response would make this regression test fail:
+// a slow initial visual plan must not leave Netlify's middleware waiting for headers.
+test("initial WebCraft generation responds before the AI finishes and delivers the completed project", async () => {
+  isolateProviders()
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-key-only"
+  let release!: () => void
+  const pendingAI = new Promise<void>(resolve => { release = resolve })
+  globalThis.fetch = async (input, init) => {
+    const url = String(input instanceof Request ? input.url : input)
+    if (!url.includes("generativelanguage.googleapis.com")) return jsonResponse({ results: [] })
+    await pendingAI
+    const body = JSON.parse(String(init?.body || "{}"))
+    const system = JSON.stringify(body.systemInstruction)
+    const text = system.includes("photographic direction")
+      ? JSON.stringify({ businessType: "Lumin", slots: [] })
+      : '<!doctype html><html lang="pt"><head><title>Lumin</title></head><body><h1>Lumin AI</h1></body></html>'
+    return jsonResponse({ candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }] })
+  }
+  const responsePromise = webcraft(new Request("https://lumin.test/api/webcraft-v2", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+    body: JSON.stringify({ prompt: "Gera um site para o luminai" }),
+  }))
+  let response: Response | null = null
+  try {
+    response = await Promise.race([responsePromise, new Promise<null>(resolve => setTimeout(() => resolve(null), 150))])
+    assert.ok(response, "Response headers must arrive while AI generation is still pending")
+    assert.match(response.headers.get("content-type") || "", /application\/x-ndjson/)
+    const reader = response.body!.getReader()
+    const first = await reader.read()
+    assert.equal(JSON.parse(new TextDecoder().decode(first.value).trim()).type, "progress")
+    release()
+    let rest = ""
+    const decoder = new TextDecoder()
+    while (true) { const chunk = await reader.read(); if (chunk.done) break; rest += decoder.decode(chunk.value, { stream: true }) }
+    const events = rest.trim().split("\n").map(line => JSON.parse(line))
+    const completed = events.find(event => event.type === "complete")
+    assert.match(completed?.html || "", /<h1>Lumin AI<\/h1>/)
+    assert.equal(completed.stats.mode, "full")
+  } finally {
+    release()
+    await responsePromise
+  }
+})

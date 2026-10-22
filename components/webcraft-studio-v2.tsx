@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { readWebcraftResponse, WEBCRAFT_STREAM_TYPE } from "@/lib/webcraft-protocol"
 import {
   AppWindow,
   Check,
@@ -95,6 +96,7 @@ export function WebCraftStudioV2() {
   const [editableHtml, setEditableHtml] = useState("")
   const [editCode, setEditCode] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState("")
   const [fullStackLoading, setFullStackLoading] = useState(false)
   const [publishLoading, setPublishLoading] = useState(false)
   const [fullStackProject, setFullStackProject] = useState<FullStackProject | null>(null)
@@ -275,45 +277,19 @@ export function WebCraftStudioV2() {
 
   async function streamProject(payload: Record<string, unknown>) {
     setLoading(true)
+    setGenerationProgress("A preparar o teu projeto…")
     setError(null)
     setPublishedUrl(null)
 
     try {
       const response = await fetch("/api/webcraft-v2", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: WEBCRAFT_STREAM_TYPE },
         body: JSON.stringify(payload),
       })
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        throw new Error(data?.error || "Não foi possível gerar o projeto")
-      }
-
-      setVisualStats({
-        count: Math.max(0, Number(response.headers.get("X-Lumin-Context-Images") || 0)),
-        generated: Math.max(0, Number(response.headers.get("X-Lumin-Generated-Images") || 0)),
-        curated: Math.max(0, Number(response.headers.get("X-Lumin-Curated-Images") || 0)),
-        dropped: Math.max(0, Number(response.headers.get("X-Lumin-Image-Size-Drops") || 0)),
-        mode: response.headers.get("X-Lumin-AI-Mode") || "full",
-        model: response.headers.get("X-Lumin-AI-Model") || "LUMIN",
-      })
-
-      if (!response.body) throw new Error("Resposta vazia")
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let output = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        output += decoder.decode(value, { stream: true })
-        const clean = output.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
-        setHtml(clean)
-      }
-
-      const clean = output.replace(/^```html?\n?/i, "").replace(/\n?```$/i, "")
+      const { html: clean, stats } = await readWebcraftResponse(response, setGenerationProgress)
+      setVisualStats(stats)
       setHtml(clean)
       setEditableHtml(clean)
       setFullStackProject(null)
@@ -323,6 +299,7 @@ export function WebCraftStudioV2() {
       return null
     } finally {
       setLoading(false)
+      setGenerationProgress("")
     }
   }
 
@@ -603,6 +580,7 @@ export function WebCraftStudioV2() {
               {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> A construir...</> : <><Rocket className="h-5 w-5" /> Gerar {mode === "app" ? "App" : "Website"}</>}
             </Button>
 
+            {loading && <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{generationProgress}</p>}
             {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
           </div>
 
@@ -795,6 +773,7 @@ export function WebCraftStudioV2() {
             <Button onClick={refine} disabled={loading || !refinement.trim()} className="w-full gap-2">
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> A alterar...</> : <><Send className="h-4 w-4" /> Aplicar alteração</>}
             </Button>
+            {loading && <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{generationProgress}</p>}
             {(referenceImages.length + uploadedImages.length) > 0 && (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
                 O Lumin mantém <strong>{referenceImages.length + uploadedImages.length}</strong> imagem{referenceImages.length + uploadedImages.length === 1 ? "" : "s"} de referência durante os refinamentos, incluindo os uploads diretos.

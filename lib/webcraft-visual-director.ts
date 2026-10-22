@@ -1,6 +1,6 @@
 import { experimental_generateImage as generateImage } from "ai"
 import { generateText } from "@/lib/lumin-ai-runtime"
-import { withModelFallback } from "@/lib/ai-fallback"
+import { webcraftTimeoutSignal } from "@/lib/webcraft-stream"
 import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 
 type Orientation = "landscape" | "portrait" | "square"
@@ -171,13 +171,11 @@ function sanitizePlan(raw: any, prompt: string, businessName?: string): VisualPl
   }
 }
 
-async function createVisualPlan(prompt: string, businessName?: string, language?: string, economy = false) {
+async function createVisualPlan(prompt: string, businessName?: string, language?: string, economy = false, signal?: AbortSignal) {
   try {
-    const { value: result } = await withModelFallback(
-      (model) =>
-        generateText({
-          model,
-          abortSignal: AbortSignal.timeout(10_000),
+    const result = await generateText({
+          abortSignal: webcraftTimeoutSignal(4000, signal),
+          maxOutputTokens: 900,
           maxRetries: 0,
           system: `You are LUMIN Visual Director for premium web design.
 Return ONLY valid compact JSON, no markdown.
@@ -213,9 +211,7 @@ Return this JSON shape:
 }
 
 Infer location only when supported by the request. Keep queries specific to the actual content, not generic corporate stock.`,
-        }),
-      { kind: "text", economy, label: "webcraft-visual-director" },
-    )
+        })
 
     const parsed = JSON.parse(stripJsonFence(result.text))
     return sanitizePlan(parsed, prompt, businessName)
@@ -273,7 +269,7 @@ function buildUnsplashUrl(raw: string, orientation: Orientation) {
   }
 }
 
-async function searchUnsplash(slot: VisualSlot): Promise<VisualContextImage[]> {
+async function searchUnsplash(slot: VisualSlot, signal?: AbortSignal): Promise<VisualContextImage[]> {
   const accessKey = process.env.UNSPLASH_ACCESS_KEY?.trim()
   if (!accessKey) return []
 
@@ -290,7 +286,7 @@ async function searchUnsplash(slot: VisualSlot): Promise<VisualContextImage[]> {
         "Accept-Version": "v1",
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(6500),
+      signal: webcraftTimeoutSignal(6500, signal),
     })
     if (!response.ok) return []
 
@@ -345,7 +341,7 @@ async function searchUnsplash(slot: VisualSlot): Promise<VisualContextImage[]> {
   }
 }
 
-async function searchPexels(slot: VisualSlot): Promise<VisualContextImage[]> {
+async function searchPexels(slot: VisualSlot, signal?: AbortSignal): Promise<VisualContextImage[]> {
   const apiKey = process.env.PEXELS_API_KEY?.trim()
   if (!apiKey) return []
 
@@ -360,7 +356,7 @@ async function searchPexels(slot: VisualSlot): Promise<VisualContextImage[]> {
       headers: { Authorization: apiKey },
       cache: "force-cache",
       next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(4500),
+      signal: webcraftTimeoutSignal(4500, signal),
     })
     if (!response.ok) return []
 
@@ -416,7 +412,7 @@ async function searchPexels(slot: VisualSlot): Promise<VisualContextImage[]> {
   }
 }
 
-async function searchPixabay(slot: VisualSlot): Promise<VisualContextImage[]> {
+async function searchPixabay(slot: VisualSlot, signal?: AbortSignal): Promise<VisualContextImage[]> {
   const apiKey = process.env.PIXABAY_API_KEY?.trim()
   if (!apiKey) return []
 
@@ -436,7 +432,7 @@ async function searchPixabay(slot: VisualSlot): Promise<VisualContextImage[]> {
     const response = await fetch(url, {
       cache: "force-cache",
       next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(4500),
+      signal: webcraftTimeoutSignal(4500, signal),
     })
     if (!response.ok) return []
 
@@ -490,7 +486,7 @@ async function searchPixabay(slot: VisualSlot): Promise<VisualContextImage[]> {
   }
 }
 
-async function searchOpenverse(slot: VisualSlot): Promise<VisualContextImage[]> {
+async function searchOpenverse(slot: VisualSlot, signal?: AbortSignal): Promise<VisualContextImage[]> {
   try {
     const url = new URL("https://api.openverse.org/v1/images/")
     url.searchParams.set("q", slot.query)
@@ -500,7 +496,7 @@ async function searchOpenverse(slot: VisualSlot): Promise<VisualContextImage[]> 
     const response = await fetch(url, {
       headers: { "User-Agent": "Lumin-AI-Studio/2.0" },
       cache: "no-store",
-      signal: AbortSignal.timeout(6500),
+      signal: webcraftTimeoutSignal(6500, signal),
     })
     if (!response.ok) return []
 
@@ -619,7 +615,7 @@ function visualGenerationPrompt(slot: VisualSlot, plan: VisualPlan) {
     .join(" ")
 }
 
-async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise<VisualContextImage | null> {
+async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan, signal?: AbortSignal): Promise<VisualContextImage | null> {
   // Image models can incur separate usage charges. Keep generation opt-in until
   // the project has an explicitly configured, accessible model.
   const configuredModel = process.env.LUMIN_IMAGE_GENERATION_MODEL?.trim()
@@ -630,7 +626,8 @@ async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise
   const prompt = visualGenerationPrompt(slot, plan)
 
   for (const model of models) {
-    const abortSignal = AbortSignal.timeout(18_000)
+    if (signal?.aborted) return null
+    const abortSignal = webcraftTimeoutSignal(18_000, signal)
 
     try {
       const result: any = await generateImage({
@@ -642,6 +639,7 @@ async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise
       } as any)
       const url = imageResultToDataUrl(result?.image || result?.images?.[0])
       if (!url) continue
+      if (signal?.aborted) return null
 
       const quality = await checkImageSemanticQuality(
         url,
@@ -677,11 +675,12 @@ async function generateImageForSlot(slot: VisualSlot, plan: VisualPlan): Promise
   return null
 }
 
-async function chooseImageForSlot(slot: VisualSlot, used: Set<string>) {
+async function chooseImageForSlot(slot: VisualSlot, used: Set<string>, signal?: AbortSignal) {
   const providers = [searchPexels, searchPixabay, searchOpenverse, searchUnsplash]
 
   for (const search of providers) {
-    const candidates = (await search(slot)).sort((a, b) => b.score - a.score)
+    if (signal?.aborted) return null
+    const candidates = (await search(slot, signal)).sort((a, b) => b.score - a.score)
     for (const candidate of candidates) {
       const identity = imageIdentity(candidate)
       if (used.has(identity)) continue
@@ -698,9 +697,10 @@ export async function resolveVisualContext(input: {
   businessName?: string
   language?: string
   economy?: boolean
+  signal?: AbortSignal
 }): Promise<VisualContext> {
   const economy = Boolean(input.economy)
-  const plan = await createVisualPlan(input.prompt, input.businessName, input.language, economy)
+  const plan = await createVisualPlan(input.prompt, input.businessName, input.language, economy, input.signal)
   const used = new Set<string>()
   const generatedLimit = economy ? 2 : 3
 
@@ -708,11 +708,11 @@ export async function resolveVisualContext(input: {
     plan.slots.map(async (slot, index) => {
       // Generate the most important visuals from the semantic plan so the site
       // reflects the actual business/context instead of generic stock.
-      const generated = index < generatedLimit ? await generateImageForSlot(slot, plan) : null
+      const generated = index < generatedLimit ? await generateImageForSlot(slot, plan, input.signal) : null
       if (generated) return { slot, image: generated }
 
       // Resilient fallback: curated photography if image generation is unavailable.
-      return { slot, image: await chooseImageForSlot(slot, used) }
+      return { slot, image: await chooseImageForSlot(slot, used, input.signal) }
     }),
   )
 
