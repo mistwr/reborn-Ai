@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { WebcraftPreview } from "@/components/webcraft-preview"
 import { readWebcraftResponse, WEBCRAFT_STREAM_TYPE } from "@/lib/webcraft-protocol"
 import {
   AppWindow,
@@ -805,7 +806,7 @@ export function WebCraftStudioV2() {
             <Textarea value={editableHtml} onChange={(e) => setEditableHtml(e.target.value)} className="min-h-[75vh] w-full resize-none bg-card font-mono text-xs" />
           ) : (
             <div className="overflow-hidden rounded-xl bg-white shadow-xl transition-all" style={{ width: previewWidth, minHeight: "75vh" }}>
-              <iframe srcDoc={html} title="Lumin AI Studio Preview" className="h-[78vh] w-full border-0" sandbox="allow-scripts allow-forms allow-modals allow-popups" />
+              <WebcraftPreview html={html} />
             </div>
           )}
         </main>
