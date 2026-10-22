@@ -1,0 +1,6 @@
+allowBuilds:
+  '@tailwindcss/oxide': false
+  core-js: false
+  sharp: false
+minimumReleaseAgeExclude:
+  - openai@7.42.0

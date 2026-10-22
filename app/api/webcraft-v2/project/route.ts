@@ -1,4 +1,4 @@
-import { generateText } from "ai"
+import { generateText } from "@/lib/lumin-ai-runtime"
 import { withModelFallback } from "@/lib/ai-fallback"
 
 export const maxDuration = 60
@@ -78,7 +78,8 @@ function scaffoldFiles(name: string): ProjectFile[] {
     { path: "postcss.config.mjs", content: `export default {\n  plugins: {\n    "@tailwindcss/postcss": {},\n  },\n}\n` },
     { path: "tsconfig.json", content: JSON.stringify({ compilerOptions: { target: "ES2017", lib: ["dom", "dom.iterable", "esnext"], allowJs: false, skipLibCheck: true, strict: true, noEmit: true, esModuleInterop: true, module: "esnext", moduleResolution: "bundler", resolveJsonModule: true, isolatedModules: true, jsx: "react-jsx", incremental: true, plugins: [{ name: "next" }], paths: { "@/*": ["./*"] } }, include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"], exclude: ["node_modules"] }, null, 2) + "\n" },
     { path: ".env.example", content: "NEXT_PUBLIC_SUPABASE_URL=\nNEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=\n" },
-    { path: ".gitignore", content: ".next\nnode_modules\n.env\n.env.local\n.vercel\n" },
+    { path: ".gitignore", content: ".next\nnode_modules\n.env\n.env.local\n.netlify\n" },
+    { path: "netlify.toml", content: '[build]\ncommand = "npm run build"\npublish = ".next"\n' },
     { path: "app/globals.css", content: `@import "tailwindcss";\n\n${BASE_CSS}` },
     { path: "app/layout.tsx", content: `import type { Metadata } from "next"\nimport "./globals.css"\n\nexport const metadata: Metadata = { title: ${JSON.stringify(name)}, description: "Built with Lumin AI Studio" }\n\nexport default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {\n  return <html lang="pt"><body>{children}</body></html>\n}\n` },
     { path: "lib/supabase/client.ts", content: `import { createBrowserClient } from "@supabase/ssr"\n\nexport function createClient() {\n  const url = process.env.NEXT_PUBLIC_SUPABASE_URL\n  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY\n  if (!url || !key) throw new Error("Supabase is not configured for this generated project.")\n  return createBrowserClient(url, key)\n}\n` },

@@ -1,4 +1,5 @@
-import { experimental_generateImage as generateImage, generateText } from "ai"
+import { experimental_generateImage as generateImage } from "ai"
+import { generateText } from "@/lib/lumin-ai-runtime"
 import { withModelFallback } from "@/lib/ai-fallback"
 import { checkImageSemanticQuality } from "@/lib/image/quality-check"
 

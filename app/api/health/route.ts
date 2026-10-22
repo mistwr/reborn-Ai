@@ -8,34 +8,23 @@ function configured(...keys: string[]) {
 }
 
 export async function GET() {
-  const vercelOidcAvailable = Boolean(process.env.VERCEL_OIDC_TOKEN?.trim())
-  const explicitGatewayKey = configured("AI_GATEWAY_API_KEY")
   const openAIKey = configured("OPENAI_API_KEY")
   const googleKey = configured("GOOGLE_GENERATIVE_AI_API_KEY")
   const huggingFaceKey = configured("HUGGINGFACE_API_KEY")
-  const vercelManagedGateway = Boolean(process.env.VERCEL_ENV)
-
-  const aiAvailable = vercelManagedGateway || vercelOidcAvailable || explicitGatewayKey || openAIKey || googleKey || huggingFaceKey
+  const aiAvailable = openAIKey || googleKey || huggingFaceKey
 
   const checks = {
-    auth:
-      configured("NEXTAUTH_SECRET") &&
-      (configured("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") || process.env.NODE_ENV !== "production"),
+    auth: configured("NEXTAUTH_SECRET"),
+    googleLogin: configured("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
     founder: configured("REBORN_OWNER_EMAILS"),
     ai: aiAvailable,
-    aiAuth: vercelOidcAvailable
-      ? "vercel_oidc"
-      : explicitGatewayKey
-        ? "gateway_api_key"
-        : openAIKey
-          ? "openai_api_key"
-          : googleKey
-            ? "google_api_key"
+    aiAuth: googleKey
+      ? "google_api_key"
+      : openAIKey
+        ? "openai_api_key"
             : huggingFaceKey
               ? "huggingface_api_key"
-              : vercelManagedGateway
-                ? "vercel_managed_gateway"
-                : "missing",
+              : "missing",
     aiDirectProviders: {
       openai: openAIKey,
       google: googleKey,
@@ -56,7 +45,7 @@ export async function GET() {
   return NextResponse.json(
     {
       service: "reborn-ai",
-      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "unknown",
+      environment: process.env.NODE_ENV || "unknown",
       readyForPaidLaunch,
       checks,
       timestamp: new Date().toISOString(),

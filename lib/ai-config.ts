@@ -22,7 +22,7 @@ export const getAIModel = (): string => process.env.AI_MODEL || DEFAULT_AI_MODEL
 export const getVisionModel = (): string => process.env.AI_VISION_MODEL || DEFAULT_VISION_MODEL
 
 export const aiConfig: AIConfig = {
-  provider: process.env.AI_PROVIDER || "vercel-ai-gateway",
+  provider: process.env.AI_PROVIDER || "direct",
   model: getAIModel(),
   apiKey: process.env.AI_GATEWAY_API_KEY,
   baseURL: process.env.AI_GATEWAY_BASE_URL,

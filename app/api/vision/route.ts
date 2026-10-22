@@ -1,4 +1,4 @@
-import { streamText } from "ai"
+import { streamText } from "@/lib/lumin-ai-runtime"
 import { getVisionModel } from "@/lib/ai-config"
 
 export const maxDuration = 120

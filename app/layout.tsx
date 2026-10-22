@@ -2,7 +2,6 @@ import type React from "react"
 import { Suspense } from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import { Providers } from "@/components/providers"
 import { RebornAnalyticsObserver } from "@/components/reborn-analytics-observer"
 import { GrowthTracking } from "@/components/growth-tracking"
@@ -279,7 +278,6 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <GrowthTracking />
         </Suspense>
-        <Analytics />
       </body>
     </html>
   )

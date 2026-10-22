@@ -1,4 +1,4 @@
-import { generateText } from "ai"
+import { generateText } from "@/lib/lumin-ai-runtime"
 import { withModelFallback } from "@/lib/ai-fallback"
 import { buildVisualContextBlock, resolveVisualContext } from "@/lib/webcraft-visual-director"
 

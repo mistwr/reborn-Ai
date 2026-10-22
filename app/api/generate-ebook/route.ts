@@ -1,4 +1,4 @@
-import { generateText } from "ai"
+import { generateText } from "@/lib/lumin-ai-runtime"
 import { NextResponse } from "next/server"
 
 const EBOOK_STYLES = {

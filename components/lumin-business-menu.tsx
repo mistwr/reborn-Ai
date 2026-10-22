@@ -129,7 +129,7 @@ export function LuminBusinessMenu() {
                   icon={PhoneCall}
                   title="SD Dialer"
                   subtitle="Leads, chamadas e follow-ups"
-                  onClick={() => window.open("https://sd-dialer-2p.vercel.app", "_blank", "noopener,noreferrer")}
+                  onClick={() => window.open("https://imaginative-flan-e3a8a5.netlify.app", "_blank", "noopener,noreferrer")}
                   external
                 />
               </div>

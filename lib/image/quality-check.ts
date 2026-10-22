@@ -1,4 +1,4 @@
-import { generateText } from "ai"
+import { generateText } from "@/lib/lumin-ai-runtime"
 import { getVisionModel } from "@/lib/ai-config"
 
 export interface ImageQualityResult {

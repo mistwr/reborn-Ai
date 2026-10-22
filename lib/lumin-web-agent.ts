@@ -241,7 +241,7 @@ async function fetchPublicPage(inputUrl: string) {
       redirect: "manual",
       cache: "no-store",
       headers: {
-        "User-Agent": "LuminAI-Browser/1.0 (+https://rebornaaqi.vercel.app)",
+        "User-Agent": "LuminAI-Browser/1.0 (+https://luminai.pt)",
         Accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.8,*/*;q=0.2",
         "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.7",
       },

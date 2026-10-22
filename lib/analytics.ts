@@ -1,5 +1,3 @@
-import { track } from "@vercel/analytics"
-
 type EventName =
   | "paywall_opened"
   | "checkout_started"
@@ -24,7 +22,7 @@ export function trackEvent(eventName: EventName, payload: EventPayload = {}): vo
   if (typeof window === "undefined") return
 
   try {
-    track(eventName, payload)
+    window.dispatchEvent(new CustomEvent("lumin-analytics", { detail: { eventName, payload } }))
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
       console.debug(`[Analytics] ${eventName}`, payload, error)

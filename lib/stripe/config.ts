@@ -1,6 +1,6 @@
 export type BillingPlan = "personal_pro" | "business" | "business_team"
 
-const CANONICAL_LUMIN_URL = "https://rebornaaqi.vercel.app"
+const CANONICAL_LUMIN_URL = "https://elaborate-begonia-9d097b.netlify.app"
 
 function safeOrigin(value: string | undefined | null) {
   if (!value) return null

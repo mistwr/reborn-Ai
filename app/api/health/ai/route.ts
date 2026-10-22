@@ -3,9 +3,7 @@ import { NextResponse } from "next/server"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const host = process.env.VERCEL
-    ? "vercel"
-    : process.env.NETLIFY
+  const host = process.env.NETLIFY || process.env.NEXTAUTH_URL?.includes(".netlify.app")
       ? "netlify"
       : process.env.NODE_ENV === "development"
         ? "development"
@@ -18,13 +16,13 @@ export async function GET() {
   }
 
   const gateway = {
-    configured: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
+    configured: Boolean(process.env.OPENAI_API_KEY?.trim() && process.env.OPENAI_BASE_URL?.trim()),
     model: process.env.AI_MODEL || "google/gemini-2.5-flash-lite",
   }
 
   return NextResponse.json(
     {
-      ok: gateway.configured || Object.values(directProviders).some(Boolean) || host === "vercel",
+      ok: Object.values(directProviders).some(Boolean),
       product: "Lumin AI",
       host,
       gateway,

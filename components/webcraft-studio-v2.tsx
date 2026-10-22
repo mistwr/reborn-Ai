@@ -99,6 +99,7 @@ export function WebCraftStudioV2() {
   const [publishLoading, setPublishLoading] = useState(false)
   const [fullStackProject, setFullStackProject] = useState<FullStackProject | null>(null)
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
+  const [manualPublish, setManualPublish] = useState<{ url: string; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [visualStats, setVisualStats] = useState<{ count: number; generated: number; curated: number; dropped: number; mode: string; model: string } | null>(null)
   const [savedProjects, setSavedProjects] = useState<SavedWebProject[]>([])
@@ -416,6 +417,7 @@ export function WebCraftStudioV2() {
   }
 
   async function publishProject() {
+    setManualPublish(null)
     if (mode === "app" && !fullStackProject) {
       setError("Cria primeiro a versão Full-Stack da app.")
       return
@@ -447,10 +449,22 @@ export function WebCraftStudioV2() {
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
+        if (data?.code === "NETLIFY_NOT_CONFIGURED" || data?.code === "NETLIFY_BUILD_REQUIRED") {
+          const archive = mode === "website"
+            ? { name: (businessName || "lumin-website").toLowerCase().replace(/[^a-z0-9]+/g, "-"), framework: "HTML", files: [{ path: "index.html", content: html! }] }
+            : fullStackProject!
+          await downloadFullStackProject(archive)
+          setManualPublish({
+            url: data.manualDeployUrl,
+            message: mode === "website" ? "ZIP descarregado. Abre a Netlify e arrasta o ZIP para publicar este website." : "Código descarregado. Coloca os ficheiros num repositório GitHub e liga-o à Netlify para construir a aplicação.",
+          })
+          return
+        }
         const setup = data?.setup ? ` ${data.setup}` : ""
         throw new Error(`${data?.error || "Não foi possível publicar."}${setup}`)
       }
       const url = data?.url || null
+      if (!url) throw new Error(data?.message || "A Netlify ainda está a concluir a publicação.")
       setPublishedUrl(url)
       if (html) saveProject(html, currentProjectId ?? createProjectId(), url)
     } catch (err: any) {
@@ -787,6 +801,12 @@ export function WebCraftStudioV2() {
               </div>
             )}
             {error && <p className="text-xs text-destructive">{error}</p>}
+            {manualPublish && (
+              <div className="rounded-lg border p-3 text-xs">
+                <p>{manualPublish.message}</p>
+                <a href={manualPublish.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-primary hover:underline">Abrir Netlify <ExternalLink className="h-3 w-3" /></a>
+              </div>
+            )}
             {publishedUrl && (
               <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs">
                 <div className="font-semibold text-foreground">Publicado com sucesso</div>
@@ -796,7 +816,7 @@ export function WebCraftStudioV2() {
               </div>
             )}
             <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-              Fluxo: <strong>criar → refinar → Full-Stack → PUBLICAR</strong>. O deploy direto usa a infraestrutura Vercel configurada no Lumin AI Studio.
+              Websites: cria, refina e publica na Netlify. Apps Full-Stack: transfere o código e liga o repositório à Netlify para executar a build.
             </div>
           </div>
         </aside>
