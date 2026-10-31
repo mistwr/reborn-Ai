@@ -219,6 +219,7 @@ function parseLuminReference(value: unknown) {
   const ref = String(value || "")
   const definitions = [
     ["lumin_pro_", "pro", 0],
+    ["lumin_business_", "business", 0],
     ["lumin_credits20_", "credits", 20_000],
     ["lumin_credits60_", "credits", 60_000],
     ["lumin_credits150_", "credits", 150_000],
@@ -248,19 +249,23 @@ export async function POST(req: Request) {
         const luminRef = parseLuminReference(session?.client_reference_id)
 
         if (subscriptionId) {
-          if (luminRef?.kind === "pro") {
+          if (luminRef?.kind === "pro" || luminRef?.kind === "business") {
             const metadataParams = new URLSearchParams()
             metadataParams.set("metadata[product]", "lumin-ai")
-            metadataParams.set("metadata[billing_plan]", "personal_pro")
+            metadataParams.set("metadata[billing_plan]", luminRef.kind === "business" ? "business" : "personal_pro")
             if (luminRef.userId) metadataParams.set("metadata[user_id]", luminRef.userId)
             await stripePost(`subscriptions/${encodeURIComponent(subscriptionId)}`, secretKey, metadataParams)
           }
           const subscription = await stripeGet(`subscriptions/${encodeURIComponent(subscriptionId)}`, secretKey)
           await persistStripeSubscription(subscription, secretKey, email)
-        } else if (luminRef?.kind === "credits" && session?.mode === "payment" && session?.payment_status === "paid" && email) {
-          await grantBonusCredits({
+        } else if (session?.mode === "payment" && session?.payment_status === "paid" && email) {
+          // Credits come from the app (client_reference_id) or from the public
+          // luminai.pt payment links (metadata.credits on the Payment Link).
+          const metadataCredits = Number(session?.metadata?.product === "lumin-ai" ? session?.metadata?.credits : 0)
+          const credits = luminRef?.kind === "credits" ? luminRef.credits : [20_000, 60_000, 150_000].includes(metadataCredits) ? metadataCredits : 0
+          if (credits > 0) await grantBonusCredits({
             email,
-            amount: luminRef.credits,
+            amount: credits,
             sourceId: String(session?.id || event.id),
             amountTotal: Number(session?.amount_total || 0),
             currency: String(session?.currency || "eur"),

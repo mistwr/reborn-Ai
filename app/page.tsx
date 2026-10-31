@@ -2627,13 +2627,13 @@ The way the world will live`
                   </>
                 ) : (
                   <a
-                    href="https://buy.stripe.com/eVqdR93RbaHQ4ecbk95Rm00"
+                    href="https://buy.stripe.com/00w5kDevP7vEbGEdsh5Rm0a"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 text-white font-semibold rounded-xl transition-all shadow-lg shadow-primary/30"
                   >
                     <Sparkles className="h-5 w-5" />
-                    Upgrade para Pro - 9.99 EUR/mes (50.000 tokens/dia)
+                    Upgrade para Starter - 9,99 €/mês (50.000 tokens/dia)
                   </a>
                 )}
                 <button
@@ -2653,7 +2653,7 @@ The way the world will live`
           <Card className="w-full max-w-lg bg-card border-border shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold gradient-text">Reborn AI Pro</h2>
+                <h2 className="text-2xl font-bold gradient-text">LUMIN AI Starter</h2>
                 <Button variant="ghost" size="icon" onClick={() => setShowProModal(false)}>
                   <X className="h-5 w-5" />
                 </Button>
@@ -2693,7 +2693,7 @@ The way the world will live`
                 <div className="border-t border-border pt-6">
                   <div className="text-center mb-4">
                     <p className="text-3xl font-bold">
-                      €9.9<span className="text-lg text-muted-foreground">/mês</span>
+                      9,99 €<span className="text-lg text-muted-foreground">/mês</span>
                     </p>
                   </div>
                   <Button className="w-full" size="lg" onClick={handleUpgradePro}>
