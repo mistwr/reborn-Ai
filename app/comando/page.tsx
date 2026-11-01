@@ -100,6 +100,26 @@ export default function ComandoPage() {
     ])
   }
 
+  function watchCall(index: number, callId: string, base: string) {
+    const LABEL: Record<string, string> = { ringing: "📞 A tocar…", dialing: "📞 A marcar…", active: "🟢 Em chamada com o agente…", answered: "✅ Chamada terminada", failed: "⚠️ Não atendeu / falhou", ended: "✅ Chamada terminada" }
+    let tries = 0
+    const tick = async () => {
+      tries++
+      try {
+        const r = await fetch(`/api/comando/acao?callId=${callId}`, { cache: "no-store" })
+        const d = await r.json().catch(() => ({}))
+        if (r.ok) {
+          const dur = d.duration_seconds ? ` · ${Math.floor(d.duration_seconds / 60)}m${String(d.duration_seconds % 60).padStart(2, "0")}s` : ""
+          const extra = d.status === "failed" && d.error_message ? ` · ${d.error_message}` : d.summary ? ` · ${d.summary}` : ""
+          setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionResult: `${base} ${LABEL[d.status] || d.status}${dur}${extra}` } : m)))
+          if (["answered", "failed", "ended"].includes(d.status)) { load(); return }
+        }
+      } catch {}
+      if (tries < 80) setTimeout(tick, 3000)
+    }
+    setTimeout(tick, 2500)
+  }
+
   async function decide(index: number, confirm: boolean) {
     const msg = messages[index]
     if (!msg?.action) return
@@ -114,6 +134,7 @@ export default function ComandoPage() {
       const d = await r.json().catch(() => ({}))
       setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionState: r.ok ? "feito" : "erro", actionResult: r.ok ? d.message : d?.error || "Falhou." } : m)))
       if (r.ok) load()
+      if (r.ok && d.callId) watchCall(index, d.callId, d.message)
     } catch {
       setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionState: "erro", actionResult: "Falhou a ligação." } : m)))
     }
