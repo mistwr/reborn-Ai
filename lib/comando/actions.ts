@@ -43,7 +43,7 @@ export function parseAction(raw: unknown): ComandoAction | null {
   return null
 }
 
-export async function runAction(a: ComandoAction): Promise<string> {
+export async function runAction(a: ComandoAction): Promise<string | { message: string; callId?: string }> {
   if (a.tipo === "atualizar_lead") {
     const rows = await restRead<any[]>(`leads?select=id,nome,observacoes,campanha_id,company_id,custom_fields&id=eq.${a.lead_id}&limit=1`)
     const lead = rows?.[0]
@@ -83,7 +83,7 @@ export async function runAction(a: ComandoAction): Promise<string> {
     })
     const d = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(d?.error || `O SD Dialer recusou a chamada (${r.status}).`)
-    return `A ligar a ${lead.nome}… O resultado e a marcação ficam no histórico de chamadas do SD Dialer.`
+    return { message: `A ligar a ${lead.nome}…`, callId: d?.callId }
   }
   const cfg = await restRead<any[]>("lumin_alert_config?select=ntfy_topic&id=eq.1")
   const topic = cfg?.[0]?.ntfy_topic
@@ -91,4 +91,15 @@ export async function runAction(a: ComandoAction): Promise<string> {
   const r = await fetch(`https://ntfy.sh/${topic}`, { method: "POST", headers: { Title: "LUMIN Comando", Tags: "bell" }, body: a.texto })
   if (!r.ok) throw new Error(`Falhou o envio do aviso (${r.status}).`)
   return "Feito: aviso enviado para o telemóvel."
+}
+
+export async function callStatus(callId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(callId)) throw new Error("Chamada inválida.")
+  const secret = process.env.COMANDO_CALL_SECRET
+  if (!secret) throw new Error("Chamadas IA não configuradas.")
+  const base = (process.env.SD_DIALER_URL || "https://imaginative-flan-e3a8a5.netlify.app").replace(/\/$/, "")
+  const r = await fetch(`${base}/api/sd-dialer/call/internal?callId=${callId}`, { headers: { "x-comando-secret": secret }, cache: "no-store" })
+  const d = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(d?.error || `Estado indisponível (${r.status}).`)
+  return d
 }
