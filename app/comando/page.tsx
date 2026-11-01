@@ -3,11 +3,34 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeft, Bot, Loader2, RefreshCw, Send } from "lucide-react"
 
-type Msg = { role: "user" | "assistant"; content: string }
+type Action = { tipo: string; descricao: string; [k: string]: any }
+type Msg = { role: "user" | "assistant"; content: string; action?: Action | null; actionState?: "pendente" | "feito" | "cancelado" | "erro"; actionResult?: string }
+
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return <>{parts.map((p, i) => (p.startsWith("**") && p.endsWith("**") ? <strong key={i} className="font-bold text-white">{p.slice(2, -2)}</strong> : <span key={i}>{p.replace(/\*\*/g, "")}</span>))}</>
+}
+
+function Markdown({ text }: { text: string }) {
+  const lines = text.replace(/\r/g, "").split("\n")
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        const t = line.trim()
+        if (!t) return <div key={i} className="h-1" />
+        const bullet = t.match(/^[-*•]\s+(.*)$/) || t.match(/^\d+[.)]\s+(.*)$/)
+        if (bullet) return <div key={i} className="flex gap-2"><span className="text-[#e7b95f]">•</span><span><Inline text={bullet[1]} /></span></div>
+        const h = t.match(/^#{1,4}\s+(.*)$/)
+        if (h) return <div key={i} className="pt-1 font-bold text-[#ffdda0]"><Inline text={h[1]} /></div>
+        return <div key={i}><Inline text={t} /></div>
+      })}
+    </div>
+  )
+}
 
 const euro = (v?: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(v || 0))
 const NOMES: Record<string, string> = { "lumin-ai": "LUMIN AI", "sd-dialer": "SD Dialer", "agentes-ia": "Agentes IA" }
-const SUGESTOES = ["Como estão as vendas esta semana?", "A quem devo ligar hoje?", "Quantos clientes ativos tenho?", "O que está a correr mal?"]
+const SUGESTOES = ["Resume o estado do negócio", "A quem devo ligar hoje e o que digo?", "De onde vêm as minhas leads?", "A SNU não atendeu, marca para ligar depois", "Lembra-me de ligar à Bergcom amanhã às 10h"]
 
 function Card({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -54,13 +77,32 @@ export default function ComandoPage() {
     setInput("")
     setThinking(true)
     try {
-      const r = await fetch("/api/comando", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, messages }) })
+      const r = await fetch("/api/comando", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, messages: messages.map(m => ({ role: m.role, content: m.content + (m.actionResult ? `\n(${m.actionResult})` : "") })) }) })
       const d = await r.json().catch(() => ({}))
-      setMessages([...next, { role: "assistant", content: r.ok ? d.reply : d?.error || "Sem resposta." }])
+      setMessages([...next, { role: "assistant", content: r.ok ? d.reply : d?.error || "Sem resposta.", action: r.ok ? d.action : null, actionState: r.ok && d.action ? "pendente" : undefined }])
     } catch {
       setMessages([...next, { role: "assistant", content: "Falhou a ligação. Tenta outra vez." }])
     } finally {
       setThinking(false)
+    }
+  }
+
+  async function decide(index: number, confirm: boolean) {
+    const msg = messages[index]
+    if (!msg?.action) return
+    if (!confirm) {
+      setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionState: "cancelado", actionResult: "Cancelado" } : m)))
+      return
+    }
+    setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionResult: "A executar…" } : m)))
+    try {
+      const { descricao, ...action } = msg.action
+      const r = await fetch("/api/comando/acao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) })
+      const d = await r.json().catch(() => ({}))
+      setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionState: r.ok ? "feito" : "erro", actionResult: r.ok ? d.message : d?.error || "Falhou." } : m)))
+      if (r.ok) load()
+    } catch {
+      setMessages(ms => ms.map((m, i) => (i === index ? { ...m, actionState: "erro", actionResult: "Falhou a ligação." } : m)))
     }
   }
 
@@ -119,6 +161,32 @@ export default function ComandoPage() {
                 ) : <p className="mt-3 text-sm text-white/50">Sem leads por contactar.</p>}
               </div>
             </section>
+            <section className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <h2 className="text-sm font-bold text-[#ffdda0]">Leads do site luminai.pt</h2>
+                {data.resumo?.leadsSite?.length ? (
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {data.resumo.leadsSite.slice(0, 6).map((l: any) => (
+                      <li key={l.id} className="border-b border-white/5 pb-2">
+                        <div className="flex justify-between gap-2"><span className="truncate text-white/85">{l.nome}{l.empresa ? ` · ${l.empresa}` : ""}</span><span className="shrink-0 text-xs text-white/45">{new Date(l.quando).toLocaleDateString("pt-PT")}</span></div>
+                        <div className="text-xs text-white/45">{l.status} · {l.formulario || "formulário"}{l.utm_source ? ` · ${l.utm_source}` : ""}</div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="mt-3 text-sm text-white/50">Ainda não entraram leads pelo site.</p>}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <h2 className="text-sm font-bold text-[#ffdda0]">Empresas no SD Dialer</h2>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {(data.resumo?.empresas || []).map((c: any) => (
+                    <li key={c.name} className="flex justify-between gap-2 border-b border-white/5 pb-2">
+                      <span className="truncate text-white/85">{c.name} <span className="text-xs text-white/40">{c.plan}</span></span>
+                      <span className="shrink-0 text-xs text-white/55">{new Intl.NumberFormat("pt-PT").format(c.leads)} leads · {c.vendas_30d} vendas</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
             {data.errors?.length ? <p className="mt-3 text-xs text-amber-300/80">Não consegui ler: {data.errors.join(" · ")}</p> : null}
           </>
         ) : loading ? <div className="mt-10 flex items-center gap-2 text-white/60"><Loader2 className="h-4 w-4 animate-spin" /> A carregar…</div> : null}
@@ -126,9 +194,29 @@ export default function ComandoPage() {
         <section className="mt-8 rounded-2xl border border-[#e7b95f]/30 bg-[#e7b95f]/[0.04] p-4">
           <div className="flex items-center gap-2 text-sm font-bold"><Bot className="h-4 w-4 text-[#e7b95f]" /> Pergunta ao LUMIN</div>
           <div className="mt-3 space-y-3">
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === "user" ? "ml-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-sm" : "max-w-[90%] whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/90"}>{m.content}</div>
-            ))}
+            {messages.map((m, i) =>
+              m.role === "user" ? (
+                <div key={i} className="ml-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-sm">{m.content}</div>
+              ) : (
+                <div key={i} className="max-w-[92%] rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm leading-relaxed text-white/85">
+                  <Markdown text={m.content} />
+                  {m.action ? (
+                    <div className="mt-3 rounded-xl border border-[#e7b95f]/40 bg-[#e7b95f]/[0.07] p-3">
+                      <div className="text-[11px] uppercase tracking-[0.14em] text-[#ffdda0]">Ação proposta</div>
+                      <div className="mt-1 text-sm text-white">{m.action.descricao}</div>
+                      {m.actionState === "pendente" && !m.actionResult ? (
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={() => decide(i, true)} className="rounded-full bg-gradient-to-r from-[#ffdda0] to-[#e7b95f] px-4 py-1.5 text-xs font-bold text-black">Confirmar</button>
+                          <button onClick={() => decide(i, false)} className="rounded-full border border-white/20 px-4 py-1.5 text-xs text-white/70">Cancelar</button>
+                        </div>
+                      ) : (
+                        <div className={`mt-2 text-xs ${m.actionState === "erro" ? "text-red-300" : m.actionState === "feito" ? "text-emerald-300" : "text-white/60"}`}>{m.actionResult}</div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            )}
             {thinking ? <div className="flex items-center gap-2 text-sm text-white/50"><Loader2 className="h-4 w-4 animate-spin" /> A pensar…</div> : null}
             <div ref={endRef} />
           </div>
