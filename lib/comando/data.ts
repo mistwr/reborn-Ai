@@ -61,7 +61,7 @@ export async function loadComandoData() {
     safe(() => rest<any[]>(`reborn_subscriptions?select=email,status,plan,billing_plan,current_period_end,updated_at&order=updated_at.desc&limit=200`), [], errors, "subscrições"),
     safe(() => rest<any[]>(`companies?select=name,status,plan,created_at&order=created_at.desc`), [], errors, "empresas SD Dialer"),
     safe(() => rest<any[]>(`lumin_accounts?select=account_type,created_at&limit=1000`), [], errors, "contas LUMIN"),
-    safe(() => rest<any[]>(`leads?select=nome,telefone,status,priority,localidade,updated_at&campanha_id=eq.${CAMPANHA_BROKERS}&order=priority.asc`), [], errors, "prospeção"),
+    safe(() => rest<any[]>(`leads?select=id,nome,telefone,status,priority,localidade,updated_at&campanha_id=eq.${CAMPANHA_BROKERS}&order=priority.asc`), [], errors, "prospeção"),
     safe(() => rest<any[]>(`vendas?select=status,operator,service_type,amount,sale_date,created_at&deleted_at=is.null&created_at=gte.${since30}&limit=1000`), [], errors, "vendas broker"),
     safe(() => restWrite("rpc/comando_resumo", "POST", {}), {} as any, errors, "resumo"),
   ])
@@ -114,7 +114,7 @@ export async function loadComandoData() {
     prospecao: {
       total: leads.length,
       porEstado: leadsByStatus,
-      proximas: leads.filter(l => (l.status || "novo") === "novo").slice(0, 8).map(l => ({ nome: l.nome, telefone: l.telefone, prioridade: l.priority, local: l.localidade })),
+      proximas: leads.filter(l => (l.status || "novo") === "novo").slice(0, 8).map(l => ({ id: l.id, nome: l.nome, telefone: l.telefone, prioridade: l.priority, local: l.localidade })),
     },
     broker: {
       vendas30d: vendas.length,

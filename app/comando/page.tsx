@@ -87,6 +87,19 @@ export default function ComandoPage() {
     }
   }
 
+  function proposeCall(l: any) {
+    setMessages(ms => [
+      ...ms,
+      { role: "user", content: `Liga com o Vendedor IA a ${l.nome}` },
+      {
+        role: "assistant",
+        content: `Vou pôr o **Vendedor IA** a ligar a **${l.nome}** (${l.telefone}). Apresenta-se como assistente virtual do SD Dialer, pergunta pela equipa comercial e tenta marcar uma demo de 15 minutos contigo.`,
+        action: { tipo: "ligar_ia", lead_id: l.id, nome: l.nome, descricao: `Ligar agora a ${l.nome} com o Vendedor IA` },
+        actionState: "pendente",
+      },
+    ])
+  }
+
   async function decide(index: number, confirm: boolean) {
     const msg = messages[index]
     if (!msg?.action) return
@@ -154,7 +167,10 @@ export default function ComandoPage() {
                     {data.prospecao.proximas.map((l: any, i: number) => (
                       <li key={i} className="flex justify-between gap-3 border-b border-white/5 pb-2">
                         <span className="truncate text-white/80">{l.nome}</span>
-                        <a href={`tel:${l.telefone}`} className="shrink-0 font-bold text-[#e7b95f]">{l.telefone}</a>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <a href={`tel:${l.telefone}`} className="font-bold text-[#e7b95f]">{l.telefone}</a>
+                          <button onClick={() => proposeCall(l)} title="Ligar com o Vendedor IA" className="rounded-full border border-[#e7b95f]/50 px-2 py-0.5 text-[11px] text-[#ffdda0] hover:bg-[#e7b95f]/10">🤖 IA</button>
+                        </span>
                       </li>
                     ))}
                   </ul>
