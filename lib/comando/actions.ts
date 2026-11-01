@@ -12,6 +12,7 @@ export type ComandoAction =
   | { tipo: "atualizar_lead"; lead_id: string; status?: string; nota?: string; resumo?: string }
   | { tipo: "nova_lead"; nome: string; telefone: string; email?: string; localidade?: string; nota?: string; resumo?: string }
   | { tipo: "aviso"; texto: string; resumo?: string }
+  | { tipo: "ligar_ia"; lead_id: string; nome?: string; resumo?: string }
 
 const clean = (v: unknown, max = 300) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max)
 const stamp = () => new Date().toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -19,6 +20,7 @@ const stamp = () => new Date().toLocaleString("pt-PT", { timeZone: "Europe/Lisbo
 export function describeAction(a: ComandoAction) {
   if (a.tipo === "atualizar_lead") return a.resumo || `Atualizar lead${a.status ? ` para "${a.status}"` : ""}${a.nota ? ` com nota: ${a.nota}` : ""}`
   if (a.tipo === "nova_lead") return a.resumo || `Adicionar ${a.nome} (${a.telefone}) à prospeção`
+  if (a.tipo === "ligar_ia") return a.resumo || `O Vendedor IA liga agora a ${a.nome || "esta lead"} (guião SD Dialer, marca demo de 15 min)`
   return a.resumo || `Enviar aviso para o telemóvel: ${a.texto}`
 }
 
@@ -36,6 +38,7 @@ export function parseAction(raw: unknown): ComandoAction | null {
     if (!clean(a.nome) || telefone.replace(/\D/g, "").length < 9) return null
     return { tipo: "nova_lead", nome: clean(a.nome, 120), telefone, email: a.email ? clean(a.email, 120) : undefined, localidade: a.localidade ? clean(a.localidade, 80) : undefined, nota: a.nota ? clean(a.nota, 500) : undefined, resumo: a.resumo ? clean(a.resumo, 160) : undefined }
   }
+  if (a.tipo === "ligar_ia" && UUID.test(String(a.lead_id || ""))) return { tipo: "ligar_ia", lead_id: String(a.lead_id), nome: a.nome ? clean(a.nome, 120) : undefined, resumo: a.resumo ? clean(a.resumo, 160) : undefined }
   if (a.tipo === "aviso" && clean(a.texto)) return { tipo: "aviso", texto: clean(a.texto, 400), resumo: a.resumo ? clean(a.resumo, 160) : undefined }
   return null
 }
@@ -63,6 +66,24 @@ export async function runAction(a: ComandoAction): Promise<string> {
       assigned_to: MIGUEL, skip_auto_assign: true, observacoes: a.nota ? `[${stamp()}] ${a.nota}` : "Adicionada pelo LUMIN Comando",
     })
     return `Feito: ${a.nome} adicionada à prospeção.`
+  }
+  if (a.tipo === "ligar_ia") {
+    const rows = await restRead<any[]>(`leads?select=id,nome,status,campanha_id&id=eq.${a.lead_id}&limit=1`)
+    const lead = rows?.[0]
+    if (!lead) throw new Error("Lead não encontrada.")
+    if (lead.campanha_id !== CAMPANHA_BROKERS) throw new Error("Por agora o Vendedor IA só liga a leads da prospeção SD Dialer.")
+    const secret = process.env.COMANDO_CALL_SECRET
+    if (!secret) throw new Error("Chamadas IA ainda não configuradas (falta COMANDO_CALL_SECRET).")
+    const base = (process.env.SD_DIALER_URL || "https://imaginative-flan-e3a8a5.netlify.app").replace(/\/$/, "")
+    const r = await fetch(`${base}/api/sd-dialer/call/internal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-comando-secret": secret },
+      body: JSON.stringify({ lead_id: a.lead_id, pitch: "sd-dialer" }),
+      cache: "no-store",
+    })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(d?.error || `O SD Dialer recusou a chamada (${r.status}).`)
+    return `A ligar a ${lead.nome}… O resultado e a marcação ficam no histórico de chamadas do SD Dialer.`
   }
   const cfg = await restRead<any[]>("lumin_alert_config?select=ntfy_topic&id=eq.1")
   const topic = cfg?.[0]?.ntfy_topic

@@ -28,6 +28,7 @@ AÇÕES: podes PROPOR (nunca executas tu) uma destas ações, e o Miguel confirm
 - atualizar_lead: {"tipo":"atualizar_lead","lead_id":"<id da lista de prospeção ou leadsDoSite>","status":"<${LEAD_STATUS.join("|")}>","nota":"texto opcional","resumo":"frase curta"}
 - nova_lead: {"tipo":"nova_lead","nome":"...","telefone":"9 dígitos","email":"opcional","localidade":"opcional","nota":"opcional","resumo":"frase curta"}
 - aviso: {"tipo":"aviso","texto":"lembrete a enviar já para o telemóvel","resumo":"frase curta"}
+- ligar_ia: {"tipo":"ligar_ia","lead_id":"<id da prospeção>","nome":"nome da empresa","resumo":"frase curta"} — o Vendedor IA (voz, LiveKit+Twilio) liga já à lead com o guião de prospeção do SD Dialer e tenta marcar demo de 15 min. Só leads da prospeção que não estejam em estados bloqueados.
 Para propor, escreve a resposta normal e no fim UM bloco exatamente assim:
 \`\`\`acao
 {json numa só linha}
