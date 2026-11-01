@@ -22,6 +22,23 @@ async function rest<T = any>(path: string): Promise<T> {
   return response.json()
 }
 
+export async function restWrite(path: string, method: "POST" | "PATCH", body: unknown) {
+  const url = process.env.REBORN_SUPABASE_URL?.replace(/\/$/, "")
+  const key = process.env.REBORN_SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error("Base de dados não configurada")
+  const response = await fetch(`${url}/rest/v1/${path}`, {
+    method,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json", Prefer: "return=representation" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  })
+  const text = await response.text()
+  if (!response.ok) throw new Error(`${path.split("?")[0]}: ${response.status} ${text.slice(0, 160)}`)
+  return text ? JSON.parse(text) : null
+}
+
+export { rest as restRead }
+
 async function safe<T>(fn: () => Promise<T>, fallback: T, errors: string[], label: string): Promise<T> {
   try {
     return await fn()
@@ -39,13 +56,14 @@ export async function loadComandoData() {
   const since7 = Date.now() - 7 * 86400_000
   const since1 = Date.now() - 86400_000
 
-  const [revenue, subs, companies, accounts, leads, vendas] = await Promise.all([
+  const [revenue, subs, companies, accounts, leads, vendas, resumo] = await Promise.all([
     safe(() => rest<any[]>(`lumin_revenue_events?select=event_type,amount,status,customer_email,occurred_at,metadata&occurred_at=gte.${since30}&order=occurred_at.desc&limit=200`), [], errors, "receita"),
     safe(() => rest<any[]>(`reborn_subscriptions?select=email,status,plan,billing_plan,current_period_end,updated_at&order=updated_at.desc&limit=200`), [], errors, "subscrições"),
     safe(() => rest<any[]>(`companies?select=name,status,plan,created_at&order=created_at.desc`), [], errors, "empresas SD Dialer"),
     safe(() => rest<any[]>(`lumin_accounts?select=account_type,created_at&limit=1000`), [], errors, "contas LUMIN"),
     safe(() => rest<any[]>(`leads?select=nome,telefone,status,priority,localidade,updated_at&campanha_id=eq.${CAMPANHA_BROKERS}&order=priority.asc`), [], errors, "prospeção"),
     safe(() => rest<any[]>(`vendas?select=status,operator,service_type,amount,sale_date,created_at&deleted_at=is.null&created_at=gte.${since30}&limit=1000`), [], errors, "vendas broker"),
+    safe(() => restWrite("rpc/comando_resumo", "POST", {}), {} as any, errors, "resumo"),
   ])
 
   const real = revenue.filter(r => r.status !== "teste_interno" && !(r.metadata && r.metadata.teste))
@@ -87,6 +105,12 @@ export async function loadComandoData() {
       empresas: companies.length,
       lista: companies.map(c => ({ nome: c.name, estado: c.status, plano: c.plan })),
     },
+    resumo: {
+      leadsPorEmpresaOrigem30d: resumo?.leads_por_empresa_origem_30d || [],
+      leadsSite: resumo?.leads_site || [],
+      prospecao: resumo?.prospecao || [],
+      empresas: resumo?.empresas || [],
+    },
     prospecao: {
       total: leads.length,
       porEstado: leadsByStatus,
@@ -107,7 +131,10 @@ export function comandoContextForAI(d: ComandoData) {
     receita: { ...d.receita, ultimas: d.receita.ultimas.map(({ cliente, ...rest }) => rest) },
     lumin: d.lumin,
     sdDialer: d.sdDialer,
-    prospecao: d.prospecao,
+    prospecao: { porEstado: d.prospecao.porEstado, leads: d.resumo.prospecao },
+    leadsDoSite: d.resumo.leadsSite,
+    leadsNovasPorEmpresaEOrigem30d: d.resumo.leadsPorEmpresaOrigem30d,
+    empresasSdDialer: d.resumo.empresas,
     broker: d.broker,
     falhasAoLerDados: d.errors,
     precos: { luminStarter: "9,99€/mês", luminPro: "69,99€/mês", packs: "19/49/99€", sdDialer: "70€/admin + 10€/utilizador, 14 dias grátis", rececionistaIA: "99€/mês", vendedorIA: "249€/mês", agenteMedida: "desde 499€/mês" },

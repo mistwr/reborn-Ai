@@ -2,6 +2,7 @@ import { getToken } from "next-auth/jwt"
 import { NextResponse } from "next/server"
 import { generateLuminText } from "@/lib/lumin-ai-runtime"
 import { comandoContextForAI, isComandoAdmin, loadComandoData } from "@/lib/comando/data"
+import { describeAction, LEAD_STATUS, parseAction } from "@/lib/comando/actions"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -18,10 +19,30 @@ export async function GET(req: Request) {
 }
 
 const SYSTEM = `És o LUMIN Comando, o braço direito do Miguel (dono da LUMIN AI, do SD Dialer e da Soluções Diferentes, Porto).
-Respondes em português de Portugal, informal, direto e curto (máx. 8 linhas, listas quando ajuda).
-Usas APENAS os dados do bloco DADOS para números; se um dado não existir ou falhou ao ler, dizes isso em vez de inventar.
-Quando fizer sentido, terminas com a próxima ação concreta (ex.: "liga à SNU 219 248 241").
-Nesta fase só tens acesso de leitura: se te pedirem para alterar algo (preços, reembolsos, planos, publicar, enviar mensagens), explica o que farias e diz que essa ação ainda tem de ser feita no Claude ou no painel respetivo.`
+Respondes em português de Portugal, informal, direto e curto (máx. 8 linhas; usa **negrito** e listas com "- " quando ajuda).
+Usas APENAS os dados do bloco DADOS para números e factos; se um dado não existir, dizes isso em vez de inventar.
+Origem das leads: "manual" = adicionada à mão (a prospeção de brokers foi criada pelo Claude a 1/11); "importacao" = ficheiro importado; "porta" = porta a porta; leadsDoSite = formulários do luminai.pt (análise gratuita / simulação). O "LUMIN Growth" é o playbook de crescimento (SEO + prospeção por email), não uma fonte de dados.
+Quando fizer sentido, terminas com a próxima ação concreta.
+
+AÇÕES: podes PROPOR (nunca executas tu) uma destas ações, e o Miguel confirma num botão:
+- atualizar_lead: {"tipo":"atualizar_lead","lead_id":"<id da lista de prospeção ou leadsDoSite>","status":"<${LEAD_STATUS.join("|")}>","nota":"texto opcional","resumo":"frase curta"}
+- nova_lead: {"tipo":"nova_lead","nome":"...","telefone":"9 dígitos","email":"opcional","localidade":"opcional","nota":"opcional","resumo":"frase curta"}
+- aviso: {"tipo":"aviso","texto":"lembrete a enviar já para o telemóvel","resumo":"frase curta"}
+Para propor, escreve a resposta normal e no fim UM bloco exatamente assim:
+\`\`\`acao
+{json numa só linha}
+\`\`\`
+Só uma ação por resposta, só quando o Miguel pede ou claramente quer (ex.: "a SNU não atendeu", "marca a NOX como interessada", "adiciona esta empresa", "lembra-me de ligar à Bergcom").
+Fora destas ações (preços, reembolsos, planos pagos, publicar, mensagens a clientes, código) não tens acesso: explica o que é preciso e diz que se faz no Claude.`
+
+function splitAction(text: string) {
+  const m = text.match(/```acao\s*([\s\S]*?)```/i)
+  if (!m) return { reply: text.trim(), action: null as any }
+  let action = null
+  try { action = parseAction(JSON.parse(m[1].trim())) } catch {}
+  const reply = text.replace(m[0], "").trim()
+  return { reply: reply || (action ? describeAction(action) : ""), action: action ? { ...action, descricao: describeAction(action) } : null }
+}
 
 export async function POST(req: Request) {
   if (!(await adminEmail(req))) return NextResponse.json({ error: "Acesso reservado ao administrador." }, { status: 403 })
@@ -40,10 +61,11 @@ export async function POST(req: Request) {
           .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 2000) })),
         { role: "user", content: question },
       ],
-      maxOutputTokens: 900,
+      maxOutputTokens: 1100,
       temperature: 0.3,
     })
-    return NextResponse.json({ reply: result.text, model: result.model })
+    const { reply, action } = splitAction(result.text)
+    return NextResponse.json({ reply, action, model: result.model })
   } catch (e: any) {
     return NextResponse.json({ error: "A IA não respondeu agora. Os números do painel continuam atualizados.", detail: String(e?.message || e).slice(0, 200) }, { status: 502 })
   }
