@@ -12,7 +12,8 @@ import {
 
 export const runtime = "nodejs"
 
-const PERSONAL_PRO_PAYMENT_LINK = "https://buy.stripe.com/00w5kDevP7vEbGEdsh5Rm0a"
+const PERSONAL_PRO_PAYMENT_LINK = "https://buy.stripe.com/00w5kDevP7vEbGEdsh5Rm0a" // Starter 9,99€/mês
+const BUSINESS_PRO_PAYMENT_LINK = "https://buy.stripe.com/8x228revPeY6dOMgEt5Rm0f" // Pro 69,99€/mês
 const META_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid"] as const
 
 function safeMeta(value: unknown) {
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       body?.plan === "business_team" ? "business_team" : body?.plan === "business" ? "business" : "personal_pro"
 
     const isBusinessAccount = sessionUser.accountType === "business"
-    if ((requestedPlan === "business" || requestedPlan === "business_team") && !isBusinessAccount) {
+    if (requestedPlan === "business_team" && !isBusinessAccount) {
       return NextResponse.json({ error: "Este plano requer uma conta Empresa." }, { status: 400 })
     }
 
@@ -55,7 +56,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: url.toString(), plan: requestedPlan, mode: "payment_link" })
     }
 
-    // Keep the existing API-created Checkout Session flow for business plans.
+    if (requestedPlan === "business") {
+      const url = new URL(BUSINESS_PRO_PAYMENT_LINK)
+      url.searchParams.set("locked_prefilled_email", email)
+      if (userId) url.searchParams.set("client_reference_id", `lumin_business_${userId}`)
+      return NextResponse.json({ url: url.toString(), plan: requestedPlan, mode: "payment_link" })
+    }
+
+    // Keep the existing API-created Checkout Session flow for business team plans.
     const secretKey = getStripeSecretKey()
     if (!secretKey) {
       return NextResponse.json(

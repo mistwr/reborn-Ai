@@ -15,9 +15,9 @@ interface CreditStatus {
 type PackId = "starter" | "boost" | "max"
 
 const PACKS: Array<{ id: PackId; label: string; credits: number; price: string; highlight?: boolean }> = [
-  { id: "starter", label: "Boost", credits: 20_000, price: "9,99 €" },
-  { id: "boost", label: "Power", credits: 60_000, price: "24,99 €", highlight: true },
-  { id: "max", label: "Max", credits: 150_000, price: "49,99 €" },
+  { id: "starter", label: "Boost", credits: 20_000, price: "19 €" },
+  { id: "boost", label: "Power", credits: 60_000, price: "49 €", highlight: true },
+  { id: "max", label: "Max", credits: 150_000, price: "99 €" },
 ]
 
 function formatNumber(value?: number) {

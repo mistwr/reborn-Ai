@@ -8,19 +8,19 @@ const CREDIT_PACKS = {
   starter: {
     name: "20.000 créditos",
     credits: 20_000,
-    paymentLink: "https://buy.stripe.com/6oU7sL5Zj03c8us1Jz5Rm0d",
+    paymentLink: "https://buy.stripe.com/3cIcN5evPdU2cKIfAp5Rm0g",
     refPrefix: "lumin_credits20_",
   },
   boost: {
     name: "60.000 créditos",
     credits: 60_000,
-    paymentLink: "https://buy.stripe.com/8x23cv4Vf5nw8usbk95Rm0b",
+    paymentLink: "https://buy.stripe.com/fZu6oH0EZeY6h0Y73T5Rm0h",
     refPrefix: "lumin_credits60_",
   },
   max: {
     name: "150.000 créditos",
     credits: 150_000,
-    paymentLink: "https://buy.stripe.com/5kQcN53Rb3fo7qo1Jz5Rm0c",
+    paymentLink: "https://buy.stripe.com/3cI00jafz9DM264ag55Rm0i",
     refPrefix: "lumin_credits150_",
   },
 } as const
