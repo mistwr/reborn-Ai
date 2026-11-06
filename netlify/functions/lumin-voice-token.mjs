@@ -64,8 +64,11 @@ export default async function handler(request) {
       response = await request1(base);
     }
     if (!response.ok) {
-      console.warn('[Lumin voice] token provider status', response.status, (await response.text()).slice(0, 300));
-      return json({ code: response.status === 429 ? 'VOICE_QUOTA' : 'VOICE_PROVIDER_ERROR', error: response.status === 429 ? 'O serviço de voz atingiu o limite de utilização. Tenta mais tarde.' : 'Não foi possível autorizar a voz. A configuração do fornecedor precisa de ser verificada.' }, response.status === 429 ? 429 : 502);
+      const providerText = (await response.text()).slice(0, 400);
+      console.warn('[Lumin voice] token provider status', response.status, providerText);
+      let providerMessage = '';
+      try { providerMessage = String(JSON.parse(providerText)?.error?.message || '').slice(0, 240); } catch {}
+      return json({ code: response.status === 429 ? 'VOICE_QUOTA' : 'VOICE_PROVIDER_ERROR', providerStatus: response.status, providerMessage, error: response.status === 429 ? 'O serviço de voz atingiu o limite de utilização. Tenta mais tarde.' : 'Não foi possível autorizar a voz. A configuração do fornecedor precisa de ser verificada.' }, response.status === 429 ? 429 : 502);
     }
     const result = await response.json();
     if (typeof result.name !== 'string' || !result.name.startsWith('auth_tokens/')) return json({ error: 'O serviço devolveu uma sessão inválida.' }, 502);
@@ -76,4 +79,4 @@ export default async function handler(request) {
 }
 
 // Enforced at Netlify's edge across function instances, before provider calls.
-export const config = { rateLimit: { action: 'rate_limit', aggregateBy: 'ip', windowLimit: 3, windowSize: 600 } };
+export const config = { rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 6, windowSize: 600 } };
