@@ -67,7 +67,8 @@ export default async function handler(request) {
       const providerText = (await response.text()).slice(0, 400);
       console.warn('[Lumin voice] token provider status', response.status, providerText);
       let providerMessage = '';
-      try { providerMessage = String(JSON.parse(providerText)?.error?.message || '').slice(0, 240); } catch {}
+      try { const p = JSON.parse(providerText); providerMessage = String((Array.isArray(p) ? p[0] : p)?.error?.message || '').slice(0, 240); } catch {}
+      if (!providerMessage) providerMessage = providerText.replace(/AIza[0-9A-Za-z_-]{20,}/g, '***').slice(0, 240);
       return json({ code: response.status === 429 ? 'VOICE_QUOTA' : 'VOICE_PROVIDER_ERROR', providerStatus: response.status, providerMessage, error: response.status === 429 ? 'O serviço de voz atingiu o limite de utilização. Tenta mais tarde.' : 'Não foi possível autorizar a voz. A configuração do fornecedor precisa de ser verificada.' }, response.status === 429 ? 429 : 502);
     }
     const result = await response.json();
