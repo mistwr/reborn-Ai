@@ -4,15 +4,25 @@ const ALLOWED_ORIGINS = new Set([
   'https://elaborate-begonia-9d097b.netlify.app',
 ]);
 
-const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+let corsOrigin = '';
+const json = (data, status = 200) => Response.json(data, { status, headers: {
+  'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+  ...(corsOrigin ? { 'Access-Control-Allow-Origin': corsOrigin, 'Vary': 'Origin' } : {}),
+} });
 const env = key => globalThis.Netlify?.env?.get(key) || process.env[key];
 const text = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 
 export default async function handler(request) {
   // Public, bounded browser demo. No long-lived credentials leave this handler.
+  const origin = request.headers.get('origin') || '';
+  corsOrigin = ALLOWED_ORIGINS.has(origin) ? origin : '';
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: corsOrigin ? 204 : 403, headers: corsOrigin ? { 'Access-Control-Allow-Origin': corsOrigin, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600', 'Vary': 'Origin' } : {} });
+  }
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
-  if (!ALLOWED_ORIGINS.has(request.headers.get('origin'))) return json({ error: 'Origem não permitida.' }, 403);
-  if (!request.headers.get('content-type')?.includes('application/json')) return json({ error: 'Formato inválido.' }, 415);
+  if (!corsOrigin) return json({ error: 'Origem não permitida.' }, 403);
+  const ct = request.headers.get('content-type') || '';
+  if (!ct.includes('application/json') && !ct.includes('text/plain')) return json({ error: 'Formato inválido.' }, 415);
   const key = env('GOOGLE_GENERATIVE_AI_API_KEY') || env('GEMINI_API_KEY');
   if (!key) return json({ code: 'VOICE_NOT_CONFIGURED', error: 'O serviço de voz ainda não está configurado.' }, 503);
   let body;
@@ -42,18 +52,24 @@ export default async function handler(request) {
   };
   const expiresAt = new Date(Date.now() + 180000).toISOString();
   try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+    const base = { uses: 1, expireTime: expiresAt, newSessionExpireTime: new Date(Date.now() + 60000).toISOString() };
+    const request1 = (body) => fetch('https://generativelanguage.googleapis.com/v1alpha/auth_tokens', {
       method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uses: 1, expireTime: expiresAt, newSessionExpireTime: new Date(Date.now() + 60000).toISOString(), liveConnectConstraints: { model: setup.model, config: { responseModalities: ['AUDIO'], speechConfig: setup.generationConfig.speechConfig, systemInstruction: setup.systemInstruction, inputAudioTranscription: {}, outputAudioTranscription: {} } } }),
-      signal: AbortSignal.timeout(12000),
+      body: JSON.stringify(body), signal: AbortSignal.timeout(12000),
     });
+    // Token bloqueado à configuração desta demo (modelo, voz e instruções não podem ser trocados no browser).
+    let response = await request1({ ...base, bidiGenerateContentSetup: setup });
     if (!response.ok) {
-      console.warn('[Lumin voice] token provider status', response.status);
+      console.warn('[Lumin voice] constrained token failed', response.status, (await response.text()).slice(0, 300));
+      response = await request1(base);
+    }
+    if (!response.ok) {
+      console.warn('[Lumin voice] token provider status', response.status, (await response.text()).slice(0, 300));
       return json({ code: response.status === 429 ? 'VOICE_QUOTA' : 'VOICE_PROVIDER_ERROR', error: response.status === 429 ? 'O serviço de voz atingiu o limite de utilização. Tenta mais tarde.' : 'Não foi possível autorizar a voz. A configuração do fornecedor precisa de ser verificada.' }, response.status === 429 ? 429 : 502);
     }
     const result = await response.json();
     if (typeof result.name !== 'string' || !result.name.startsWith('auth_tokens/')) return json({ error: 'O serviço devolveu uma sessão inválida.' }, 502);
-    return json({ token: result.name, setup, expiresAt, maxDurationSeconds: 180 });
+    return json({ token: result.name, setup, expiresAt, maxDurationSeconds: 180, wsUrl: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained' });
   } catch {
     return json({ code: 'VOICE_UNAVAILABLE', error: 'O serviço de voz não respondeu a tempo. Tenta novamente.' }, 503);
   }
